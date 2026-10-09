@@ -559,7 +559,8 @@ def test_sanitize_filename_keeps_names_that_only_start_with_a_reserved_word() ->
 def test_save_as_truncates_stem_without_splitting_combining_marks(
     ppt: Callable[..., PowerPointController], tmp_path: Path
 ) -> None:
-    folder = tmp_path / ("d" * 150)
+    # Pad to a fixed folder length so a long real tmp_path (Windows) cannot leave no room for the stem.
+    folder = tmp_path / ("d" * (150 - len(str(tmp_path)) - 1))
     presentation = FakePresentation("Deck.pptx", path=str(folder))
     # "q" + combining acute has no precomposed form, so NFC keeps it as two code points.
     result = ppt(FakeApp(presentation)).save_as(make_ctx(title="Deck.pptx"), "q\u0301" * 50)
@@ -572,7 +573,10 @@ def test_save_as_truncates_stem_without_splitting_combining_marks(
 def test_save_as_keeps_full_path_within_240_even_with_copy_suffix(
     ppt: Callable[..., PowerPointController], tmp_path: Path
 ) -> None:
-    folder = tmp_path / ("d" * 120)
+    pad = 150 - len(str(tmp_path)) - 1
+    if pad < 1:
+        pytest.skip("tmp_path already too long to build a 150-character folder")
+    folder = tmp_path / ("d" * pad)
     folder.mkdir()
     (folder / ("a" * 120 + ".pptx")).write_bytes(b"")
     presentation = FakePresentation("Deck.pptx", path=str(folder))
@@ -660,7 +664,9 @@ def test_unique_path_adds_counter(tmp_path: Path) -> None:
     assert desktop.unique_path(tmp_path, "Báo cáo.pptx") == tmp_path / "Báo cáo (3).pptx"
 
 
-def test_known_folders_fall_back_off_windows() -> None:
+def test_known_folders_fall_back_off_windows(monkeypatch: pytest.MonkeyPatch) -> None:
+    # On real Windows the Known Folder may be redirected (OneDrive), so force the fallback path.
+    monkeypatch.setattr(desktop, "_known_folder", lambda folder_id, fallback: fallback)
     assert desktop.documents_dir() == Path.home() / "Documents"
     assert desktop.pictures_dir() == Path.home() / "Pictures"
 
