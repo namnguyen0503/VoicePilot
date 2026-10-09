@@ -115,11 +115,12 @@ class _Resampler:
 def _mono_float(chunk: np.ndarray) -> np.ndarray:
     """Downmix to one channel and return samples on the int16 scale as float64."""
     data = np.asarray(chunk)
-    if data.ndim == 2:
-        data = data.mean(axis=1)
-    if np.issubdtype(data.dtype, np.floating):
-        return data.astype(np.float64) * 32768.0
-    return data.astype(np.float64)
+    # Decide the scale from the device dtype before downmixing: mean() turns int16 into float64.
+    scale = 32768.0 if np.issubdtype(data.dtype, np.floating) else 1.0
+    samples = data.astype(np.float64)
+    if samples.ndim == 2:
+        samples = samples.mean(axis=1)
+    return samples * scale
 
 
 def _to_int16(samples: np.ndarray) -> np.ndarray:

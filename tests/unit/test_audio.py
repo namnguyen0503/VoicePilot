@@ -418,3 +418,20 @@ def test_on_level_is_called_with_normalized_levels() -> None:
     assert collected
     assert all(0.0 <= v <= 1.0 for v in collected)
     assert max(collected) > 0.5
+
+
+@pytest.mark.parametrize(
+    ("chunk", "expected"),
+    [
+        # sounddevice delivers int16 as shape (frames, 1); a 2-D int16 chunk must keep its scale.
+        (np.full((480, 1), 1000, dtype=np.int16), 1000),
+        (np.full((480, 2), 1000, dtype=np.int16), 1000),
+        (np.full((480, 1), 0.5, dtype=np.float32), 16384),
+        (np.full(480, 1000, dtype=np.int16), 1000),
+    ],
+)
+def test_frame_source_keeps_int16_scale_for_device_shaped_chunks(chunk: np.ndarray, expected: int) -> None:
+    (frame,) = capture._FrameSource(16000).push(chunk)
+
+    samples = np.frombuffer(frame, dtype="<i2")
+    assert samples.min() == samples.max() == expected
