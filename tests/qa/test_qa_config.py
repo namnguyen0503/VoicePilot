@@ -40,6 +40,9 @@ def test_shipped_website_table_matches_commands_doc(config_home):
         "gmail": "https://mail.google.com",
         "github": "https://github.com",
         "chatgpt": "https://chatgpt.com",
+        "claude": "https://claude.ai",
+        # Gipformer hears "claude.ai" as "cloud chấm ai" (real Windows recording).
+        "cloud chấm ai": "https://claude.ai",
         "vnexpress": "https://vnexpress.net",
         "zalo": "https://chat.zalo.me",
         "shopee": "https://shopee.vn",

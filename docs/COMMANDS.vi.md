@@ -84,6 +84,7 @@ Danh sách dưới đây là tên có sẵn. Bạn có thể thêm tên khác tr
 | gmail | https://mail.google.com |
 | github | https://github.com |
 | chatgpt | https://chatgpt.com |
+| claude (cloud, cờ lốt, claude chấm ai) | https://claude.ai |
 | vnexpress | https://vnexpress.net |
 | zalo | https://chat.zalo.me |
 | shopee | https://shopee.vn |
