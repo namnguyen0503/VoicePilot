@@ -61,3 +61,35 @@ def test_without_margin_the_old_behaviour_treats_noise_as_speech() -> None:
     ep = make(margin=None)
     run(ep, [noise()] * 30)
     assert ep.speech_started
+
+
+def test_recorder_with_vad_disabled_records_until_stopped() -> None:
+    import threading
+
+    from voicepilot.audio.capture import Recorder
+    from voicepilot.config import AppConfig
+    from voicepilot.contracts import Mode
+
+    stop = threading.Event()
+
+    class Stream:
+        def __init__(self, callback):
+            self.callback = callback
+
+        def start(self) -> None:
+            # 1 s of steady noise, then the user presses the hotkey again.
+            for _ in range(10):
+                self.callback(np.full((1600, 1), 460, dtype=np.int16), 1600, None, None)
+            stop.set()
+
+        def stop(self) -> None:
+            pass
+
+        def close(self) -> None:
+            pass
+
+    config = AppConfig(vad_enabled=False)
+    recorder = Recorder(config, input_rate=16000, stream_factory=lambda **kw: Stream(kw["callback"]))
+    clip = recorder.record(1, Mode.COMMAND, stop, threading.Event())
+    assert clip is not None
+    assert len(clip.samples) >= 16000 * 2 * 0.9

@@ -178,6 +178,10 @@ def _sounddevice_stream(
     )
 
 
+def _always_speech(frame: bytes) -> bool:
+    return True
+
+
 class Recorder:
     """Records one utterance per call, ending on silence, stop, cancel or timeout.
 
@@ -235,12 +239,14 @@ class Recorder:
         max_s = self._config.max_dictation_s if mode is Mode.DICTATION else self._config.max_command_s
         rate = self._input_rate if self._input_rate is not None else _device_samplerate(self._device)
         chunks: queue.SimpleQueue[np.ndarray] = queue.SimpleQueue()
+        use_vad = self._config.vad_enabled
         endpointer = Endpointer(
             silence_end_ms=self._config.silence_end_ms,
             max_duration_ms=max_s * 1000,
             no_speech_timeout_ms=round(self._config.no_speech_timeout_s * 1000),
-            is_speech=self._is_speech,
-            noise_margin_db=_NOISE_MARGIN_DB if self._is_speech is None else None,
+            # VAD off: every frame counts as speech, so the hotkey (stop) or max duration ends the clip.
+            is_speech=self._is_speech if use_vad else _always_speech,
+            noise_margin_db=_NOISE_MARGIN_DB if use_vad and self._is_speech is None else None,
         )
         source = _FrameSource(rate)
         stream = self._open(rate, chunks.put)

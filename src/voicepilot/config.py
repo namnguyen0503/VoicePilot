@@ -46,6 +46,7 @@ class AppConfig:
 
     hotkey_listen: str = "ctrl+alt+space"
     hotkey_mode: str = "ctrl+alt+d"
+    vad_enabled: bool = True
     silence_end_ms: int = 800
     max_command_s: int = 15
     max_dictation_s: int = 30

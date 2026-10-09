@@ -5,6 +5,7 @@
 
 hotkey_listen = "ctrl+alt+space"
 hotkey_mode = "ctrl+alt+d"
+vad_enabled = true
 silence_end_ms = 800
 max_command_s = 15
 max_dictation_s = 30
