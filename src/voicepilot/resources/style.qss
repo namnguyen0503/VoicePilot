@@ -1,0 +1,132 @@
+/* VoicePilot: giao diện tối với điểm nhấn xanh (#3b82f6). */
+
+/* Thanh nổi */
+QWidget#overlay {
+    background-color: #111827;
+    border: 1px solid #1f2937;
+    border-radius: 14px;
+}
+
+QLabel#overlayMode {
+    background-color: #1e3a8a;
+    color: #bfdbfe;
+    border-radius: 6px;
+    padding: 1px 8px;
+    font-weight: 600;
+}
+
+QLabel#overlayTarget {
+    color: #9ca3af;
+    font-size: 12px;
+}
+
+QLabel#overlayStatus {
+    color: #d1d5db;
+    font-size: 12px;
+}
+
+QLabel#overlayTranscript {
+    color: #f9fafb;
+    font-size: 15px;
+}
+
+QToolButton#overlayCancel {
+    background-color: transparent;
+    color: #9ca3af;
+    border: none;
+    border-radius: 6px;
+    padding: 2px 6px;
+}
+
+QToolButton#overlayCancel:hover {
+    background-color: #1f2937;
+    color: #f9fafb;
+}
+
+QProgressBar#overlayLevel {
+    background-color: #1f2937;
+    border: none;
+    border-radius: 3px;
+    max-height: 6px;
+}
+
+QProgressBar#overlayLevel::chunk {
+    background-color: #3b82f6;
+    border-radius: 3px;
+}
+
+/* Nút, hộp thoại và menu */
+QDialog {
+    background-color: #0f172a;
+    color: #f9fafb;
+}
+
+QLabel#settingsError {
+    color: #f87171;
+}
+
+QLineEdit,
+QComboBox,
+QSpinBox {
+    background-color: #111827;
+    color: #f9fafb;
+    border: 1px solid #374151;
+    border-radius: 6px;
+    padding: 4px 6px;
+    selection-background-color: #1e3a8a;
+}
+
+QLineEdit:focus,
+QComboBox:focus,
+QSpinBox:focus {
+    border-color: #3b82f6;
+}
+
+QComboBox QAbstractItemView {
+    background-color: #111827;
+    color: #f9fafb;
+    selection-background-color: #1e3a8a;
+}
+
+QCheckBox {
+    color: #f9fafb;
+    spacing: 8px;
+}
+
+QPushButton {
+    background-color: #1f2937;
+    color: #f9fafb;
+    border: 1px solid #374151;
+    border-radius: 8px;
+    padding: 6px 12px;
+}
+
+QPushButton:hover {
+    border-color: #3b82f6;
+}
+
+QPushButton:pressed {
+    background-color: #1e3a8a;
+}
+
+QPushButton#primaryButton {
+    background-color: #3b82f6;
+    border-color: #3b82f6;
+    color: #ffffff;
+}
+
+QMenu {
+    background-color: #111827;
+    color: #f9fafb;
+    border: 1px solid #1f2937;
+}
+
+QMenu::item:selected {
+    background-color: #1e3a8a;
+}
+
+QToolTip {
+    background-color: #111827;
+    color: #f9fafb;
+    border: 1px solid #374151;
+}

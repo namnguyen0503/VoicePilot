@@ -1,0 +1,18 @@
+# Môi trường và build
+.venv/
+__pycache__/
+*.py[cod]
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+
+# Model và dữ liệu nhị phân (manifest models.toml vẫn được theo dõi)
+models/**/*.onnx
+models/**/*.onnx.json
+models/**/*.bin
+models/**/*.txt
+*.onnx
+*.wav
+.mypy_cache/
+.ruff_cache/

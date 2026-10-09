@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "voicepilot"
+version = "0.1.0"
+description = "Trợ lý giọng nói tiếng Việt cho Windows: điều khiển PowerPoint, trình duyệt và ứng dụng bằng lệnh thoại."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "GPL-3.0-or-later"
+authors = [{ name = "VoicePilot contributors" }]
+keywords = ["voice", "assistant", "vietnamese", "windows", "speech-to-text"]
+classifiers = [
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: Microsoft :: Windows",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+]
+dependencies = [
+    "PySide6-Essentials",
+    "sounddevice",
+    "numpy",
+    "webrtcvad-wheels",
+    "SpeechRecognition",
+    "sherpa-onnx",
+    "mss",
+    "pywin32; sys_platform == 'win32'",
+    "tomli-w",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-qt", "ruff==0.16.10"]
+build = ["pyinstaller==6.22.3"]
+benchmark = ["psutil==7.2.2"]
+
+[project.scripts]
+voicepilot = "voicepilot.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["voicepilot*"]
+
+[tool.setuptools.package-data]
+voicepilot = ["resources/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 110
+target-version = "py312"
+extend-exclude = ["build", "dist", "models", ".venv"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "B", "I"]

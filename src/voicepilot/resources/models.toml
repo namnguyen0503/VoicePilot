@@ -1,0 +1,83 @@
+# Model manifest for VoicePilot. Model files are not stored in Git.
+# tools/download_models.py reads this file and installs each entry into models/<dest>/.
+#
+# Schema: one [[model]] table per model.
+#   id        (required) model identifier.
+#   kind      (required) "asr" or "tts".
+#   engine    (required) "sherpa-onnx" (every model runs on sherpa-onnx).
+#   source    (required) "huggingface" or "github-release".
+#   dest      (required) directory RELATIVE TO THE models/ FOLDER, e.g. "asr/gipformer1.5-int8"
+#             -> models/asr/gipformer1.5-int8/. Matches paths.models_dir() / <dest>.
+#   homepage  (optional) upstream project page.
+#   license   (required) license of the model weights or data, as verified.
+#   license_url (optional) page where the license was verified.
+#   files     (required) array of { name, sha256 }. name is relative to dest.
+#
+# source = "huggingface" (Gipformer): the entry also needs repo and revision (a full 40-character
+#   commit hash; URLs never use "main") and optional path (directory inside the repo).
+#   Each file has sha256; "TODO" means not verified yet: the downloader skips the check, prints
+#   the computed hash, and the value should be copied here.
+#
+# source = "github-release": the entry needs url (https://github.com/...), archive_sha256 (required,
+#   no TODO) and extract = "tar.bz2". The archive's single top-level folder is dropped, so name
+#   is the path inside dest after extraction (e.g. "espeak-ng-data/phontab"). Files take no sha256:
+#   archive_sha256 covers them.
+#
+# ASR role keys (encoder, decoder, joiner, tokens) sit next to the model's other keys.
+# stt/gipformer.py reads these names; do not rename them.
+#
+# sherpa-onnx settings used by the upstream infer_onnx.py (verified at commit 54fa79b):
+#   OfflineRecognizer.from_transducer(encoder, decoder, joiner, tokens,
+#       sample_rate=16000, feature_dim=80, decoding_method="greedy_search", num_threads=...)
+#   sherpa-onnx >= 1.13 requires both the sherpa-onnx and sherpa-onnx-core packages.
+
+[[model]]
+id = "gipformer1.5-int8"
+kind = "asr"
+engine = "sherpa-onnx"
+source = "huggingface"
+repo = "g-group-ai-lab/gipformer1.5-68M-rnnt"
+homepage = "https://github.com/ggroup-ai-lab/gipformer"
+license = "MIT"
+license_url = "https://huggingface.co/g-group-ai-lab/gipformer1.5-68M-rnnt"
+# Commit that added the INT8 weights (Hugging Face blob pages show this revision for the
+# .onnx files). The current main head is dd9227d, which does not change these files.
+revision = "54fa79b1fb790422fa27b2f1a771161f9521ca48"
+dest = "asr/gipformer1.5-int8"
+encoder = "encoder.int8.onnx"
+decoder = "decoder.int8.onnx"
+joiner = "joiner.int8.onnx"
+tokens = "tokens.txt"
+# sha256 values are Hugging Face LFS oids (checked twice). tokens.txt is not shown as an LFS file,
+# so no sha256 is listed for it; the downloader prints its hash for the manifest.
+files = [
+  { name = "encoder.int8.onnx", sha256 = "b528768939c7711a889be81a718ea7f2ee50d0d2d384d53f399e15b44bd9408c" },
+  { name = "decoder.int8.onnx", sha256 = "e0a156b5454722a524230f9e35d5d928cfcdd3723437b418e5bd5e04f1c3a101" },
+  { name = "joiner.int8.onnx", sha256 = "12636559d135315f002a1e1b477077d415e888477378db0fd450aee5b21ac551" },
+  { name = "tokens.txt", sha256 = "TODO" },
+]
+
+[[model]]
+id = "vi_VN-vais1000-medium"
+kind = "tts"
+engine = "sherpa-onnx"
+source = "github-release"
+# Piper VITS voice (vi_VN, vais1000, medium) packaged for sherpa-onnx by k2-fsa. The voice
+# itself comes from rhasspy/piper-voices (vi/vi_VN/vais1000/medium). Release asset of tag tts-models.
+homepage = "https://k2-fsa.github.io/sherpa/onnx/tts/piper.html"
+url = "https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-vi_VN-vais1000-medium.tar.bz2"
+# sha256 of the 67,154,040-byte release asset, computed from the downloaded file on 2026-10-09.
+archive_sha256 = "fa1367710767d36ed5cf13b4a449e20c35ffd12791c2e47c2e64142bfa55551a"
+extract = "tar.bz2"
+dest = "tts/vits-piper-vi_VN-vais1000-medium"
+# Piper repository and code are MIT. The VAIS-1000 training data is CC BY 4.0 (see MODEL_CARD in the
+# archive). The voice was fine-tuned from the "lessac" English voice; its training-data terms are not verified.
+license = "MIT (Piper voices); VAIS-1000 training data CC BY 4.0"
+license_url = "https://huggingface.co/rhasspy/piper-voices/blob/main/vi/vi_VN/vais1000/medium/MODEL_CARD"
+# Expected after extraction. The espeak-ng-data marker is one of its data files; the folder is needed
+# by sherpa-onnx for phonemization.
+files = [
+  { name = "vi_VN-vais1000-medium.onnx" },
+  { name = "tokens.txt" },
+  { name = "espeak-ng-data/phontab" },
+]

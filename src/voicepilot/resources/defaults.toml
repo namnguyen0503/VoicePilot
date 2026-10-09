@@ -1,0 +1,55 @@
+# Cấu hình mặc định của VoicePilot.
+# Người dùng ghi đè các giá trị này trong %LOCALAPPDATA%\VoicePilot\config.toml.
+# Bảng [websites] và [apps] được gộp theo từng khóa: khóa của người dùng ghi đè khóa mặc định.
+# Khóa alias viết thường, giữ nguyên dấu tiếng Việt.
+
+hotkey_listen = "ctrl+alt+space"
+hotkey_mode = "ctrl+alt+d"
+silence_end_ms = 800
+max_command_s = 15
+max_dictation_s = 30
+no_speech_timeout_s = 5
+google_timeout_s = 2.0
+stt_mode = "hybrid"          # hybrid | google | offline
+gipformer_threads = 2
+tts_enabled = true
+tts_voice = "vi_VN-vais1000-medium"
+history_size = 20
+
+# Website: tên nói -> URL. Có thể dùng thêm cách đọc tiếng Việt.
+[websites]
+"youtube" = "https://www.youtube.com"
+"yu túp" = "https://www.youtube.com"
+"du túp" = "https://www.youtube.com"
+"facebook" = "https://www.facebook.com"
+"phây búc" = "https://www.facebook.com"
+"google" = "https://www.google.com"
+"gờ gồ" = "https://www.google.com"
+"gmail" = "https://mail.google.com"
+"gờ meo" = "https://mail.google.com"
+"github" = "https://github.com"
+"chatgpt" = "https://chatgpt.com"
+"chát gi pi ti" = "https://chatgpt.com"
+"vnexpress" = "https://vnexpress.net"
+"zalo" = "https://chat.zalo.me"
+"shopee" = "https://shopee.vn"
+"wikipedia" = "https://vi.wikipedia.org"
+"vi ki pê đi a" = "https://vi.wikipedia.org"
+
+# Ứng dụng: tên nói -> đích khởi chạy (tệp .exe hoặc tên App Paths/URI của Windows).
+[apps]
+"powerpoint" = "POWERPNT.EXE"
+"pao poi" = "POWERPNT.EXE"
+"pao pôi" = "POWERPNT.EXE"
+"power point" = "POWERPNT.EXE"
+"word" = "WINWORD.EXE"
+"excel" = "EXCEL.EXE"
+"ếch xeo" = "EXCEL.EXE"
+"edge" = "msedge"
+"trình duyệt" = "msedge"
+"chrome" = "chrome"
+"crôm" = "chrome"
+"notepad" = "notepad.exe"
+"nốt pát" = "notepad.exe"
+"calculator" = "calc.exe"
+"máy tính" = "calc.exe"

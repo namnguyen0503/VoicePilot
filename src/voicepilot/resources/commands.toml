@@ -1,0 +1,277 @@
+# VoicePilot command table, read by voicepilot/intent/parser.py.
+#
+# Each [[intent]] table has these keys:
+#   name     (required) an Intent member from contracts.py, e.g. "PPT_NEXT_SLIDE".
+#   patterns (required, except DICTATE_TEXT) Vietnamese phrasings. Write them as you would say them;
+#            matching normalizes case, punctuation and spacing on both sides.
+#            A placeholder {name} captures the spoken text at that position.
+#            Allowed placeholders: query, filename, site, app_name, target.
+#            A pattern without placeholders is a bare phrase; if the intent has params, the
+#            missing params are reported (for example "tìm" alone gives missing query).
+#   context  (optional) PREFERRED window context for ambiguous phrases. Values: "powerpoint",
+#            "browser", "other", "none". It does NOT filter matches. A phrase that only one
+#            intent owns is parsed regardless of the window (the executor then reports that
+#            the target app is not available). Only a phrase shared by several intents at the
+#            same specificity (e.g. "tiếp theo", "quay lại", "mở mới", "đóng") uses context to
+#            choose; with no fitting context such a phrase is UNKNOWN with an example.
+#            Omit the key for commands that work in any window.
+#   params   (optional) parameters the intent needs. A missing one makes the Command
+#            non-executable and gives Command.missing.
+#   example  (optional) phrase suggested when the command is unknown or incomplete.
+#
+# Matching rules (implemented in parser.py):
+#   1. Pass 1 compares diacritic-preserving normalized text; pass 2 compares diacritic-free
+#      text. Pass 2 is used when pass 1 finds nothing, or when it matches a strictly more specific
+#      phrase of the same intent.
+#   2. Polite fillers ("làm ơn", "giúp tôi", "hãy", "nhé", "ạ", "ơi", ...) are removed from the
+#      start and end of the utterance before matching; see parser.py for the list. "đi" and "với"
+#      are also removed for rules without free text, so "mở youtube đi" works. Free-text captures
+#      ({query}, {filename}) keep them: "tìm đường đi" searches for "đường đi".
+#   3. The most specific rule wins: the one with the longest literal text.
+#   4. Captured values keep the original text (case, diacritics, inner punctuation, and a closing
+#      bracket or quote that balances one inside the value).
+#   5. "{target}" is special: "mở {target}" routes to a website (alias, http(s) URL or bare domain)
+#      or an app alias, whichever resolves. A name that resolves to neither is UNKNOWN.
+#   6. DICTATE_TEXT is mode-driven: in dictation mode every utterance is text, and no pattern is used.
+#
+# Speech sources: Google (diacritics, mixed case, punctuation, digits) and Gipformer (lowercase,
+# often no punctuation). Both produce the same matches.
+
+# ---------------------------------------------------------------- PowerPoint
+
+[[intent]]
+name = "PPT_SAVE"
+patterns = ["lưu", "lưu lại", "lưu file", "lưu tệp", "lưu bài trình chiếu", "save"]
+context = ["powerpoint"]
+example = "Lưu"
+
+[[intent]]
+name = "PPT_SAVE_AS"
+patterns = [
+    "lưu thành {filename}",
+    "lưu thành",
+    "lưu tên khác là {filename}",
+    "lưu tên khác",
+    "lưu với tên {filename}",
+    "lưu lại với tên {filename}",
+    "lưu file thành {filename}",
+]
+context = ["powerpoint"]
+params = ["filename"]
+example = "Lưu thành báo cáo tháng 10"
+
+[[intent]]
+name = "PPT_NEXT_SLIDE"
+patterns = [
+    "slide tiếp",
+    "slide tiếp theo",
+    "slide kế tiếp",
+    "slide sau",
+    "trang tiếp",
+    "trang tiếp theo",
+    "trang sau",
+    "chuyển slide",
+    "chuyển slide tiếp",
+    "qua slide",
+    "sang slide",
+    "sang trang sau",
+    "qua trang",
+    "tiếp theo",
+    "next slide",
+    "sờ lai tiếp",
+    "sờ lai sau",
+]
+context = ["powerpoint"]
+example = "Slide tiếp theo"
+
+[[intent]]
+name = "PPT_PREV_SLIDE"
+patterns = [
+    "slide trước",
+    "slide trước đó",
+    "slide trước đây",
+    "trang trước",
+    "trang trước đó",
+    "về slide trước",
+    "sang slide trước",
+    "quay lại slide",
+    "lùi slide",
+    "lùi trang",
+    "quay lại",
+    "previous slide",
+    "sờ lai trước",
+]
+context = ["powerpoint"]
+example = "Slide trước"
+
+[[intent]]
+name = "PPT_START_SHOW"
+patterns = [
+    "bắt đầu trình chiếu",
+    "trình chiếu",
+    "trình chiếu slide",
+    "mở trình chiếu",
+    "bật trình chiếu",
+    "bắt đầu chiếu",
+    "chiếu slide",
+    "start show",
+    "slideshow",
+]
+context = ["powerpoint"]
+example = "Bắt đầu trình chiếu"
+
+[[intent]]
+name = "PPT_STOP_SHOW"
+patterns = [
+    "dừng trình chiếu",
+    "kết thúc trình chiếu",
+    "thoát trình chiếu",
+    "tắt trình chiếu",
+    "đóng trình chiếu",
+    "dừng chiếu",
+    "kết thúc chiếu",
+    "end show",
+]
+context = ["powerpoint"]
+example = "Dừng trình chiếu"
+
+# ---------------------------------------------------------------- Browser
+
+[[intent]]
+name = "BROWSER_OPEN_SITE"
+patterns = [
+    "mở trang {site}",
+    "mở web {site}",
+    "mở website {site}",
+    "vào trang {site}",
+    "vào {site}",
+    "truy cập {site}",
+    "mở trang",
+    "mở website",
+]
+params = ["site"]
+example = "Mở YouTube"
+
+[[intent]]
+name = "BROWSER_SEARCH"
+patterns = [
+    "tìm {query}",
+    "tìm kiếm {query}",
+    "tìm trên google {query}",
+    "tìm kiếm trên google {query}",
+    "tìm trên mạng {query}",
+    "tra google {query}",
+    "tra cứu {query}",
+    "google {query}",
+    "gu gồ {query}",
+    "search {query}",
+    "tìm",
+    "tìm kiếm",
+    "tìm trên mạng",
+    "tìm trên google",
+]
+params = ["query"]
+example = "Tìm kiếm thời tiết hôm nay"
+
+[[intent]]
+name = "BROWSER_NEXT_TAB"
+patterns = [
+    "tab tiếp",
+    "tab tiếp theo",
+    "tab kế tiếp",
+    "tab sau",
+    "qua tab",
+    "qua tab sau",
+    "sang tab",
+    "sang tab sau",
+    "chuyển tab",
+    "chuyển tab tiếp",
+    "táp tiếp",
+    "táp sau",
+    "tiếp theo",
+    "next tab",
+]
+context = ["browser"]
+example = "Tab tiếp theo"
+
+[[intent]]
+name = "BROWSER_PREV_TAB"
+patterns = [
+    "tab trước",
+    "tab trước đó",
+    "tab trước đây",
+    "quay lại tab",
+    "về tab trước",
+    "qua tab trước",
+    "sang tab trước",
+    "lùi tab",
+    "táp trước",
+    "quay lại",
+    "previous tab",
+]
+context = ["browser"]
+example = "Tab trước"
+
+[[intent]]
+name = "BROWSER_NEW_TAB"
+patterns = [
+    "tab mới",
+    "mở tab",
+    "mở tab mới",
+    "thêm tab",
+    "tạo tab",
+    "tab trống",
+    "táp mới",
+    "mở mới",
+    "new tab",
+]
+context = ["browser"]
+example = "Mở tab mới"
+
+[[intent]]
+name = "BROWSER_CLOSE_TAB"
+patterns = [
+    "đóng tab",
+    "đóng tab này",
+    "đóng tab hiện tại",
+    "tắt tab",
+    "đóng thẻ",
+    "đóng",
+    "close tab",
+]
+context = ["browser"]
+example = "Đóng tab"
+
+# ---------------------------------------------------------------- Windows
+
+[[intent]]
+name = "WIN_OPEN_APP"
+patterns = [
+    "mở {target}",
+    "mở ứng dụng {app_name}",
+    "khởi động {app_name}",
+    "chạy {app_name}",
+    "mở",
+    "mở ứng dụng",
+    "khởi động",
+]
+params = ["app_name"]
+example = "Mở Word"
+
+[[intent]]
+name = "WIN_SCREENSHOT"
+patterns = [
+    "chụp màn hình",
+    "chụp ảnh màn hình",
+    "chụp lại màn hình",
+    "chụp màn",
+    "chụp ảnh",
+    "screenshot",
+]
+example = "Chụp màn hình"
+
+# ---------------------------------------------------------------- Dictation (mode-driven)
+
+[[intent]]
+name = "DICTATE_TEXT"
+example = "Nói nội dung cần chèn vào con trỏ"

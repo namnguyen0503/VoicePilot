@@ -1,0 +1,23 @@
+# Runtime lock for VoicePilot: Windows x64, CPython 3.12.
+# Generated on 2026-10-09 from PyPI metadata (not from `pip freeze` on Windows) with:
+#   uv pip compile req-top.txt --python-platform x86_64-pc-windows-msvc --python-version 3.12 --only-binary :all:
+# Every pin has a win_amd64 cp312 wheel (or py3-none) on PyPI.
+# NOT YET VERIFIED ON WINDOWS: regenerate with `pip freeze` in a clean .venv on Windows 10
+# (see docs/TODO.md). Dev and build tools are in pyproject.toml extras, not in this file.
+#
+# Speech models run on sherpa-onnx only. sherpa-onnx-core 1.13.8 bundles onnxruntime 1.28.2, so no separate
+# onnxruntime package is pinned and the process loads one onnxruntime.dll (check on Windows, docs/TODO.md).
+PySide6-Essentials==6.12.0
+SpeechRecognition==3.17.0
+cffi==2.1.1
+mss==10.2.0
+numpy==2.5.3
+pycparser==3.1
+pywin32==312
+sherpa-onnx==1.13.8
+sherpa-onnx-core==1.13.8
+shiboken6==6.12.0
+sounddevice==0.5.6
+tomli-w==1.2.0
+typing-extensions==4.16.0
+webrtcvad-wheels==2.0.14.post1
