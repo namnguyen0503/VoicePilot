@@ -85,6 +85,8 @@ Danh sách dưới đây là tên có sẵn. Bạn có thể thêm tên khác tr
 | github | https://github.com |
 | chatgpt | https://chatgpt.com |
 | claude (cloud, cờ lốt, claude chấm ai) | https://claude.ai |
+| youtube music | https://music.youtube.com |
+| hugging face (hắc ging phây) | https://huggingface.co |
 | vnexpress | https://vnexpress.net |
 | zalo | https://chat.zalo.me |
 | shopee | https://shopee.vn |
@@ -98,9 +100,9 @@ Danh sách dưới đây là tên có sẵn. Bạn có thể thêm ứng dụng 
 
 | Tên nói | Ứng dụng |
 |---|---|
-| powerpoint | Microsoft PowerPoint |
-| word | Microsoft Word |
-| excel | Microsoft Excel |
+| powerpoint (microsoft powerpoint) | Microsoft PowerPoint |
+| word (microsoft word) | Microsoft Word |
+| excel (microsoft excel) | Microsoft Excel |
 | edge | Microsoft Edge |
 | chrome | Google Chrome |
 | notepad | Notepad |
