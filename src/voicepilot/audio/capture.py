@@ -31,6 +31,7 @@ _CUTOFF_FRACTION = 0.9  # passband edge as a fraction of the lower Nyquist frequ
 _POLL_S = 0.05  # how often record() re-checks stop and cancel events
 _STALL_S = 2.0  # no audio for this long means the device stopped delivering
 _LEVEL_INTERVAL_S = 0.05
+_NOISE_MARGIN_DB = 8.0  # speech must be this much louder than the background (real VAD only)
 
 
 class InputStreamLike(Protocol):
@@ -239,6 +240,7 @@ class Recorder:
             max_duration_ms=max_s * 1000,
             no_speech_timeout_ms=round(self._config.no_speech_timeout_s * 1000),
             is_speech=self._is_speech,
+            noise_margin_db=_NOISE_MARGIN_DB if self._is_speech is None else None,
         )
         source = _FrameSource(rate)
         stream = self._open(rate, chunks.put)

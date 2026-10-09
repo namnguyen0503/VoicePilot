@@ -21,6 +21,8 @@ FRAME_BYTES = FRAME_SAMPLES * 2  # int16 mono
 PREROLL_MS = 300
 MIN_SPEECH_FRAMES = 3  # 90 ms of consecutive speech before speech counts as started
 WEBRTC_AGGRESSIVENESS = 2
+NOISE_CALIBRATION_FRAMES = 5  # 150 ms of audio used to estimate the noise floor before speech may start
+NOISE_FLOOR_RISE_DB = 0.2  # per frame, how fast the floor follows rising background noise before speech
 
 SpeechPredicate = Callable[[bytes], bool]
 
@@ -59,7 +61,17 @@ class Endpointer:
         max_duration_ms: int,
         no_speech_timeout_ms: int,
         is_speech: SpeechPredicate | None = None,
+        noise_margin_db: float | None = None,
     ) -> None:
+        """Create an endpointer.
+
+        noise_margin_db, when set, additionally requires a frame to be that many dB louder than the
+        running noise floor to count as speech. A hot or noisy microphone makes webrtcvad report
+        speech on every frame, which would never end the utterance.
+        """
+        self._margin_db = noise_margin_db
+        self._calibration: list[float] = []
+        self._floor_db = 0.0
         self._silence_end_ms = silence_end_ms
         self._max_duration_ms = max_duration_ms
         self._no_speech_timeout_ms = no_speech_timeout_ms
@@ -90,6 +102,22 @@ class Endpointer:
         """Return the captured utterance: pre-roll, speech and trailing silence."""
         return b"".join(self._frames)
 
+    def _gate_by_noise_floor(self, frame: bytes, speech: bool) -> bool:
+        """Return speech only when the frame is clearly above the noise floor learnt from the first frames."""
+        db = frame_db(frame)
+        if len(self._calibration) < NOISE_CALIBRATION_FRAMES:
+            self._calibration.append(db)
+            if len(self._calibration) == NOISE_CALIBRATION_FRAMES:
+                self._floor_db = sorted(self._calibration)[NOISE_CALIBRATION_FRAMES // 2]
+            return False
+        assert self._margin_db is not None
+        loud = db > self._floor_db + self._margin_db
+        if db < self._floor_db:
+            self._floor_db = db
+        elif not loud and not self._started:
+            self._floor_db = min(db, self._floor_db + NOISE_FLOOR_RISE_DB)
+        return speech and loud
+
     def feed(self, frame: bytes) -> Decision:
         """Process one 30 ms frame and return the decision for it.
 
@@ -100,6 +128,8 @@ class Endpointer:
             raise ValueError(f"frame must be {FRAME_BYTES} bytes, got {len(frame)}")
         self._total_ms += FRAME_MS
         speech = self._is_speech(frame)
+        if self._margin_db is not None:
+            speech = self._gate_by_noise_floor(frame, speech)
 
         if not self._started:
             self._preroll.append(frame)
@@ -120,6 +150,15 @@ class Endpointer:
         if self._total_ms >= self._max_duration_ms:
             return Decision.END_MAX_DURATION
         return Decision.CONTINUE
+
+
+def frame_db(frame: bytes) -> float:
+    """Return the RMS level of a PCM int16 frame in dBFS (-120 for digital silence)."""
+    samples = np.frombuffer(frame, dtype="<i2").astype(np.float64) / 32768.0
+    if samples.size == 0:
+        return -120.0
+    rms = float(np.sqrt(np.mean(samples * samples)))
+    return 20.0 * math.log10(rms) if rms > 0.0 else -120.0
 
 
 def rms_level(frame: bytes) -> float:
