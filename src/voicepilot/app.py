@@ -214,8 +214,15 @@ def _audio_components(
     from voicepilot.stt.hybrid import HybridTranscriber
 
     if gipformer is None:
+        try:
+            from voicepilot.stt.hotwords import command_phrases
+
+            hotwords = command_phrases(config.app_aliases, config.website_aliases)
+        except Exception as exc:
+            log.warning("hotword biasing disabled: %s", type(exc).__name__)
+            hotwords = []
         model_dir = models_dir().joinpath(*GIPFORMER_MODEL_DIR)
-        gipformer = GipformerStt(model_dir, num_threads=config.gipformer_threads)
+        gipformer = GipformerStt(model_dir, num_threads=config.gipformer_threads, hotwords=hotwords)
     transcriber = HybridTranscriber(
         GoogleStt(),
         gipformer,

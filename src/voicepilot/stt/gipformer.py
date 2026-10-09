@@ -1,4 +1,8 @@
-"""Offline Gipformer 1.5 INT8 backend via sherpa-onnx (CPU, greedy) implementing SttBackend."""
+"""Offline Gipformer 1.5 INT8 backend via sherpa-onnx (CPU) implementing SttBackend.
+
+Decoding is greedy search. When hotwords are given, it switches to modified beam search with
+hotword biasing, using the phrase files written by voicepilot.stt.hotwords.
+"""
 
 from __future__ import annotations
 
@@ -6,6 +10,7 @@ import logging
 import threading
 import time
 import tomllib
+from collections.abc import Sequence
 from importlib import resources
 from pathlib import Path
 from typing import Any
@@ -13,13 +18,20 @@ from typing import Any
 import numpy as np
 
 from voicepilot import paths
+from voicepilot.config import config_dir
 from voicepilot.contracts import AudioClip, SttError, Transcript
+from voicepilot.stt.hotwords import write_hotword_files
 
 log = logging.getLogger(__name__)
 
 SAMPLE_RATE = 16000
 FEATURE_DIM = 80
 DECODING_METHOD = "greedy_search"
+HOTWORD_DECODING_METHOD = "modified_beam_search"
+HOTWORD_SCORE = 4.0
+MAX_ACTIVE_PATHS = 8
+MODELING_UNIT = "bpe"
+HOTWORD_DIR = "stt"
 MODEL_RESOURCE = "models.toml"
 MODEL_ENGINE = "sherpa-onnx"
 MODEL_KIND = "asr"
@@ -69,16 +81,18 @@ class GipformerStt:
 
     name = "gipformer"
 
-    def __init__(self, model_dir: Path, num_threads: int = 2) -> None:
+    def __init__(self, model_dir: Path, num_threads: int = 2, hotwords: Sequence[str] = ()) -> None:
         """Create the backend without loading the model.
 
         Args:
             model_dir: Folder holding the model files. A relative path is resolved
                 under ``paths.models_dir() / "asr"``.
             num_threads: CPU threads for sherpa-onnx.
+            hotwords: Phrases to bias decoding toward. Empty keeps greedy search.
         """
         self._model_dir = model_dir if model_dir.is_absolute() else paths.models_dir() / "asr" / model_dir
         self._num_threads = num_threads
+        self._hotwords = tuple(hotwords)
         self._load_lock = threading.Lock()
         self._decode_lock = threading.Lock()
         self._recognizer: Any = None
@@ -127,6 +141,17 @@ class GipformerStt:
         missing = [str(p) for p in paths_by_role.values() if not p.is_file()]
         if missing:
             raise SttError("Thiếu tệp mô hình Gipformer: " + ", ".join(missing))
+        hotword_options = self._hotword_options(paths_by_role["tokens"]) if self._hotwords else {}
+        if hotword_options:
+            try:
+                return self._build(paths_by_role, HOTWORD_DECODING_METHOD, hotword_options)
+            except SttError as exc:
+                cause = type(exc.__cause__).__name__
+                log.warning("Gipformer hotword setup failed, using greedy search: %s", cause)
+        return self._build(paths_by_role, DECODING_METHOD, {})
+
+    def _build(self, paths_by_role: dict[str, Path], decoding_method: str, options: dict[str, Any]) -> Any:
+        """Create the sherpa-onnx recognizer, raising SttError when it cannot be built."""
         try:
             import sherpa_onnx  # native dependency, imported only when the model is needed
 
@@ -138,8 +163,31 @@ class GipformerStt:
                 num_threads=self._num_threads,
                 sample_rate=SAMPLE_RATE,
                 feature_dim=FEATURE_DIM,
-                decoding_method=DECODING_METHOD,
+                decoding_method=decoding_method,
                 provider="cpu",
+                **options,
             )
         except Exception as exc:
             raise SttError("Không tải được mô hình Gipformer.") from exc
+
+    def _hotword_options(self, tokens_path: Path) -> dict[str, Any]:
+        """Return the sherpa-onnx options for hotword biasing, or {} to keep greedy search.
+
+        The phrase and BPE files are written under ``config_dir() / "stt"``. A write failure is
+        logged by exception type only, so the phrases themselves never reach the log.
+        """
+        try:
+            files = write_hotword_files(self._hotwords, tokens_path, config_dir() / HOTWORD_DIR)
+        except (OSError, ValueError) as exc:  # ValueError covers a tokens.txt that is not UTF-8
+            log.warning("Cannot write Gipformer hotword files, using greedy search: %s", type(exc).__name__)
+            return {}
+        if files is None:
+            return {}
+        hotwords_path, vocab_path = files
+        return {
+            "max_active_paths": MAX_ACTIVE_PATHS,
+            "hotwords_file": str(hotwords_path),
+            "hotwords_score": HOTWORD_SCORE,
+            "modeling_unit": MODELING_UNIT,
+            "bpe_vocab": str(vocab_path),
+        }

@@ -217,7 +217,7 @@ class _Engines:
 def engines(monkeypatch: pytest.MonkeyPatch) -> _Engines:
     fakes = _Engines()
 
-    def make_gipformer(model_dir: Path, num_threads: int = 2) -> _FakeGipformer:
+    def make_gipformer(model_dir: Path, num_threads: int = 2, hotwords: object = ()) -> _FakeGipformer:
         gipformer = _FakeGipformer(model_dir, num_threads)
         fakes.gipformers.append(gipformer)
         return gipformer
