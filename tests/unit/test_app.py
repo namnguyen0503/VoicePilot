@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 import tomllib
 from collections.abc import Callable, Iterator
 from dataclasses import replace
@@ -302,3 +303,31 @@ def test_shutdown_closes_the_transcriber_once(
     app.shutdown()
     app.shutdown()
     assert engines.hybrids[0].closed == 1
+
+
+def test_make_parser_reuses_one_installed_app_index(monkeypatch: pytest.MonkeyPatch) -> None:
+    from voicepilot.windows import start_menu
+
+    created: list[object] = []
+
+    class FakeIndex:
+        def __init__(self) -> None:
+            created.append(self)
+
+        def start_refresh(self) -> None:
+            pass
+
+        def find(self, spoken: str) -> str | None:
+            return "shell:AppsFolder\\Zalo" if spoken.lower() == "zalo" else None
+
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setattr(bootstrap, "_INSTALLED_APPS", None)
+    monkeypatch.setattr(start_menu, "InstalledApps", FakeIndex)
+
+    first = bootstrap._make_parser(AppConfig())
+    bootstrap._make_parser(AppConfig())
+    command = first.parse("mở zalo", None, Mode.COMMAND)
+
+    assert len(created) == 1
+    assert command.intent is Intent.WIN_OPEN_APP
+    assert command.params["app"] == "shell:AppsFolder\\Zalo"

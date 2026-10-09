@@ -246,10 +246,31 @@ def _audio_components(
     return recorder, transcriber, gipformer
 
 
+_INSTALLED_APPS: Any = None  # the one Start Menu index, created on first use and reused
+
+
+def _installed_apps() -> Any:
+    """Return the shared InstalledApps index, creating it and starting its background scan once."""
+    global _INSTALLED_APPS
+    if _INSTALLED_APPS is None:
+        from voicepilot.windows.start_menu import InstalledApps
+
+        apps = InstalledApps()
+        apps.start_refresh()
+        _INSTALLED_APPS = apps
+    return _INSTALLED_APPS
+
+
 def _make_parser(config: AppConfig) -> Any:
     from voicepilot.intent.parser import RuleParser
 
-    return RuleParser(config.website_aliases, config.app_aliases)
+    finder = None
+    if sys.platform == "win32":
+        try:
+            finder = _installed_apps().find
+        except Exception as exc:
+            log.warning("installed app search disabled: %s", type(exc).__name__)
+    return RuleParser(config.website_aliases, config.app_aliases, app_finder=finder)
 
 
 def _make_speaker(config: AppConfig) -> Any:

@@ -31,7 +31,8 @@
 #   4. Captured values keep the original text (case, diacritics, inner punctuation, and a closing
 #      bracket or quote that balances one inside the value).
 #   5. "{target}" is special: "mở {target}" routes to a website (alias, http(s) URL or bare domain)
-#      or an app alias, whichever resolves. A name that resolves to neither is UNKNOWN.
+#      or an app alias, whichever resolves. On Windows, a name that is not an alias falls back to
+#      the apps installed on the machine (Start Menu). A name that resolves to none of these is UNKNOWN.
 #   6. DICTATE_TEXT is mode-driven: in dictation mode every utterance is text, and no pattern is used.
 #
 # Speech sources: Google (diacritics, mixed case, punctuation, digits) and Gipformer (lowercase,

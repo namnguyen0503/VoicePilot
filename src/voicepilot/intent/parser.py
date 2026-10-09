@@ -10,18 +10,26 @@ in commands.toml, and an unresolved tie is UNKNOWN.
 Polite fillers are stripped before matching. Free-text captures (query, filename) strip
 only polite fillers, so "tìm đường đi" keeps "đi". Other rules also strip the words "đi"
 and "với", so "mở youtube đi" and "slide tiếp đi" still work.
+
+An app name that is not in the [apps] alias table is passed to an optional app_finder
+(on Windows: the installed apps from the Start Menu). It runs only after the website and
+alias lookups miss, so aliases always win.
 """
 
 from __future__ import annotations
 
+import logging
 import re
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 
 from voicepilot.contracts import Command, Intent, Mode, WindowContext
 from voicepilot.intent.normalize import Normalized, fold, normalize
+
+log = logging.getLogger(__name__)
 
 COMMANDS_RESOURCE = "commands.toml"
 DEFAULT_EXAMPLE = "Slide tiếp theo"
@@ -166,8 +174,12 @@ class RuleParser:
         website_aliases: dict[str, str],
         app_aliases: dict[str, str],
         commands_path: Path | None = None,
+        app_finder: Callable[[str], str | None] | None = None,
     ) -> None:
         """Load and validate the command table, then compile every pattern once.
+
+        app_finder maps a spoken app name that is not an alias to a launch target, or None.
+        It is called with the original spoken text. An exception from it counts as None.
 
         Raises:
             ValueError: commands.toml is malformed, names an unknown intent or
@@ -177,6 +189,7 @@ class RuleParser:
         entries, self._dictation_example = _load_entries(_read_commands(commands_path), source)
         self._sites = _AliasTable(website_aliases)
         self._apps = _AliasTable(app_aliases)
+        self._app_finder = app_finder
         self._plain = _build_view(entries, folded=False)
         self._folded = _build_view(entries, folded=True)
 
@@ -226,23 +239,33 @@ class RuleParser:
                 return self._unknown(text, example="Mở YouTube")
             return Command(rule.intent, text, params={"url": url, "site": spoken["site"]})
         if rule.intent is Intent.WIN_OPEN_APP:
-            app = self._apps.lookup(values["app_name"])
+            app = self._apps.lookup(values["app_name"]) or self._installed_app(spoken["app_name"])
             if app is None:
                 return self._unknown(text, example="Mở Word")
             return Command(rule.intent, text, params={"app": app, "app_name": spoken["app_name"]})
         return Command(rule.intent, text, params=params)
 
     def _route_open(self, text: str, target: Normalized) -> Command:
-        """Resolve a generic "mở {target}": a website if it looks like one, else an app."""
+        """Resolve a generic "mở {target}": a website, then an app alias, then an installed app."""
         url = self._resolve_site(target, text)
         if url is not None:
             site = _original(text, target)
             return Command(Intent.BROWSER_OPEN_SITE, text, params={"url": url, "site": site})
-        app = self._apps.lookup(target)
+        app_name = _original(text, target)
+        app = self._apps.lookup(target) or self._installed_app(app_name)
         if app is not None:
-            app_name = _original(text, target)
             return Command(Intent.WIN_OPEN_APP, text, params={"app": app, "app_name": app_name})
         return self._unknown(text, example="Mở YouTube")
+
+    def _installed_app(self, spoken: str) -> str | None:
+        """Ask app_finder for a launch target. A finder that raises counts as no match."""
+        if self._app_finder is None:
+            return None
+        try:
+            return self._app_finder(spoken) or None
+        except Exception as exc:
+            log.warning("installed app lookup failed: %s", type(exc).__name__)
+            return None
 
     def _resolve_site(self, spoken_norm: Normalized, text: str) -> str | None:
         """Return the URL for a website alias, an explicit http(s) URL or a bare domain."""

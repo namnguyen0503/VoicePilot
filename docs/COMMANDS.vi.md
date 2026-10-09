@@ -98,6 +98,8 @@ Danh sách dưới đây là tên có sẵn. Bạn có thể thêm tên khác tr
 
 Danh sách dưới đây là tên có sẵn. Bạn có thể thêm ứng dụng trong mục `[apps]` của `config.toml`.
 
+Ứng dụng đã cài trên máy mà không có trong danh sách cũng mở được bằng "mở <tên ứng dụng>", ví dụ "mở spotify", nếu tên đó có trong menu Start. Nếu không tìm thấy, VoicePilot sẽ báo chưa hiểu.
+
 | Tên nói | Ứng dụng |
 |---|---|
 | powerpoint (microsoft powerpoint) | Microsoft PowerPoint |
