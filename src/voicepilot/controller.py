@@ -21,6 +21,7 @@ from typing import Protocol
 
 from PySide6.QtCore import QObject, Qt, QTimer, Signal
 
+from voicepilot import debuglog
 from voicepilot.config import AppConfig
 from voicepilot.contracts import (
     ActionResult,
@@ -440,6 +441,7 @@ class Controller(QObject):
                 ActionResult(ResultStatus.ERROR, MSG_NO_SPEECH, "no_speech"),
                 _Heard(speech_end=speech_end, record_ms=record_ms),
             )
+        debuglog.save_clip(turn.turn_id, clip.samples, clip.sample_rate)
 
         self._stage.emit(turn.turn_id, State.RECOGNIZING.value)
         t_stt = now()
@@ -470,6 +472,16 @@ class Controller(QObject):
             command = Command(Intent.DICTATE_TEXT, text, params={"text": text})
         else:
             command = self._parse(text, turn.context)
+            debuglog.debug_log.info(
+                "turn id=%d heard=%r source=%s app=%s -> intent=%s params=%r missing=%r",
+                turn.turn_id,
+                text,
+                transcript.source,
+                turn.context.app_kind.value,
+                command.intent.value,
+                dict(command.params),
+                command.missing,
+            )
             if not command.is_executable:
                 code = "missing_param" if command.missing else "unknown_command"
                 hint = command.example

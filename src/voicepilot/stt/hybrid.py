@@ -22,6 +22,7 @@ from collections.abc import Callable
 from concurrent.futures import Future
 
 from voicepilot.contracts import AudioClip, SttBackend, SttBackendMode, SttError, Transcript
+from voicepilot.debuglog import debug_log
 
 log = logging.getLogger(__name__)
 
@@ -41,6 +42,7 @@ def _settle(future: Future[Transcript]) -> Transcript | None:
         reason = str(exc) if isinstance(exc, SttError) else "-"
         log.warning("STT backend failed with %s (cause=%s): %s", type(exc).__name__, cause, reason)
         return None
+    debug_log.info("stt %s %.0f ms text=%r", result.source, result.latency_ms, result.text)
     if not result.text.strip():
         return None
     log.debug("STT %s finished in %.0f ms", result.source, result.latency_ms)

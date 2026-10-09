@@ -30,6 +30,7 @@ from PySide6.QtGui import QIcon
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMessageBox, QStyle, QSystemTrayIcon
 
+from voicepilot import debuglog
 from voicepilot.config import AppConfig, config_dir, load_config, save_config
 from voicepilot.contracts import (
     ActionResult,
@@ -119,12 +120,16 @@ class _DevExecutor:
         return ActionResult(ResultStatus.NOT_AVAILABLE, "Chỉ thực hiện được trên Windows", "not_windows")
 
 
-def setup_logging() -> None:
-    """Write INFO and above to config_dir()/logs/voicepilot.log, rotated at 1 MB with 3 backups."""
+def setup_logging(debug: bool = False) -> None:
+    """Write INFO and above to config_dir()/logs/voicepilot.log, rotated at 1 MB with 3 backups.
+
+    With debug, the level drops to DEBUG and the speech-bearing diagnostic log in
+    voicepilot.debuglog is enabled as well (logs/debug.log and logs/clips).
+    """
     formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
     handler: logging.Handler
+    log_dir = config_dir() / "logs"
     try:
-        log_dir = config_dir() / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         handler = RotatingFileHandler(
             log_dir / LOG_FILE_NAME,
@@ -136,8 +141,14 @@ def setup_logging() -> None:
         handler = logging.NullHandler()
     handler.setFormatter(formatter)
     root = logging.getLogger()
-    root.setLevel(logging.INFO)
+    root.setLevel(logging.DEBUG if debug else logging.INFO)
     root.addHandler(handler)
+    if debug:
+        try:
+            debuglog.enable(log_dir)
+            log.warning("debug logging on: transcripts and audio are saved to %s", log_dir)
+        except OSError as exc:
+            log.warning("debug log unavailable: %s", type(exc).__name__)
 
 
 def _single_instance_name() -> str:
@@ -425,6 +436,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="check config, intent rules, model files and imports without a window; exit 0 when all pass",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="log at DEBUG and save transcripts, parsed commands, turn audio to logs/debug.log, logs/clips",
+    )
     return parser
 
 
@@ -552,7 +568,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.selftest:
         return run_selftest()
 
-    setup_logging()
+    setup_logging(debug=args.debug)
     existing = QApplication.instance()
     qt_app = existing if isinstance(existing, QApplication) else QApplication([APP_NAME])
     qt_app.setApplicationName(APP_NAME)
