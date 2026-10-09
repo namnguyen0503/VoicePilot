@@ -36,7 +36,10 @@ def _settle(future: Future[Transcript]) -> Transcript | None:
     try:
         result = future.result()
     except Exception as exc:
-        log.warning("STT backend failed with %s", type(exc).__name__)
+        cause = type(exc.__cause__).__name__ if exc.__cause__ is not None else "-"
+        # SttError texts are fixed strings, never speech.
+        reason = str(exc) if isinstance(exc, SttError) else "-"
+        log.warning("STT backend failed with %s (cause=%s): %s", type(exc).__name__, cause, reason)
         return None
     if not result.text.strip():
         return None
