@@ -2,8 +2,8 @@
 # Generated on 2026-10-09 from PyPI metadata (not from `pip freeze` on Windows) with:
 #   uv pip compile req-top.txt --python-platform x86_64-pc-windows-msvc --python-version 3.12 --only-binary :all:
 # Every pin has a win_amd64 cp312 wheel (or py3-none) on PyPI.
-# NOT YET VERIFIED ON WINDOWS: regenerate with `pip freeze` in a clean .venv on Windows 10
-# (see docs/TODO.md). Dev and build tools are in pyproject.toml extras, not in this file.
+# Verified on Windows 10 (2026-10-09): clean venv install, `pip freeze` runtime set matches these pins.
+# Dev and build tools are in pyproject.toml extras, not in this file.
 #
 # Speech models run on sherpa-onnx only. sherpa-onnx-core 1.13.8 bundles onnxruntime 1.28.2, so no separate
 # onnxruntime package is pinned and the process loads one onnxruntime.dll (check on Windows, docs/TODO.md).

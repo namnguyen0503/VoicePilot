@@ -112,6 +112,14 @@ Hotkey (windows/hotkeys.py, thread riêng) ──signal──▶ Controller (con
 9. **Micro thật:** VAD (webrtcvad mode 2, onset 90 ms, im lặng 800 ms) chưa được tinh chỉnh với giọng thật. TTS không được bị micro thu lại.
 10. **PyInstaller và `build.ps1`:** đường dẫn có dấu và khoảng trắng; DLL của sherpa, PortAudio, pywin32, plugin qsvg; `--selftest` trên bản exe.
 
+## 5b. Kết quả chạy thật đầu tiên (2026-10-09, máy Nam)
+
+- Cài đặt, tải model, `--selftest` OK. `requirements.lock` khớp `pip freeze` (đã xác minh).
+- 3 test lỗi do môi trường Windows (đường dẫn tmp dài, Documents chuyển hướng OneDrive) đã sửa, không phải bug code.
+- `Ctrl+Alt+Space` và `Ctrl+Alt+D` đều bị app khác giữ (lỗi 1409; nghi Claude desktop Quick Entry). Máy Nam dùng
+  `config.toml` đặt `hotkey_listen = "ctrl+alt+v"`, `hotkey_mode = "ctrl+alt+m"`. Chưa đổi mặc định.
+- Cảnh báo "single-instance server unavailable: Access is denied" chỉ thấy khi chạy trong sandbox của Claude Code, không thấy khi Nam tự chạy.
+
 ## 6. Việc tiếp theo đề xuất
 
 1. Kiểm tra `git status`. Nếu chưa có commit thì commit baseline: `feat: VoicePilot v1 baseline (Linux-verified)`.
