@@ -467,3 +467,12 @@ def _release_entry() -> str:
         f'url = "{RELEASE_URL}"\narchive_sha256 = "{"a" * 64}"\nextract = "tar.bz2"\n'
         'dest = "tts/voice"\nfiles = [ { name = "a.onnx" } ]\n'
     )
+
+
+def test_work_dir_is_a_plain_subfolder_and_removed_afterwards(tmp_path: Path) -> None:
+    """Regression: mkdtemp gave models/ an owner-only ACL on Windows (PermissionError for the app)."""
+    with dl._work_dir(tmp_path, ".model-") as work:
+        assert work.parent == tmp_path
+        assert work.name.startswith(".model-")
+        (work / "staged").mkdir()
+    assert not work.exists()

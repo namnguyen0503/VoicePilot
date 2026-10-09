@@ -21,6 +21,7 @@ Exit codes: 0 all files present, 1 a download, extraction or hash failure, 2 bad
 from __future__ import annotations
 
 import argparse
+import contextlib
 import dataclasses
 import enum
 import hashlib
@@ -29,12 +30,12 @@ import re
 import shutil
 import sys
 import tarfile
-import tempfile
 import tomllib
 import urllib.error
 import urllib.parse
 import urllib.request
-from collections.abc import Callable, Sequence
+import uuid
+from collections.abc import Callable, Iterator, Sequence
 from pathlib import Path, PurePosixPath
 from typing import IO, Any
 
@@ -381,6 +382,22 @@ def _progress_printer(out: IO[str]) -> Callable[[int, int | None], None]:
     return report
 
 
+@contextlib.contextmanager
+def _work_dir(parent: Path, prefix: str) -> Iterator[Path]:
+    """Yield a scratch folder inside parent that inherits parent's permissions, and delete it afterwards.
+
+    tempfile.mkdtemp is avoided on purpose: on Windows it creates the folder with an owner-only ACL
+    that does not inherit, and moving that folder into models/ left it unreadable by a normal
+    (non-elevated) user token, which broke speech output with PermissionError.
+    """
+    work = parent / f"{prefix}{uuid.uuid4().hex[:8]}"
+    work.mkdir()
+    try:
+        yield work
+    finally:
+        shutil.rmtree(work, ignore_errors=True)
+
+
 def install_archive(
     model: ModelSpec,
     models_dir: Path,
@@ -402,7 +419,7 @@ def install_archive(
     print(f"[get ] {model.url}", file=out)
     base.parent.mkdir(parents=True, exist_ok=True)
     try:
-        with tempfile.TemporaryDirectory(dir=base.parent, prefix=f".{base.name}-") as work:
+        with _work_dir(base.parent, f".{base.name}-") as work:
             archive = Path(work) / "archive.tar.bz2"
             download_file(
                 model.url, archive, model.archive_sha256, opener=opener, progress=_progress_printer(out)
