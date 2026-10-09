@@ -697,3 +697,24 @@ def test_dictation_without_a_window_types_nothing(
     assert results[0].status is ResultStatus.NOT_AVAILABLE
     assert results[0].error_code == "no_target"
     assert keys.typed == []
+
+
+@pytest.mark.parametrize(
+    ("url", "valid"),
+    [("https://claude.ai", True), ("https://club.vn", False)],
+)
+def test_bare_domain_site_is_a_weak_match_so_an_alias_from_the_other_backend_wins(
+    build_rig: Callable[..., Rig], qtbot: QtBot, url: str, valid: bool
+) -> None:
+    # Real Windows: Google heard "mở cờ lốt" as "mở club.vn" and won over Gipformer's alias match.
+    rig = build_rig(config=AppConfig(website_aliases={"cờ lốt": "https://claude.ai"}))
+    rig.parser.COMMANDS = {
+        **FakeParser.COMMANDS,
+        "mở site": Command(Intent.BROWSER_OPEN_SITE, "mở site", params={"url": url, "site": "x"}),
+    }
+    rig.transcriber.text = "mở site"
+    rig.controller.toggle_listen()
+    wait_for_idle(qtbot, rig)
+
+    assert rig.transcriber.valid == [valid]
+    assert [call.params["url"] for call in rig.executor.calls] == [url]

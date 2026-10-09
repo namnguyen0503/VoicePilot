@@ -556,8 +556,16 @@ class Controller(QObject):
         if turn.mode is Mode.DICTATION:
             return lambda transcript: bool(transcript.text.strip())
 
+        known_sites = frozenset(self._config.website_aliases.values())
+
         def is_valid(transcript: Transcript) -> bool:
-            return self._parse(transcript.text, turn.context).is_executable
+            command = self._parse(transcript.text, turn.context)
+            if command.intent is Intent.BROWSER_OPEN_SITE and command.params.get("url") not in known_sites:
+                # A bare domain is a weak match: Google often turns a misheard name into "x.vn". Counting it
+                # invalid lets the other backend's alias or command win; if none is valid, the hybrid
+                # transcriber still falls back to this transcript.
+                return False
+            return command.is_executable
 
         return is_valid
 
