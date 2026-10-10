@@ -667,7 +667,7 @@ class FakeKeys:
             raise self.fail
         self.hotkeys.append(keys)
 
-    def type_unicode(self, text):
+    def type_unicode(self, text, *, word=False):
         self.typed.append(text)
 
 
@@ -881,7 +881,7 @@ def test_dictation_with_changed_window_types_nothing():
 
 def test_send_input_refusal_is_reported_not_raised():
     class Typing(FakeKeys):
-        def type_unicode(self, text):
+        def type_unicode(self, text, *, word=False):
             raise ExecutionError("UIPI")
 
     ex, _, _ = make_executor(keys=Typing())

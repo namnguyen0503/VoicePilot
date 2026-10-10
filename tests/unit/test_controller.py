@@ -653,7 +653,7 @@ class _RecordingKeys:
     def send_hotkey(self, *keys: str) -> None:
         self.hotkeys.append(keys)
 
-    def type_unicode(self, text: str) -> None:
+    def type_unicode(self, text: str, *, word: bool = False) -> None:
         self.typed.append(text)
 
 

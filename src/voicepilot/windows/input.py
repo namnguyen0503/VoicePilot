@@ -210,6 +210,28 @@ def build_unicode_events(text: str) -> list[KeyEvent]:
     return events
 
 
+def build_word_unicode_events(text: str) -> list[KeyEvent]:
+    """Use Word's selected Unicode code conversion for supplementary characters.
+
+    Native Word testing reproduced surrogate packets being inserted as "12". Alt+X
+    converts only the selected code, then Right collapses the selected glyph so the
+    next character cannot overwrite it. BMP text keeps the usual Unicode events.
+    https://support.microsoft.com/en-us/word/insert-ascii-or-unicode-character-codes-in-word
+    """
+    events: list[KeyEvent] = []
+    for char in unicodedata.normalize("NFC", text):
+        if ord(char) <= 0xFFFF:
+            events.extend(build_unicode_events(char))
+            continue
+        code = format(ord(char), "x")
+        events.extend(build_unicode_events(code))
+        for _ in code:
+            events.extend(build_key_sequence(("shift", "left")))
+        events.extend(build_key_sequence(("alt", "x")))
+        events.extend(build_key_sequence(("right",)))
+    return events
+
+
 def build_key_sequence(keys: Sequence[str]) -> list[KeyEvent]:
     """Press the given keys in order, then release them in reverse order.
 
@@ -264,14 +286,14 @@ def release_modifiers() -> None:
     _send_events(release_events(held))
 
 
-def type_unicode(text: str) -> None:
+def type_unicode(text: str, *, word: bool = False) -> None:
     """Type text at the caret of the focused window.
 
     Raises:
         ExecutionError: If SendInput did not accept every event (for example UIPI blocks the target).
     """
     release_modifiers()
-    _send_events(build_unicode_events(text))
+    _send_events(build_word_unicode_events(text) if word else build_unicode_events(text))
 
 
 def send_hotkey(*keys: str) -> None:

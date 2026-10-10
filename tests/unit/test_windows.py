@@ -207,7 +207,7 @@ class FakeKeys:
             raise self.error
         self.hotkeys.append(keys)
 
-    def type_unicode(self, text: str) -> None:
+    def type_unicode(self, text: str, *, word: bool = False) -> None:
         if self.error is not None:
             raise self.error
         self.texts.append(text)
@@ -1165,3 +1165,51 @@ def test_executor_shutdown_stops_powerpoint_worker() -> None:
     executor, _ = make_executor(powerpoint=powerpoint)
     executor.shutdown()
     powerpoint.shutdown.assert_called_once_with()
+
+
+@pytest.mark.parametrize("text", ["f👋b", "Xin chào Việt Nam 👋 — Word.", "😀👋𝄞"])
+def test_word_dictation_preserves_non_bmp_characters_with_sendinput(monkeypatch, text):
+    from dataclasses import replace
+
+    from voicepilot.config import load_config
+    from voicepilot.windows import input as ops
+    from voicepilot.windows.executor import WindowsExecutor
+
+    # Reproduce Word's surrogate handling and selected Alt+X replacement behavior.
+    content = "Existing ff"
+    caret = anchor = len(content)
+    shift = alt = False
+    def consume(events):
+        nonlocal content, caret, anchor, shift, alt
+        for event in events:
+            if event.vk == ops.VK_SHIFT:
+                shift = not bool(event.flags & ops.KEYEVENTF_KEYUP)
+            elif event.vk == ops.VK_MENU:
+                alt = not bool(event.flags & ops.KEYEVENTF_KEYUP)
+            elif event.flags & ops.KEYEVENTF_KEYUP:
+                continue
+            elif event.flags & ops.KEYEVENTF_UNICODE:
+                # This Office build turns isolated surrogate packets into digits.
+                char = "1" if 0xD800 <= event.scan <= 0xDBFF else (
+                    "2" if 0xDC00 <= event.scan <= 0xDFFF else chr(event.scan))
+                low, high = sorted((caret, anchor))
+                content = content[:low] + char + content[high:]
+                caret = anchor = low + len(char)
+            elif event.vk == ops.VK_LEFT and shift:
+                caret -= 1
+            elif event.vk == ord("X") and alt:
+                low, high = sorted((caret, anchor))
+                content = content[:low] + chr(int(content[low:high], 16)) + content[high:]
+                caret, anchor = low, low + 1  # Word leaves the converted glyph selected.
+            elif event.vk == ops.VK_RIGHT:
+                caret = anchor = max(caret, anchor)
+    monkeypatch.setattr(ops, "release_modifiers", lambda: None)
+    monkeypatch.setattr(ops, "_send_events", consume)
+    provider = MagicMock(is_still_target=MagicMock(return_value=True))
+    executor = WindowsExecutor(load_config(Path("unused-verification-config.toml")), provider,
+                               powerpoint=MagicMock())
+    ctx = replace(make_ctx(), process_name="WINWORD.EXE")
+    result = executor.execute(Command(Intent.DICTATE_TEXT, text, params={"text": text}), ctx)
+    assert result.status is ResultStatus.OK
+    assert content == "Existing ff" + text
+    assert caret == anchor == len(content)

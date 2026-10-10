@@ -51,7 +51,7 @@ class KeySender(Protocol):
         """Press a key chord."""
         ...
 
-    def type_unicode(self, text: str) -> None:
+    def type_unicode(self, text: str, *, word: bool = False) -> None:
         """Type text at the caret."""
         ...
 
@@ -62,8 +62,11 @@ class _SendInputKeys:
     def send_hotkey(self, *keys: str) -> None:
         input_ops.send_hotkey(*keys)
 
-    def type_unicode(self, text: str) -> None:
-        input_ops.type_unicode(text)
+    def type_unicode(self, text: str, *, word: bool = False) -> None:
+        if word:
+            input_ops.type_unicode(text, word=True)
+        else:
+            input_ops.type_unicode(text)
 
 
 class WindowsExecutor:
@@ -252,11 +255,14 @@ class WindowsExecutor:
         text = command.params.get("text", "")
         if not text.strip():
             return ActionResult(ResultStatus.INVALID_PARAM, "Không có nội dung để chèn.", "empty_text")
-        return self._guarded(ctx, lambda: self._type(text), strict=True, cancel=cancel)
+        return self._guarded(ctx, lambda: self._type(text, ctx), strict=True, cancel=cancel)
 
-    def _type(self, text: str) -> ActionResult:
+    def _type(self, text: str, ctx: WindowContext) -> ActionResult:
         try:
-            self._keys.type_unicode(text)
+            if ctx.process_name.casefold() == "winword.exe":
+                self._keys.type_unicode(text, word=True)
+            else:
+                self._keys.type_unicode(text)
         except ExecutionError:
             return ActionResult(ResultStatus.ERROR, "Không chèn được văn bản.", "send_input_failed")
         return ActionResult(ResultStatus.OK, "Đã chèn văn bản.")
