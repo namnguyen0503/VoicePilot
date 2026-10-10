@@ -85,3 +85,24 @@ def test_bundle_collects_version_metadata_and_runtime_license_texts(monkeypatch)
     exec(compile(source.split("a = Analysis(")[0], "voicepilot.spec", "exec"), namespace)
     assert "voicepilot" in calls  # --version was 0.0.0+dev in the first frozen build.
     assert {"SpeechRecognition", "sherpa-onnx-core", "PySide6-Essentials", "cffi"} <= set(calls)
+
+
+def test_build_rejects_unused_sphinx_models_reintroduced_by_hooks(monkeypatch):
+    monkeypatch.setenv("PATH", os.environ["PATH"])
+    monkeypatch.setattr(sys, "path", sys.path.copy())
+    hooks = types.ModuleType("PyInstaller.utils.hooks")
+    hooks.collect_data_files = lambda *args, **kwargs: []
+    hooks.collect_dynamic_libs = lambda *args, **kwargs: []
+    hooks.copy_metadata = lambda name: []
+    monkeypatch.setitem(sys.modules, "PyInstaller.utils.hooks", hooks)
+    monkeypatch.setattr(Path, "is_file", lambda _: True)
+    analysis = types.SimpleNamespace(
+        binaries=[("onnxruntime.dll", "synthetic.dll", "BINARY")],
+        datas=[("speech_recognition/pocketsphinx-data/model.bin", "synthetic.bin", "DATA")],
+        pure=[], scripts=[],
+    )
+    namespace = {"SPECPATH": str(ROOT / "packaging"), "Analysis": lambda *args, **kwargs: analysis,
+                 "PYZ": lambda *args: None, "EXE": lambda *args, **kwargs: None,
+                 "COLLECT": lambda *args, **kwargs: None}
+    with pytest.raises(SystemExit, match="pocketsphinx"):
+        runpy.run_path(str(ROOT / "packaging" / "voicepilot.spec"), init_globals=namespace)

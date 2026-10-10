@@ -120,7 +120,8 @@ def model_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 def test_load_with_hotwords_uses_modified_beam_search(
     model_dir: Path, sherpa_calls: list[dict[str, Any]], tmp_path: Path
 ) -> None:
-    GipformerStt(model_dir, hotwords=["chụp màn hình"]).warmup()
+    backend = GipformerStt(model_dir, hotwords=["chụp màn hình"])
+    backend.warmup()
 
     (kwargs,) = sherpa_calls
     assert kwargs["decoding_method"] == "modified_beam_search"
@@ -128,8 +129,8 @@ def test_load_with_hotwords_uses_modified_beam_search(
     assert kwargs["hotwords_score"] == 4.0
     assert kwargs["max_active_paths"] == gipformer.MAX_ACTIVE_PATHS
     stt_dir = tmp_path / "cfg" / "stt"
-    assert kwargs["hotwords_file"] == str(stt_dir / "hotwords.txt")
-    assert kwargs["bpe_vocab"] == str(stt_dir / "bpe.vocab")
+    assert Path(kwargs["hotwords_file"]).read_bytes() == (stt_dir / "hotwords.txt").read_bytes()
+    assert Path(kwargs["bpe_vocab"]).read_bytes() == (stt_dir / "bpe.vocab").read_bytes()
     assert (stt_dir / "hotwords.txt").read_bytes() == "CHỤP MÀN HÌNH\n".encode("utf-8")
 
 

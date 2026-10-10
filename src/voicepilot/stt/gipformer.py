@@ -7,6 +7,10 @@ hotword biasing, using the phrase files written by voicepilot.stt.hotwords.
 from __future__ import annotations
 
 import logging
+import os
+import shutil
+import sys
+import tempfile
 import threading
 import time
 import tomllib
@@ -21,6 +25,7 @@ from voicepilot import paths
 from voicepilot.config import config_dir
 from voicepilot.contracts import AudioClip, SttError, Transcript
 from voicepilot.stt.hotwords import write_hotword_files
+from voicepilot.windows.native_paths import short_windows_path
 
 log = logging.getLogger(__name__)
 
@@ -42,6 +47,29 @@ DEFAULT_FILES = {
     "tokens": "tokens.txt",
 }
 DEFAULT_MODEL_SUBDIR = "gipformer1.5-int8"
+
+
+def _native_hotword_files(files: tuple[Path, Path], backend: GipformerStt) -> tuple[Path, Path]:
+    """Protect sherpa's narrow BPE reader from Unicode paths and process exit(-1)."""
+    if sys.platform != "win32" or all(str(path).isascii() for path in files):
+        return files
+    try:
+        aliases = tuple(short_windows_path(path) for path in files)
+        if all(str(path).isascii() for path in aliases):
+            return aliases
+    except OSError:
+        pass
+    system_root = os.environ.get("SystemRoot")
+    if not system_root or not system_root.isascii():
+        raise OSError("No ASCII Windows temporary directory is available for hotwords")
+    if backend._hotword_cache is None:
+        backend._hotword_cache = tempfile.TemporaryDirectory(prefix="voicepilot-hotwords-",
+                                                           dir=Path(system_root) / "Temp")
+    folder = Path(backend._hotword_cache.name)
+    targets = tuple(folder / path.name for path in files)
+    for source, target in zip(files, targets, strict=True):
+        shutil.copyfile(source, target)
+    return targets
 
 
 def _model_file_names() -> dict[str, str]:
@@ -97,6 +125,7 @@ class GipformerStt:
         self._decode_lock = threading.Lock()
         self._recognizer: Any = None
         self._unbiased: GipformerStt | None = None
+        self._hotword_cache: tempfile.TemporaryDirectory | None = None
 
     def without_hotwords(self) -> GipformerStt:
         """Reuse a lazy greedy decoder for dictation, without command/alias bias.
@@ -192,6 +221,8 @@ class GipformerStt:
         """
         try:
             files = write_hotword_files(self._hotwords, tokens_path, config_dir() / HOTWORD_DIR)
+            if files is not None:
+                files = _native_hotword_files(files, self)
         except (OSError, ValueError) as exc:  # ValueError covers a tokens.txt that is not UTF-8
             log.warning("Cannot write Gipformer hotword files, using greedy search: %s", type(exc).__name__)
             return {}

@@ -106,6 +106,9 @@ a = Analysis(  # noqa: F821 - Analysis is provided by PyInstaller
     noarchive=False,
 )
 # The single onnxruntime for the whole process comes from sherpa-onnx-core. Fail the build if it is missing.
+if any(dest.replace("\\", "/").startswith("speech_recognition/pocketsphinx-data/")
+       for dest, _src, _kind in a.datas):
+    raise SystemExit("Unused pocketsphinx models were collected; check the project speech_recognition hook.")
 if not any(Path(dest).name.lower() == "onnxruntime.dll" for dest, _src, _kind in a.binaries):  # noqa: F821
     raise SystemExit("onnxruntime.dll (sherpa_onnx/lib) was not collected; check the sherpa-onnx-core install.")
 pyz = PYZ(a.pure)  # noqa: F821
