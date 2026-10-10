@@ -5,7 +5,7 @@
 .DESCRIPTION
     Creates .venv with Python 3.12, installs requirements.lock and the dev and build extras,
     runs the unit tests, downloads the models, renders the icon, runs PyInstaller, copies the
-    models and documents next to VoicePilot.exe, writes SOURCE.txt, runs the --selftest smoke
+    models and documents next to VoicePilot.exe, writes SOURCE.txt, runs the --selftest-runtime smoke
     check and creates dist\VoicePilot-<version>-win64.zip.
 
     Windows PowerShell 5.1 compatible. Keep this file ASCII-only: 5.1 reads scripts without a
@@ -192,7 +192,7 @@ try {
     [System.IO.File]::WriteAllText((Join-Path -Path $AppDir -ChildPath 'SOURCE.txt'), (($sourceLines -join "`r`n") + "`r`n"), $Utf8NoBom)
 
     if (-not $SkipSmoke) {
-        Write-Step 'Smoke check (VoicePilot.exe --selftest)'
+        Write-Step 'Smoke check (VoicePilot.exe --selftest-runtime)'
         $exe = Join-Path -Path $AppDir -ChildPath 'VoicePilot.exe'
         # A fresh config folder keeps the check away from the user's settings and logs. Without
         # VOICEPILOT_MODELS_DIR the app looks for models\ next to VoicePilot.exe, as it does when installed.
@@ -204,10 +204,10 @@ try {
             $env:VOICEPILOT_CONFIG_DIR = $smokeHome
             Remove-Item -LiteralPath 'Env:VOICEPILOT_MODELS_DIR' -ErrorAction SilentlyContinue
             # The app is a windowed (GUI) executable, so use Start-Process to get the exit code.
-            $proc = Start-Process -FilePath $exe -ArgumentList '--selftest' -PassThru -WindowStyle Hidden
-            if (-not $proc.WaitForExit(30000)) {
+            $proc = Start-Process -FilePath $exe -ArgumentList '--selftest-runtime' -PassThru -WindowStyle Hidden
+            if (-not $proc.WaitForExit(120000)) {
                 Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
-                throw 'Smoke check timed out after 30 seconds; inspect the retained build logs'
+                throw 'Smoke check timed out after 120 seconds; inspect the retained build logs'
             }
             $reportPath = Join-Path -Path $smokeHome -ChildPath 'logs\selftest.txt'
             if (-not (Test-Path -LiteralPath $reportPath)) {

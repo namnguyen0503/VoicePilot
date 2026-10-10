@@ -8,11 +8,11 @@ Yêu cầu của kế hoạch: ít nhất **30 câu**, đo trên laptop mục ti
 
 1. Thu 30 câu theo kịch bản ở mục 2, mỗi câu một tệp WAV. Mic và phòng giống lúc dùng thật. Không cần chuẩn hóa tần số lấy mẫu; công cụ chuyển về 16 kHz mono.
 2. Đặt các tệp WAV và `labels.csv` trong một thư mục, ví dụ `bench\session-01\`. Thư mục này không đưa vào Git.
-3. Điền `labels.csv` (xem mục 3).
+3. Chép `docs/benchmark-labels.csv` thành `labels.csv` (30 câu ở mục 2), rồi sửa nhãn nếu bạn đọc khác.
 
 ## 2. Kịch bản 30 câu tiếng Việt
 
-Mỗi chức năng có hai câu (dictation có hai câu, đúng với 15 chức năng trong `docs/COMMANDS.vi.md`). Đọc đúng từng câu, tự nhiên, không nhấn mạnh.
+30 câu bao phủ đủ 15 chức năng trong `docs/COMMANDS.vi.md`, trong đó có hai câu đọc chính tả. Đọc tự nhiên, không nhấn mạnh.
 
 | # | Câu cần đọc | Chức năng | Ngữ cảnh | Tham số mong đợi |
 |---|---|---|---|---|
@@ -88,6 +88,10 @@ Tùy chọn quan trọng:
 
 Công cụ dùng cùng `HybridTranscriber` và `RuleParser` như ứng dụng. Với `--backends google`, Gipformer không được tải. Với `--backends offline`, Google không được gọi.
 
+Model lệnh dùng hotwords từ cấu hình như app; đọc chính tả chọn decoder riêng không có hotwords.
+Validator cũng ưu tiên URL nằm trong bảng website, như controller. Lần đầu đọc chính tả offline có thể
+nạp thêm decoder; thời gian này nằm trong độ trễ của câu đó. Bộ luồng được đóng sau mỗi backend.
+
 Đầu ra JSON không chứa nội dung nhận dạng, chỉ có độ trễ, nguồn, trạng thái và số lỗi từng câu.
 
 ## 5. Định nghĩa chỉ số
@@ -104,6 +108,10 @@ Công cụ dùng cùng `HybridTranscriber` và `RuleParser` như ứng dụng. V
 | RAM đỉnh | Working set đỉnh của tiến trình (Windows) sau khi chạy backend. Chạy riêng từng backend để số này không bị cộng dồn. |
 
 ## 6. Mẫu kết quả
+
+Ngày 2026-10-10 đã chạy smoke bằng giọng tổng hợp: ASR/TTS cùng tiến trình và decoder đọc chính tả
+đều hoạt động trên Windows. Đây chưa phải benchmark 30 câu nói thật. Phần đo micro và desktop
+được Nam để lại sau; bảng dưới vẫn chờ dữ liệu thật.
 
 Điền kết quả sau mỗi lần đo. Ghi rõ commit, ngày và cấu hình máy.
 

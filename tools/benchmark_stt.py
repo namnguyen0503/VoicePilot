@@ -64,6 +64,7 @@ from voicepilot.contracts import (  # noqa: E402
 from voicepilot.intent.parser import RuleParser  # noqa: E402
 from voicepilot.stt.gipformer import DEFAULT_MODEL_SUBDIR, GipformerStt  # noqa: E402
 from voicepilot.stt.google import GoogleStt  # noqa: E402
+from voicepilot.stt.hotwords import command_phrases  # noqa: E402
 from voicepilot.stt.hybrid import HybridTranscriber  # noqa: E402
 
 TARGET_RATE = 16000
@@ -234,11 +235,15 @@ def peak_rss_mb() -> float | None:
 def is_valid_for(parser: RuleParser, case: Case) -> Callable[[Transcript], bool]:
     """Return the validity test the app uses: an executable command, or non-empty dictation text."""
     mode = Mode.DICTATION if case.expected_intent is Intent.DICTATE_TEXT else Mode.COMMAND
+    known_sites = frozenset(load_config().website_aliases.values())
 
     def check(transcript: Transcript) -> bool:
         if mode is Mode.DICTATION:
             return bool(transcript.text.strip())
-        return parser.parse(transcript.text, case.context, mode).is_executable
+        command = parser.parse(transcript.text, case.context, mode)
+        if command.intent is Intent.BROWSER_OPEN_SITE and command.params.get("url") not in known_sites:
+            return False
+        return command.is_executable
 
     return check
 
@@ -263,13 +268,16 @@ def run_backend(
     )
     report = BackendReport(backend=name)
     cancel_event = threading.Event()
-    for index, case in enumerate(cases):
-        outcome = _run_case(transcriber, parser, case, index, cancel_event)
-        report.outcomes.append(outcome)
-        progress = f"{index + 1}/{len(cases)} {case.file.name}"
-        print(f"  [{name}] {progress}: {outcome.latency_ms:.0f} ms", flush=True)
-    report.peak_rss_mb = peak_rss_mb()
-    return report
+    try:
+        for index, case in enumerate(cases):
+            outcome = _run_case(transcriber, parser, case, index, cancel_event)
+            report.outcomes.append(outcome)
+            progress = f"{index + 1}/{len(cases)} {case.file.name}"
+            print(f"  [{name}] {progress}: {outcome.latency_ms:.0f} ms", flush=True)
+        report.peak_rss_mb = peak_rss_mb()
+        return report
+    finally:
+        transcriber.close()
 
 
 def _run_case(
@@ -286,7 +294,8 @@ def _run_case(
         return _score(case, 0.0, None, None, parser, error=str(exc))
     started = time.perf_counter()
     try:
-        transcript = transcriber.transcribe(clip, is_valid_for(parser, case), cancel_event)
+        mode = Mode.DICTATION if case.expected_intent is Intent.DICTATE_TEXT else Mode.COMMAND
+        transcript = transcriber.for_mode(mode).transcribe(clip, is_valid_for(parser, case), cancel_event)
     except SttError as exc:
         latency = (time.perf_counter() - started) * 1000
         return _score(case, latency, None, None, parser, error=str(exc))
@@ -429,7 +438,9 @@ def markdown_table(summaries: list[dict[str, Any]]) -> str:
 def build_gipformer(args: argparse.Namespace) -> tuple[GipformerStt, float]:
     """Create the Gipformer backend and warm it up. Returns the backend and the load time in ms."""
     model_dir = Path(args.model_dir) if args.model_dir else paths.models_dir() / "asr" / DEFAULT_MODEL_SUBDIR
-    backend = GipformerStt(model_dir, num_threads=args.threads)
+    config = load_config()
+    backend = GipformerStt(model_dir, num_threads=args.threads,
+                          hotwords=command_phrases(config.app_aliases, config.website_aliases))
     started = time.perf_counter()
     backend.warmup()
     return backend, (time.perf_counter() - started) * 1000

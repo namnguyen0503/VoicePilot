@@ -263,7 +263,13 @@ def keys_suite(folder: Path) -> list[Check]:
         def screenshot():
             overlay.show_bar()
             app.processEvents()
-            executor._hide_overlay = overlay.hidden_temporarily
+            @contextlib.contextmanager
+            def hidden_overlay():
+                with overlay.hidden_temporarily():
+                    app.processEvents()
+                    require(not overlay.isVisible(), "Overlay was visible during capture")
+                    yield
+            executor._hide_overlay = hidden_overlay
             result = execute(parser, executor, hwnd, "chụp màn hình")
             data = Path(result.data["path"]).read_bytes()
             require(data[:8] == b"\x89PNG\r\n\x1a\n", "Screenshot is not a PNG")
@@ -272,6 +278,7 @@ def keys_suite(folder: Path) -> list[Check]:
             with mss.mss() as grabber:
                 require((width, height) in [(m["width"], m["height"]) for m in grabber.monitors[1:]],
                         "Screenshot dimensions do not match a physical monitor")
+            require(overlay.isVisible(), "Overlay was not restored after capture")
             return f"PNG {width}x{height}; overlay restored={overlay.isVisible()}"
         runner.check("WIN_SCREENSHOT", screenshot)
         def launch():
@@ -399,7 +406,8 @@ def browser_suite(folder: Path, name: str) -> list[Check]:
         raise Blocked(f"{name} executable is not installed in App Paths")
     class Pages(http.server.BaseHTTPRequestHandler):
         def do_GET(self):  # noqa: N802
-            body = f"<title>VoicePilot {self.path}</title><textarea id='text'></textarea>".encode()
+            title = f"VoicePilot {self.server.server_port} {self.path}"
+            body = f"<title>{title}</title><textarea id='text'></textarea>".encode()
             self.send_response(200)
             self.end_headers()
             self.wfile.write(body)
@@ -421,8 +429,9 @@ def browser_suite(folder: Path, name: str) -> list[Check]:
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=2) as response:
             return [tab for tab in json.load(response) if tab.get("type") == "page"]
     try:
-        hwnd = int(wait_for(lambda: next((w[0] for w in native_windows()
-                                         if w[1] == process.pid and executable in w[3]), 0), 15))
+        # Chromium may hand the launch off to another PID. Match the unique local fixture title.
+        hwnd = int(wait_for(lambda: browser_fixture_window(native_windows(), executable,
+                                                           server.server_port), 15))
         wait_for(lambda: len(tabs()) == 2)
         def previous():
             execute(parser, executor, hwnd, "tab trước")
@@ -468,6 +477,12 @@ def browser_suite(folder: Path, name: str) -> list[Check]:
         server.shutdown()
         server.server_close()
     return runner.checks
+
+
+def browser_fixture_window(windows: list[tuple[int, int, str, str]], executable: str, port: int) -> int:
+    prefix = f"VoicePilot {port} "
+    return next((hwnd for hwnd, _pid, title, image in windows
+                 if title.startswith(prefix) and Path(image).name == executable), 0)
 
 
 def run_probe(name: str, folder: Path) -> list[Check]:
@@ -556,6 +571,23 @@ def write_report(folder: Path, checks: list[Check]) -> None:
     (folder / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
+def collect_probe(name: str, folder: Path, timeout: int, *, environment: dict[str, str] | None = None):
+    """Retain a failing report even when a native child crashes or times out."""
+    target = folder / name
+    layer = "runtime" if name == "runtime" else "windows"
+    try:
+        result = subprocess.run([sys.executable, __file__, "--probe", name, "--output", str(target)],
+                                env=environment, cwd=ROOT, capture_output=True, text=True,
+                                encoding="utf-8", errors="replace", timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return [Check(name, layer, "fail", timeout * 1000, "Probe process timed out")]
+    (folder / f"{name}.txt").write_text(result.stdout + result.stderr, encoding="utf-8")
+    report = target / "report.json"
+    if report.is_file():
+        return [Check(**raw) for raw in json.loads(report.read_text(encoding="utf-8"))["checks"]]
+    return [Check(name, layer, "fail", 0, f"Probe exited {result.returncode}; see {name}.txt")]
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--windows", action="store_true", help="Exercise disposable native app windows")
@@ -567,7 +599,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     base = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "VoicePilot" / "verification"
     folder = args.output or base / (datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:8])
-    folder.mkdir(parents=True, exist_ok=True)
+    if folder.exists():
+        parser.error("--output must be a new directory; previous evidence will not be overwritten")
+    folder.mkdir(parents=True)
     if args.probe:
         checks = run_probe(args.probe, folder)
         write_report(folder, checks)
@@ -593,17 +627,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             runner.check(name, invoke)
         checks.extend(runner.checks)
     if args.runtime:
-        target = folder / "runtime"
-        result = subprocess.run([sys.executable, __file__, "--probe", "runtime", "--output", str(target)],
-                                cwd=ROOT, capture_output=True, text=True,
-                                encoding="utf-8", errors="replace", timeout=120)
-        (folder / "runtime.txt").write_text(result.stdout + result.stderr, encoding="utf-8")
-        if (target / "report.json").is_file():
-            checks.extend(Check(**raw) for raw in json.loads(
-                (target / "report.json").read_text(encoding="utf-8"))["checks"])
-        else:
-            checks.append(Check("runtime", "runtime", "fail", 0,
-                                f"Probe exited {result.returncode}; see runtime.txt"))
+        checks.extend(collect_probe("runtime", folder, 120))
     if args.windows:
         require(sys.platform == "win32", "--windows requires an interactive Windows desktop")
         reason = desktop_block_reason(Win32ContextProvider().capture())
@@ -613,21 +637,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"blocked windows: {reason}\nReport: {folder / 'report.md'}")
             return 1
         for name in ("keys", "ppt", "edge", "chrome"):
-            target = folder / name
             environment = {**os.environ, "QT_QPA_PLATFORM": "windows"}
-            try:
-                result = subprocess.run([sys.executable, __file__, "--probe", name, "--output", str(target)],
-                                        env=environment, cwd=ROOT, capture_output=True, text=True,
-                                        encoding="utf-8", errors="replace", timeout=90)
-                (folder / f"{name}.txt").write_text(result.stdout + result.stderr, encoding="utf-8")
-                if (target / "report.json").is_file():
-                    checks.extend(Check(**raw) for raw in json.loads(
-                        (target / "report.json").read_text(encoding="utf-8"))["checks"])
-                else:
-                    checks.append(Check(name, "windows", "fail", 0,
-                                        f"Probe exited {result.returncode}; see {name}.txt"))
-            except subprocess.TimeoutExpired:
-                checks.append(Check(name, "windows", "fail", 90000, "Probe process timed out"))
+            checks.extend(collect_probe(name, folder, 90, environment=environment))
             write_report(folder, checks)
     write_report(folder, checks)
     for check in checks:

@@ -91,11 +91,15 @@ Settings are stored in `%LOCALAPPDATA%\VoicePilot\config.toml`. Defaults are in 
 powershell -NoProfile -ExecutionPolicy Bypass -File tools\build.ps1
 ```
 
-The script creates `.venv` with Python 3.12, installs the locked dependencies, runs the tests, downloads the models, builds `dist\VoicePilot\VoicePilot.exe` with PyInstaller, copies the models, documents and licences next to it, writes `SOURCE.txt`, and creates `dist\VoicePilot-<version>-win64.zip`. The ZIP is meant to run without a Python installation and from folders whose names contain spaces or Vietnamese characters. Both points are part of the manual release check on Windows.
+The script creates `.venv` with Python 3.12, installs the locked dependencies, runs ruff and pytest, downloads the models, builds `dist\VoicePilot\VoicePilot.exe`, retains wheel license texts, copies models and documents, writes `SOURCE.txt`, and creates `dist\VoicePilot-<version>-win64.zip`. Its `--selftest-runtime` smoke check loads ASR/TTS together and decodes synthetic speech without a microphone or playback. Reports are retained under `build\selftest-<id>`.
+
+PowerShell 5.1 builds and frozen selftests were verified in a path containing spaces and Vietnamese characters on Windows 10. Testing on a clean machine without Python and testing interactive desktop actions are still pending. Set `-RepoUrl` to the actual source repository before publishing; this checkout currently has no remote. See [`docs/TODO.md`](docs/TODO.md) for the remaining release checks and model redistribution question.
+
+Run the repeatable feature harness with `python tools/verify_features.py --checks --runtime`. Add `--windows` on an unlocked, idle desktop to exercise disposable Notepad, PowerPoint and browser windows. See [`docs/VERIFICATION.vi.md`](docs/VERIFICATION.vi.md) for evidence and limitations.
 
 ## Privacy
 
-- **Logs** contain latency, status and error codes only. They never contain transcripts.
+- **Normal logs** contain latency, status and error codes only. `--debug` opts into transcripts, parsed parameters and recordings in separate diagnostic files under `logs\debug.log` and `logs\clips\`.
 - **Recent transcripts** (the last 20) are kept in memory only and are cleared when the app exits.
 - **Google mode** sends the recorded audio to Google's speech recognition service. Use **Offline** mode (Gipformer) to keep audio on the machine.
 - **Offline mode** needs no network connection. Text to speech also runs locally.
@@ -103,7 +107,7 @@ The script creates `.venv` with Python 3.12, installs the locked dependencies, r
 
 ## Benchmarks
 
-`tools/benchmark_stt.py` runs a labelled set of recordings (30 sentences are scripted in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md)) through the Google, offline and hybrid paths. It reports intent accuracy, parameter accuracy, word error rate, exact-match rate, p50 and p95 latency, and peak memory. Results are measured on the target laptop and are not estimated here.
+`tools/benchmark_stt.py` runs labelled recordings through Google, offline and hybrid paths and reports accuracy, word error rate, p50/p95 latency and peak memory. [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) and [`docs/benchmark-labels.csv`](docs/benchmark-labels.csv) provide 30 prompts. Real microphone results are pending; synthetic smoke checks are recorded separately.
 
 ## Limitations
 
@@ -112,7 +116,7 @@ The script creates `.venv` with Python 3.12, installs the locked dependencies, r
 - The Google path uses SpeechRecognition's public web endpoint, not a Google Cloud API key. It may change or stop working without notice.
 - Commands use fixed phrasings from `commands.toml`. Unusual wording falls back to the example prompt.
 - Gipformer is a CPU model; on the target laptop its latency depends on the number of threads and the clip length.
-- The release build depends on a PowerPoint desktop installation and on a Windows microphone device; there is no automated test for those paths.
+- PowerPoint actions require desktop Office. Microphone quality, Word/admin input, DPI scaling and the full voice demo require testing on the target machine.
 
 ## Roadmap
 

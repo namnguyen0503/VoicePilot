@@ -1,0 +1,31 @@
+file,expected_intent,expected_params_json,context,reference
+s01.wav,PPT_SAVE,{},powerpoint,lưu lại
+s02.wav,PPT_SAVE_AS,"{""filename"": ""báo cáo tháng chín""}",powerpoint,lưu thành báo cáo tháng chín
+s03.wav,PPT_NEXT_SLIDE,{},powerpoint,slide tiếp theo
+s04.wav,PPT_PREV_SLIDE,{},powerpoint,slide trước
+s05.wav,PPT_START_SHOW,{},powerpoint,bắt đầu trình chiếu
+s06.wav,PPT_STOP_SHOW,{},powerpoint,dừng trình chiếu
+s07.wav,BROWSER_OPEN_SITE,"{""url"": ""https://www.youtube.com""}",browser,mở youtube
+s08.wav,BROWSER_OPEN_SITE,"{""url"": ""https://www.facebook.com""}",browser,mở facebook
+s09.wav,BROWSER_SEARCH,"{""query"": ""thời tiết hôm nay""}",browser,tìm thời tiết hôm nay
+s10.wav,BROWSER_SEARCH,"{""query"": ""giá vàng hôm nay""}",browser,tìm kiếm giá vàng hôm nay
+s11.wav,BROWSER_NEXT_TAB,{},browser,tab tiếp theo
+s12.wav,BROWSER_NEXT_TAB,{},browser,tab tiếp
+s13.wav,BROWSER_PREV_TAB,{},browser,tab trước
+s14.wav,BROWSER_PREV_TAB,{},browser,chuyển về tab trước
+s15.wav,BROWSER_NEW_TAB,{},browser,tab mới
+s16.wav,BROWSER_NEW_TAB,{},browser,mở tab mới
+s17.wav,BROWSER_CLOSE_TAB,{},browser,đóng tab
+s18.wav,BROWSER_CLOSE_TAB,{},browser,đóng tab này
+s19.wav,WIN_OPEN_APP,"{""app"": ""WINWORD.EXE"", ""app_name"": ""word""}",other,mở word
+s20.wav,WIN_OPEN_APP,"{""app"": ""notepad.exe"", ""app_name"": ""notepad""}",other,mở notepad
+s21.wav,WIN_SCREENSHOT,{},other,chụp màn hình
+s22.wav,WIN_SCREENSHOT,{},other,chụp ảnh màn hình
+s23.wav,DICTATE_TEXT,{},other,"xin chào, tôi đang kiểm thử chức năng đọc chính tả"
+s24.wav,DICTATE_TEXT,{},other,cuộc họp sẽ bắt đầu lúc chín giờ sáng
+s25.wav,WIN_OPEN_APP,"{""app"": ""POWERPNT.EXE"", ""app_name"": ""powerpoint""}",other,mở powerpoint
+s26.wav,WIN_OPEN_APP,"{""app"": ""calc.exe"", ""app_name"": ""máy tính""}",other,mở máy tính
+s27.wav,PPT_NEXT_SLIDE,{},powerpoint,slide tiếp
+s28.wav,PPT_PREV_SLIDE,{},powerpoint,trang trước
+s29.wav,PPT_STOP_SHOW,{},powerpoint,kết thúc trình chiếu
+s30.wav,BROWSER_OPEN_SITE,"{""url"": ""https://www.google.com""}",browser,mở google

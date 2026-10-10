@@ -67,3 +67,28 @@ def test_locked_windows_desktop_blocks_native_checks(process_name):
     checks = harness.blocked_native_checks(reason)
     assert all(check.status == "blocked" for check in checks)
     assert {intent.value for intent in Intent if intent is not Intent.UNKNOWN} <= {c.name for c in checks}
+
+
+def test_existing_report_directory_is_not_overwritten(tmp_path):
+    evidence = tmp_path / "report.json"
+    evidence.write_text("previous evidence", encoding="utf-8")
+    with pytest.raises(SystemExit):
+        harness.main(["--output", str(tmp_path)])
+    assert evidence.read_text(encoding="utf-8") == "previous evidence"
+
+
+def test_runtime_timeout_becomes_a_failed_report_check(monkeypatch, tmp_path):
+    def timeout(*args, **kwargs):
+        raise harness.subprocess.TimeoutExpired("synthetic child", 120)
+    monkeypatch.setattr(harness.subprocess, "run", timeout)
+    checks = harness.collect_probe("runtime", tmp_path, 120)
+    assert checks[0].status == "fail" and checks[0].layer == "runtime"
+    assert checks[0].elapsed_ms == 120000
+
+
+def test_browser_fixture_identifies_pid_handoff_without_touching_personal_window():
+    windows = [(10, 100, "Personal tab - Edge", "msedge.exe"),
+               (20, 200, "VoicePilot 4321 /first - Edge", "msedge.exe"),
+               (30, 300, "VoicePilot 5432 /first - Edge", "msedge.exe")]
+    assert harness.browser_fixture_window(windows, "msedge.exe", 4321) == 20
+    assert harness.browser_fixture_window(windows, "chrome.exe", 4321) == 0

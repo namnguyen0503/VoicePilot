@@ -143,6 +143,62 @@ def test_selftest_import_group_passes_for_an_installed_module(config_home: Path,
     assert "[OK] import json" in _report(config_home)
 
 
+def test_runtime_selftest_is_opt_in(config_home, models_home, no_module_imports, monkeypatch):
+    monkeypatch.setattr(bootstrap, "_check_speech_runtime", _fail)
+    assert bootstrap.main(["--selftest"]) == 0
+
+
+def test_runtime_selftest_reports_failure_without_starting_gui(
+    config_home, models_home, no_module_imports, monkeypatch,
+):
+    monkeypatch.setattr(bootstrap, "VoicePilot", _fail)
+    monkeypatch.setattr(bootstrap, "_check_speech_runtime",
+                        lambda: [(False, "runtime: fake inference failed")])
+    assert bootstrap.main(["--selftest-runtime"]) == 1
+    assert "[FAIL] runtime: fake inference failed" in _report(config_home)
+
+
+def test_runtime_selftest_guards_native_load_errors(config_home, models_home, monkeypatch):
+    def broken():
+        raise RuntimeError("synthetic DLL failure")
+    monkeypatch.setattr(bootstrap, "_check_speech_runtime", broken)
+    assert bootstrap.run_selftest((), runtime=True) == 1
+    assert "[FAIL] runtime: RuntimeError" in _report(config_home)
+
+
+def test_speech_runtime_observes_command_and_unbiased_dictation(monkeypatch):
+    import types
+
+    import voicepilot.tts.piper as piper
+    from voicepilot.contracts import Transcript
+
+    calls = []
+    class FakeAsr:
+        def __init__(self, *args, **kwargs):
+            assert kwargs["hotwords"]
+        def warmup(self):
+            calls.append("load_asr")
+        def without_hotwords(self):
+            calls.append("unbiased")
+            return self
+        def transcribe(self, clip):
+            assert clip.samples
+            text = "chụp màn hình" if clip.turn_id == 0 else "xin chào"
+            return Transcript(text, "gipformer", 1, clip.turn_id)
+    class FakeVoice:
+        def generate(self, text, **kwargs):
+            calls.append("synthesize")
+            return types.SimpleNamespace(samples=[0.1] * 160, sample_rate=16000)
+    def load_voice(path):
+        calls.append("load_tts")
+        return FakeVoice()
+    monkeypatch.setattr(gipformer_module, "GipformerStt", FakeAsr)
+    monkeypatch.setattr(piper, "_load_sherpa_voice", load_voice)
+    checks = bootstrap._check_speech_runtime()
+    assert all(ok for ok, _ in checks)
+    assert calls == ["load_asr", "load_tts", "synthesize", "synthesize", "unbiased"]
+
+
 def test_selftest_fails_when_the_report_folder_is_unavailable(
     config_home: Path,
     models_home: Path,

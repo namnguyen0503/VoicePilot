@@ -24,6 +24,18 @@ Báo cáo JSON/Markdown và đầu ra công cụ nằm dưới
 `%LOCALAPPDATA%\VoicePilot\verification\<thời điểm>-<id>\`.
 Dùng `--output <thư mục mới>` để chọn nơi lưu. Kết quả `blocked` nghĩa là thiếu
 điều kiện kiểm thử, không được tính là đạt. Exit code khác 0 nếu có fail hoặc blocked.
+Harness từ chối thư mục báo cáo đã tồn tại để giữ bằng chứng cũ.
+
+Bản portable có thể kiểm tra suy luận native mà không cần mở desktop:
+
+```powershell
+.\dist\VoicePilot\VoicePilot.exe --selftest-runtime
+```
+
+Đọc `%LOCALAPPDATA%\VoicePilot\logs\selftest.txt` để xem kết quả. Cờ `--selftest`
+vẫn chỉ kiểm tra nhanh file/import; `--selftest-runtime` nạp model, tổng hợp câu,
+nhận dạng lại và kiểm intent, sau đó thử decoder chính tả. Không thu micro, không
+phát âm thanh. `build.ps1` dùng phép thử này và giữ báo cáo trong `build\selftest-<id>`.
 
 Harness quan sát chữ tiếng Việt/emoji trong Notepad; focus trước/sau khi overlay
 hiện; chặn đích đã đổi; PNG và kích thước màn hình; cửa sổ app sau khi mở;

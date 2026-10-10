@@ -9,6 +9,7 @@ Command-line flags:
     --selftest  check config, intent rules, model files and imports, then exit 0 or 1.
                 No window, no event loop, no hotkeys. The report is printed and written
                 to config_dir()/logs/selftest.txt, because a windowed build has no stdout.
+    --selftest-runtime  also load ASR/TTS and decode synthetic speech, without microphone or playback.
 """
 
 from __future__ import annotations
@@ -458,6 +459,11 @@ def _build_arg_parser() -> argparse.ArgumentParser:
         help="check config, intent rules, model files and imports without a window; exit 0 when all pass",
     )
     parser.add_argument(
+        "--selftest-runtime",
+        action="store_true",
+        help="verify ASR/TTS models together using synthetic speech; no microphone or playback",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         help="log at DEBUG and save transcripts, parsed commands, turn audio to logs/debug.log, logs/clips",
@@ -550,13 +556,54 @@ def _write_report(lines: Sequence[str]) -> bool:
     return True
 
 
-def run_selftest(import_names: Sequence[str] | None = None) -> int:
+def _check_speech_runtime() -> list[Check]:
+    """Exercise native model inference together without touching audio devices."""
+    import numpy as np
+
+    from voicepilot.audio.capture import convert_to_16k
+    from voicepilot.contracts import AudioClip
+    from voicepilot.intent.parser import RuleParser
+    from voicepilot.paths import models_dir
+    from voicepilot.stt.gipformer import GipformerStt
+    from voicepilot.stt.hotwords import command_phrases
+    from voicepilot.tts.piper import _load_sherpa_voice, _to_pcm
+
+    config = load_config()
+    base = models_dir()
+    backend = GipformerStt(base.joinpath(*GIPFORMER_MODEL_DIR), num_threads=config.gipformer_threads,
+                          hotwords=command_phrases(config.app_aliases, config.website_aliases))
+    backend.warmup()
+    voice = _load_sherpa_voice(base.joinpath(*PIPER_MODEL_FILE))
+    checks: list[Check] = [(True, "runtime: ASR and TTS models loaded in one process")]
+    parser = RuleParser(config.website_aliases, config.app_aliases)
+    for index, (text, dictation) in enumerate((
+        ("Chụp màn hình.", False),
+        ("Xin chào, tôi đang kiểm thử chức năng đọc chính tả.", True),
+    )):
+        audio = voice.generate(text, sid=0, speed=1.0)
+        if not len(audio.samples) or audio.sample_rate <= 0:
+            checks.append((False, "runtime: TTS returned no valid PCM"))
+            continue
+        samples = convert_to_16k(np.frombuffer(_to_pcm(audio.samples), dtype="<i2"), audio.sample_rate)
+        decoder = backend.without_hotwords() if dictation else backend
+        result = decoder.transcribe(AudioClip(samples.tobytes(), index))
+        if dictation:
+            checks.append((bool(result.text.strip()), "runtime: unbiased dictation returned text"))
+        else:
+            command = parser.parse(result.text, None, Mode.COMMAND)
+            checks.append((command.intent is Intent.WIN_SCREENSHOT,
+                           "runtime: synthetic TTS -> ASR -> screenshot intent"))
+    return checks
+
+
+def run_selftest(import_names: Sequence[str] | None = None, *, runtime: bool = False) -> int:
     """Run the smoke checks and return the exit code: 0 when all pass and the report is written.
 
     Args:
         import_names: Modules to import. None uses the modules required on this platform.
+        runtime: Also load speech models and infer synthetic audio, without audio devices.
 
-    The report goes to stdout and to config_dir()/logs/selftest.txt. It never loads a speech model.
+    The report goes to stdout and to config_dir()/logs/selftest.txt. Model inference is opt-in.
     """
     names = _import_targets() if import_names is None else tuple(import_names)
     checks: list[Check] = []
@@ -564,6 +611,8 @@ def run_selftest(import_names: Sequence[str] | None = None) -> int:
     checks += _guarded("rules", _check_rules)
     checks += _guarded("models", _check_model_files)
     checks += _guarded("imports", lambda: _check_imports(names))
+    if runtime:
+        checks += _guarded("runtime", _check_speech_runtime)
 
     passed = all(ok for ok, _ in checks)
     lines = [f"{APP_NAME} {_app_version()} selftest"]
@@ -586,8 +635,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.version:
         _emit([f"{APP_NAME} {_app_version()}"])
         return 0
-    if args.selftest:
-        return run_selftest()
+    if args.selftest or args.selftest_runtime:
+        return run_selftest(runtime=args.selftest_runtime)
 
     setup_logging(debug=args.debug)
     existing = QApplication.instance()
