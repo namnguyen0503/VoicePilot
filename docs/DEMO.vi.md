@@ -2,6 +2,11 @@
 
 Tài liệu này dùng để demo trực tiếp và để quay video. Mỗi bước ghi rõ cửa sổ đang mở, câu nói và kết quả cần thấy. Kết quả được ghi vào bảng kiểm tra ở mục 3.
 
+Ngày 2026-10-11, harness đã chạy đủ 15 chức năng với tác động Windows thật và ba vòng 10
+chức năng bằng transcript fixture. Báo cáo `verification\20261011-010358-974613c8\report.md`
+(LocalAppData) giữ bằng chứng. Đây chưa phải demo nói qua micro hoặc số đo p95 từ ngừng nói;
+các ô vòng nói thật bên dưới được giữ trống. Native hotkey/micro và chính tả Unicode đã đạt.
+
 ## 1. Chuẩn bị
 
 - Laptop Windows 10 với micro hoạt động. Thử `Ctrl + Alt + Space` một lần trước khi quay.

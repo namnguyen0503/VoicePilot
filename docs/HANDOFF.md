@@ -1,12 +1,12 @@
-# Handoff — VoicePilot v1 (2026-10-10)
+# Handoff — VoicePilot v1 (2026-10-11)
 
 Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PLAN.md`, `docs/TODO.md`,
-`docs/COMMANDS.vi.md`. Spec gốc: `docs/PLAN.md`. Cập nhật sau đợt kiểm chứng ngày 2026-10-10.
+`docs/COMMANDS.vi.md`. Spec gốc: `docs/PLAN.md`. Cập nhật sau kiểm chứng desktop thật ngày 2026-10-11.
 
 ## 1. Trạng thái hiện tại
 
 - Đủ 15 chức năng trong PLAN; Nam chốt hoàn thiện v1, để Wi-Fi và Excel ngoài phạm vi lần này.
-- **1190 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
+- **1200 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
   khi sửa app, rồi chạy lại sau sửa. Đủ 15 luồng parser → executor với backend giả lập đều đạt.
 - Harness thêm 60 lượt recorder → Controller → hybrid → parser → executor cho 15 chức năng
   qua bốn đường STT. Đã tái hiện/sửa hai lỗi chọn câu slide trong browser và câu tab trong PowerPoint;
@@ -31,8 +31,21 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
   có dấu/khoảng trắng, gồm cả thư mục cấu hình có dấu. ASR/TTS cùng tiến trình và chính tả đều đạt.
   `models/`, `.venv/`, `dist/`, `build/` đều được ignore. CI Windows đã có trong repo, chưa chạy trên GitHub
   vì checkout không có remote.
-- **Nam chọn kiểm tra desktop sau.** Lần thử native gặp `LockApp.exe`; harness hiện ghi `blocked`
-  khi desktop khóa. Chưa xác nhận có hệ thống focus, SendInput, COM, tab, DPI hay demo đủ 15 chức năng.
+- **Nam cho chạy desktop ngày 2026-10-11: đủ 15 chức năng đạt tác động Windows thật.**
+  Lượt đi qua Controller/hybrid/parser/executor và overlay, dùng audio/transcript fixture để kiểm
+  thực thi. Notepad/Word/Edge/Chrome chèn đúng tiếng Việt và emoji; PowerPoint lưu/lưu tên Việt,
+  chuyển slide ở editor/show, bắt đầu/dừng chiếu; tab/web/search ở cả hai browser; screenshot
+  PNG 1920×1080 giấu overlay; mở Notepad qua alias và AppsFolder đều đạt.
+- Ba vòng 10 chức năng (lưu/slide tiếp/slide trước, sáu lệnh browser, chính tả) đạt; sáu lệnh
+  browser lặp riêng trên cả Edge và Chrome. Hotkey thật nhận đúng một WM_HOTKEY; micro thật
+  thu 1,02 s thành PCM mono 16 kHz, giữ trong RAM. Chưa tính là demo giọng nói thật.
+- Word thật đã tái hiện emoji bị chèn thành `12`. Regression mô phỏng đúng Office trước sửa;
+  SendInput nay dùng mã Unicode được chọn + Alt+X cho ký tự ngoài BMP trong Word, rồi thu
+  gọn selection để chữ tiếp không ghi đè emoji. BMP và các app khác giữ cách nhập cũ.
+- Harness sửa đọc HWND trình chiếu qua Win32 theo PID fixture, MIME HTML, đợi ID tab mới
+  và bỏ dialog đăng nhập Edge khỏi số tab. Mỗi lỗi có regression; profile thử tắt implicit signin/sync.
+- Tỉ lệ Qt 1,25/1,50 đạt focus/input/screenshot. Đây là ép tỉ lệ app bằng QT_SCALE_FACTOR,
+  chưa thay cho đổi DPI toàn Windows hoặc thử nhiều màn hình.
 
 ## 2. Những gì đã làm trong phiên 2026-10-09/10 (theo commit)
 
@@ -96,49 +109,33 @@ và `[websites]` riêng `"cloud.vn"`, `"close.vn"` → `https://claude.ai` (các
 
 ## 6. Vấn đề còn mở
 
-Theo thứ tự đề xuất tiếp tục; các kiểm tra desktop chờ Nam chủ động cho chạy lại:
+Phần code 15 chức năng và kiểm chứng desktop bằng câu điều khiển đã hoàn thành. Các điều kiện
+sau cần dữ liệu giọng nói hoặc môi trường riêng; không đánh dấu đạt bằng fake/synthetic:
 
-1. **Focus + SendInput** trên desktop mở: Notepad, Word, Edge/Chrome, tiếng Việt/emoji,
-   cửa sổ admin/UIPI, đổi foreground trong lúc xử lý. Harness đã có probe Notepad/focus nhưng chưa đạt native.
-2. **PowerPoint + browser + screenshot**: GetActiveObject, Save/SaveAs tên tiếng Việt, slideshow,
-   timeout COM, phím tab Edge/Chrome, screenshot giấu overlay ở DPI 125–150%. Chạy native harness rồi demo
-   đủ 15 chức năng và ba vòng 10 chức năng ổn định nhất theo PLAN.
-3. **Mở app thật và tên tiếng Anh**: debug session mới nhất có các lượt Roblox, Visual Studio Code,
-   Photoshop, Outlook, Notepad; parser đã nhận nhiều đích. Cần đối chứng app/cửa sổ thực sau khi mở.
-   Hugging Face/Claude đọc tiếng Anh vẫn cần clip có câu tham chiếu rõ; không suy đoán alias từ tên app khác.
-4. **Benchmark 30 câu thật và chất lượng TTS**: đã có `docs/benchmark-labels.csv` và công cụ đồng bộ
-   với app. Chưa có số đo WER/p95/RAM giọng thật; decoder chính tả đã tách hotwords nhưng chưa đo chất lượng
-   trên giọng Nam. Kiểm tra thêm câu dài, số, tên riêng, dấu câu khi nghe TTS.
-   Đã tự chạy 30 WAV Piper ở ba backend; intent chỉ 5/30 Google và 11/30 offline/hybrid.
-   Padding/dấu chấm không cải thiện đáng kể. Giữ số đo tổng hợp ở BENCHMARKS §7;
-   không tính là chất lượng giọng thật hoặc thêm alias cho câu nhận nhầm. Callback TTS đã sửa/kiểm native.
-5. **Máy sạch và mạng**: thử ZIP không có Python, offline/online; kiểm proxy/CA tổ chức thực tế nếu có.
-   `tools/verify_downloads.py` đã chạy CLI downloader thật qua loopback HTTPS + CONNECT có auth:
-   sáu tình huống redirect/archive/CA/hash/retry/cache đạt, không cài CA hay đổi mạng Windows.
-   ZIP giải nén sang nơi khác có dấu, PATH chỉ Windows, không biến Python/model ngoài đã đạt ASR/TTS
-   và chính tả. 125 module quan sát chỉ đến từ bundle/Windows; thiếu model bị từ chối đúng.
-   Harness mới `tools/verify_portable.py`; máy hiện tại vẫn có Python, chưa tính là máy sạch.
-6. **Trước phát hành công khai**: quyền phân phối voice fine-tuned từ Lessac còn chưa rõ; xác nhận
-   provenance wheel espeak-ng và nguồn tương ứng cho GPL/FLAC. `LICENSE`, cffi, pycparser, header espeak
-   và build recipe đã đối chiếu; wheel license texts đã được giữ trong bundle. Điền RepoUrl thật vào SOURCE.txt
-   và chạy CI sau khi repo có remote.
+1. **Giọng nói thật:** thu 30 câu theo `docs/benchmark-labels.csv`, chạy Google/offline/hybrid,
+   ghi WER, intent/params accuracy, p50/p95, RAM; đo từ ngừng nói đến phản hồi và quay demo 15
+   chức năng, ba vòng 10 chức năng theo PLAN. Nghe TTS câu dài/số/tên/dấu câu. Smoke native
+   micro và suy luận tổng hợp đã đạt, chưa chứng minh p95 4 giây hay chất lượng giọng Nam.
+2. **Điều kiện Windows khác:** UIPI/cửa sổ admin, DPI hệ thống 125–150% và nhiều màn hình;
+   PowerPoint nhiều tài liệu, tệp chưa lưu/trùng tên và COM bị treo trên Office thật. Fakes đã
+   kiểm các nhánh timeout/cancel/boundary; desktop hiện xác nhận tài liệu thử với ba slide.
+3. **Tên app/web tiếng Anh:** đối chứng các app riêng như Roblox/VS Code/Photoshop/Outlook
+   và clip có câu tham chiếu Hugging Face/Claude. Notepad alias/AppsFolder đã mở cửa sổ thật;
+   không suy đoán alias hoặc chất lượng nhận dạng từ tên app khác.
+4. **Máy sạch/mạng/CI:** chạy ZIP trên Windows không Python, có/không mạng; proxy/CA tổ chức
+   nếu có. ZIP cô lập và TLS loopback đã đạt trước đó. CI có trong repo nhưng checkout chưa
+   có remote; không có GitHub run. Không tiếp tục kiểm checksum theo yêu cầu Nam.
+5. **Trước phát hành công khai:** quyền phân phối voice fine-tuned từ Lessac và provenance
+   wheel espeak-ng/nguồn tương ứng GPL/FLAC vẫn cần xác nhận; xem `THIRD_PARTY_NOTICES.md`.
+   Điền RepoUrl thật vào SOURCE.txt sau khi có remote. ZIP tại máy là artifact kiểm chứng.
 
-Các mục cũ đã xử lý: cách nói chuyển slide/tab; decoder chính tả không hotwords; lựa chọn Zalo rõ đích;
-hash tokens; lỗi build; CI thiếu. Wi-Fi/Excel được Nam để ngoài phạm vi v1.
-
-Bằng chứng mới: `%LOCALAPPDATA%\VoicePilot\verification\20261010-223811-4c8f9cca\report.md`
-(136 kiểm tra đạt, gồm 64 lượt pipeline, 49 tình huống worker COM giả lập, pytest/ruff/selftest
-và 5 probe runtime). Trước sửa Hủy: `verification\20261010-222916-f9551467\report.md`.
-Trước sửa vòng đời COM: `verification\20261010-223707-017b6ff0\report.md` (ba lỗi).
-Trước sửa shutdown: `verification\20261010-222521-ec93fd96\report.md`. Trước sửa worker COM:
-`%LOCALAPPDATA%\VoicePilot\verification\20261010-221920-883fd081\report.md` (25 lỗi).
-Trước sửa ngữ cảnh: `%LOCALAPPDATA%\VoicePilot\verification\20261010-214424-00449b74\report.md`
-(hai lỗi slide/tab). Bằng chứng nền: `%LOCALAPPDATA%\VoicePilot\verification\20261010-203447-2ab7a648\report.md`;
-hướng dẫn tái chạy và giới hạn tại `docs/VERIFICATION.vi.md`. Không tính fake/synthetic/blocked là native desktop pass.
-Exe smoke: `build\selftest-679b6f3a17344cba92ab42d27f664b09\logs\selftest.txt`;
-bundle files/FLAC: `build\bundle-verification-25330db82b694963bbf9f81588cb10c1\report.json`.
-TLS/proxy: `%LOCALAPPDATA%\VoicePilot\verification\downloads-20261010-211026-79eac23c\report.json`.
-ZIP cô lập: `%LOCALAPPDATA%\VoicePilot\verification\portable-20261010-211458-d5a9153b\report.json`.
+Bằng chứng desktop: `%LOCALAPPDATA%\VoicePilot\verification\20261011-010358-974613c8\report.md`
+(215 kiểm tra đạt: 128 fake, 79 Windows thật, 5 runtime, pytest/ruff/selftest).
+1200 pytest pass, 2 skip; ruff sạch. Trước sửa Word: `verification\word-observe-bf05a06e29724ca48f0e3fe099bfaae4\report.md`
+ghi expected/actual emoji thành `12`; regression giữ hành vi đó bằng fakes. Các báo cáo Qt scale bắt đầu `qt-scale-1.25-`
+và `qt-scale-1.5-`, mỗi báo cáo 12 native checks. Hướng dẫn/giới hạn: `docs/VERIFICATION.vi.md`.
+Bằng chứng worker COM/cancel/vòng đời trước đây: `verification\20261010-223811-4c8f9cca\report.md`.
+Không tính câu STT fixture hoặc âm thanh tổng hợp thành benchmark/demo giọng thật.
 
 ## 7. Cách debug với Nam
 

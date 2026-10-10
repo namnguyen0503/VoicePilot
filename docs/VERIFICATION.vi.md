@@ -41,7 +41,7 @@ câu phản hồi có số/tên/dấu câu và hủy sau callback đầu: callba
 0 để dừng; khi hủy không sinh câu tiếp theo. Chất lượng nghe vẫn cần Nam kiểm riêng.
 Quy ước callback theo [ví dụ Python của sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx/blob/11afbd009a7f8c08f4bcf2fc1b265d0df4670fbf/python-api-examples/offline-tts-play.py).
 
-Với `--windows`, harness mở Notepad, PowerPoint và profile thử riêng cho Edge/Chrome.
+Với `--windows`, harness mở Notepad, Word, PowerPoint và profile thử riêng cho Edge/Chrome.
 Nó tạo tài liệu mới để thử, đóng những cửa sổ nó đã tạo sau khi xong. Không dùng
 tài liệu đang làm hoặc profile trình duyệt cá nhân. Trong lúc chạy không thao tác
 bàn phím/chuột để kết quả focus có thể lặp lại.
@@ -69,7 +69,8 @@ tệp PowerPoint, trạng thái đã lưu, slide và trình chiếu; số tab/UR
 tab trên profile riêng của từng trình duyệt. Mở web/tìm kiếm dùng ShellExecute thật
 với tham số profile thử riêng. Các kiểm tra backend giả lập được ghi nhãn `fake`.
 
-Harness chưa thay cho thử micro thật, chất lượng giọng đọc, Word, cửa sổ admin/UIPI,
+Harness có smoke micro thật (PCM chỉ trong RAM), hotkey thật và chính tả Word. Nó chưa
+thay cho đo giọng nói thật, chất lượng giọng đọc, cửa sổ admin/UIPI,
 DPI 125–150% hoặc máy sạch không Python. Những điều kiện đó cần chạy riêng và ghi
 bằng chứng cụ thể. Dữ liệu tổng hợp không được tính là benchmark giọng nói của Nam.
 
@@ -104,3 +105,29 @@ quan sát DLL lúc tiến trình chạy và từ chối DLL nằm ngoài bundle 
 `report.json` giữ SHA-256 ZIP; mỗi tình huống giữ selftest, stdout/stderr và danh sách module
 đã nạp. Bản giải nén được giữ để đối chiếu. Đây là kiểm tra cô lập trên máy hiện tại: Python
 vẫn được cài trên máy, nên chưa thay cho thử trên máy sạch, Office hay micro thật.
+
+## Kết quả desktop ngày 2026-10-11
+
+`--windows --checks --runtime` đạt **215 checks**, gồm 128 fake, 79 desktop native,
+5 runtime và 3 công cụ. Pytest 1200 pass/2 skip, ruff sạch, selftest đạt.
+Báo cáo: `%LOCALAPPDATA%\VoicePilot\verification\20261011-010358-974613c8\report.md`.
+
+Các lượt native nay đi qua Controller → HybridTranscriber → parser → WindowsExecutor
+và overlay thật; recorder/transcript fixture và speaker im lặng để tách lỗi thực thi khỏi ASR.
+Quan sát nội dung/slide/tệp/tab/PNG thực, không chỉ status OK. Website/search vẫn dùng
+ShellExecute thật nhưng thêm tham số profile thử. Mỗi lần phải quan sát ID tab mới;
+Edge sync-confirmation dialog không phải tab và bị loại khỏi đếm. Mỗi vòng reset hai tab gốc.
+
+10 chức năng lặp ba vòng: PowerPoint save/next/previous, sáu browser intent, chính tả
+Notepad. Sáu browser intent còn được lặp riêng trên Chrome. Word/Notepad/Edge/Chrome
+đạt tiếng Việt + emoji; Word trước sửa chèn emoji thành `12`, regression fake tái hiện
+trước sửa. Alt+X được giới hạn cho ký tự ngoài BMP trong Word và thu gọn selection sau chuyển.
+
+Hotkey dùng Ctrl+Shift+F24 riêng, unregister khi xong; không đổi phím tắt cấu hình của Nam.
+Micro thu khoảng 1 s, không lưu clip/transcript. Các probe keys ở QT_SCALE_FACTOR=1.25/1.5
+đạt 12 checks mỗi probe; DPR lần lượt 1,25/1,50, PNG vẫn 1920×1080 và overlay được phục hồi.
+Đây là tỉ lệ Qt ép riêng cho tiến trình, chưa thay đổi DPI của hệ thống hay kiểm nhiều màn hình.
+
+Các giới hạn còn lại ở HANDOFF §6/TODO: benchmark 30 câu và demo giọng thật, nghe TTS,
+UIPI/admin, các điều kiện Office/DPI khác, máy sạch và CI sau khi có remote. Không đánh dấu
+chúng đạt bằng transcript fixture hoặc âm thanh tổng hợp.

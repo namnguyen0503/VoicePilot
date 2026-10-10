@@ -646,12 +646,65 @@ def make_executor():
 
 
 def execute(parser, executor, hwnd: int, text: str, mode: Mode = Mode.COMMAND):
-    ctx = activate(hwnd)
-    command = parser.parse(text, ctx, mode)
-    require(command.is_executable, f"Parser did not understand {text}")
-    result = executor.execute(command, ctx)
-    require(result.status is ResultStatus.OK, f"{result.status.value}: {result.error_code}")
-    return result
+    """Run a controlled transcript through the real Qt/controller/Windows path.
+
+    Input audio and STT text are fixtures; this is not a microphone or ASR benchmark.
+    """
+    from PySide6.QtWidgets import QApplication
+
+    from voicepilot.contracts import AudioClip
+    from voicepilot.controller import Controller
+    from voicepilot.stt.hybrid import HybridTranscriber
+    from voicepilot.ui.overlay import Overlay
+
+    app = QApplication.instance() or QApplication([])
+    from voicepilot.app import _load_style
+    app.setStyleSheet(_load_style())
+    activate(hwnd)
+    recorder = Mock()
+    recorder.record.side_effect = lambda turn_id, *_: AudioClip(b"\0\0" * 1600, turn_id)
+    backend = Mock()
+    backend.transcribe.side_effect = lambda clip: Transcript(text, "fake", 0, clip.turn_id)
+    backend.without_hotwords.return_value = backend
+    transcriber = HybridTranscriber(backend, backend, SttBackendMode.OFFLINE)
+    # Keep the fixture's COM worker alive across turns; its owner shuts it down.
+    adapter = Mock()
+    adapter.execute.side_effect = executor.execute
+    speaker = Mock()
+    controller = Controller(executor._config, recorder, transcriber, parser, adapter,
+                            speaker, Win32ContextProvider())
+    overlay = Overlay(auto_hide_ms=60000)
+    controller.state_changed.connect(overlay.on_state)
+    controller.transcript_changed.connect(overlay.set_transcript)
+    controller.target_changed.connect(overlay.set_target)
+    results = []
+    controller.result_ready.connect(results.append)
+    previous_hide = executor._hide_overlay
+    @contextlib.contextmanager
+    def hidden():
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(overlay.hidden_temporarily())
+            if previous_hide is not None:
+                stack.enter_context(previous_hide())
+            yield
+    executor._hide_overlay = hidden
+    try:
+        if mode is Mode.DICTATION:
+            controller.toggle_mode()
+        controller.toggle_listen()
+        def finished():
+            app.processEvents()
+            return results
+        wait_for(finished, 12)
+        require(len(results) == 1 and adapter.execute.call_count == 1, "Turn executed more than once")
+        result = results[0]
+        require(result.status is ResultStatus.OK, f"{result.status.value}: {result.error_code}")
+        require(speaker.speak.call_count == int(mode is Mode.COMMAND), "Incorrect feedback mode")
+        return result
+    finally:
+        controller.shutdown()
+        executor._hide_overlay = previous_hide
+        overlay.close()
 
 
 def edit_text(hwnd: int) -> str:
@@ -691,6 +744,7 @@ def keys_suite(folder: Path) -> list[Check]:
             overlay.show_bar()
             app.processEvents()
             require(Win32ContextProvider().is_still_target(ctx), "Overlay took foreground focus")
+            return f"Foreground retained; Qt device pixel ratio={overlay.devicePixelRatioF():.2f}"
         runner.check("overlay_preserves_focus", overlay_focus)
         def dictate():
             text = "Xin chào Việt Nam 👋 — kiểm thử chính tả."
@@ -698,6 +752,11 @@ def keys_suite(folder: Path) -> list[Check]:
             wait_for(lambda: edit_text(editor) == text)
             return "Notepad text equals Vietnamese and emoji input"
         runner.check("DICTATE_TEXT", dictate)
+        for round_number in range(1, 4):
+            def repeated_dictation():
+                win32gui.SendMessage(editor, 0x000C, 0, "")  # WM_SETTEXT, fixture only
+                return dictate()
+            runner.check(f"round{round_number}:DICTATE_TEXT", repeated_dictation)
         def changed_focus():
             ctx = activate(hwnd)
             changed = WindowContext(ctx.hwnd + 1, ctx.pid, ctx.process_name, ctx.title, ctx.app_kind, None)
@@ -707,6 +766,30 @@ def keys_suite(folder: Path) -> list[Check]:
             require(result.status is ResultStatus.NEEDS_RETRY and edit_text(editor) == before,
                     "Changed target was not rejected without typing")
         runner.check("changed_target_rejected", changed_focus)
+        def switched_focus():
+            other_document = folder / "VoicePilot other target.txt"
+            other_document.write_text("", encoding="utf-8")
+            other = subprocess.Popen(["notepad.exe", str(other_document)])
+            other_hwnd = 0
+            try:
+                other_hwnd = int(wait_for(lambda: next((w[0] for w in native_windows()
+                                                       if w[1] == other.pid and "notepad" in w[3]), 0)))
+                other_editor = win32gui.FindWindowEx(other_hwnd, 0, "Edit", None)
+                ctx = activate(hwnd)
+                command = parser.parse("must never be inserted", ctx, Mode.DICTATION)
+                before = edit_text(editor)
+                activate(other_hwnd)
+                result = executor.execute(command, ctx)
+                require(result.status is ResultStatus.NEEDS_RETRY and edit_text(editor) == before
+                        and edit_text(other_editor) == "", "Switched foreground received text")
+            finally:
+                if other_hwnd:
+                    win32gui.PostMessage(other_hwnd, win32con.WM_CLOSE, 0, 0)
+                try:
+                    other.wait(timeout=3)
+                except subprocess.TimeoutExpired:
+                    other.terminate()
+        runner.check("foreground_switch_rejected", switched_focus)
         def screenshot():
             overlay.show_bar()
             app.processEvents()
@@ -746,6 +829,33 @@ def keys_suite(folder: Path) -> list[Check]:
             win32gui.PostMessage(opened, win32con.WM_CLOSE, 0, 0)
             return f"Indexed launch type: {'AppsFolder' if target.startswith('shell:') else 'exe'}"
         runner.check("installed_app_launch", indexed_launch)
+        def hotkey():
+            from voicepilot.windows import input as input_ops
+            from voicepilot.windows.hotkeys import HotkeyManager
+            errors, pressed = [], []
+            manager = HotkeyManager(on_error=lambda spec, message: errors.append((spec, message)))
+            manager.register("ctrl+shift+f24", lambda: pressed.append(threading.get_ident()))
+            try:
+                manager.start()
+                if errors:
+                    raise Blocked("Disposable hotkey is occupied")
+                activate(hwnd)
+                input_ops.send_hotkey("ctrl", "shift", "f24")
+                wait_for(lambda: pressed)
+                require(len(pressed) == 1 and pressed[0] != threading.get_ident(),
+                        "Hotkey callback was duplicated or used the GUI thread")
+            finally:
+                manager.stop()
+            return "RegisterHotKey -> SendInput -> one WM_HOTKEY callback; unregistered"
+        runner.check("native_hotkey", hotkey)
+        def microphone():
+            from voicepilot.audio.capture import Recorder
+            config = replace(executor._config, vad_enabled=False, max_command_s=1)
+            clip = Recorder(config).record(1, Mode.COMMAND, threading.Event(), threading.Event())
+            require(clip is not None and clip.sample_rate == 16000 and clip.duration_s >= 0.9,
+                    "Microphone callback did not yield normalized audio")
+            return f"Microphone -> {clip.sample_rate} Hz mono int16, {clip.duration_s:.2f}s; RAM only"
+        runner.check("native_microphone", microphone)
     finally:
         overlay.close()
         executor.shutdown()
@@ -763,6 +873,8 @@ def keys_suite(folder: Path) -> list[Check]:
 def ppt_suite(folder: Path) -> list[Check]:
     import pythoncom
     import win32com.client
+    import win32gui
+    import win32process
 
     runner = Runner("windows")
     parser, executor = make_executor()
@@ -801,21 +913,27 @@ def ppt_suite(folder: Path) -> list[Check]:
             execute(parser, executor, hwnd, "slide trước")
             require(int(deck.Windows.Item(1).View.Slide.SlideIndex) == 1, "Edit view did not reach slide 1")
         runner.check("PPT_PREV_SLIDE", previous)
+        for round_number in range(1, 4):
+            for name, action in (("PPT_SAVE", save), ("PPT_NEXT_SLIDE", next_slide),
+                                 ("PPT_PREV_SLIDE", previous)):
+                runner.check(f"round{round_number}:{name}", action)
         def start():
             execute(parser, executor, hwnd, "bắt đầu trình chiếu")
             require(int(deck.SlideShowWindow.View.CurrentShowPosition) == 1, "Show did not start at slide 1")
         runner.check("PPT_START_SHOW", start)
+        def show_window():
+            pid = win32process.GetWindowThreadProcessId(hwnd)[1]
+            return int(wait_for(lambda: powerpoint_show_window(
+                native_windows(), pid, win32gui.GetClassName)))
         def show_steps():
-            raw_hwnd = deck.SlideShowWindow.HWND
-            show_hwnd = int(raw_hwnd() if callable(raw_hwnd) else raw_hwnd)
+            show_hwnd = show_window()
             execute(parser, executor, show_hwnd, "slide tiếp theo")
             require(int(deck.SlideShowWindow.View.CurrentShowPosition) == 2, "Show next failed")
             execute(parser, executor, show_hwnd, "slide trước")
             require(int(deck.SlideShowWindow.View.CurrentShowPosition) == 1, "Show previous failed")
         runner.check("presentation_navigation", show_steps)
         def stop():
-            raw_hwnd = deck.SlideShowWindow.HWND
-            show_hwnd = int(raw_hwnd() if callable(raw_hwnd) else raw_hwnd)
+            show_hwnd = show_window()
             execute(parser, executor, show_hwnd, "dừng trình chiếu")
             require(int(app.SlideShowWindows.Count) == 0, "Show window still exists")
         runner.check("PPT_STOP_SHOW", stop)
@@ -832,15 +950,80 @@ def ppt_suite(folder: Path) -> list[Check]:
     return runner.checks
 
 
-def browser_suite(folder: Path, name: str) -> list[Check]:
+def word_suite(folder: Path) -> list[Check]:
+    import pythoncom
+    import win32com.client
+
+    runner = Runner("windows-word")
+    parser, executor = make_executor()
+    pythoncom.CoInitialize()
+    app, document = None, None
+    try:
+        try:
+            app = win32com.client.DispatchEx("Word.Application")
+        except Exception as exc:
+            raise Blocked(f"Word desktop COM unavailable: {type(exc).__name__}") from exc
+        app.Visible = True
+        document = app.Documents.Add()
+        document.SaveAs2(str(folder / "VoicePilot dictation.docx"), 16)
+        hwnd = int(wait_for(lambda: next((w[0] for w in native_windows()
+                                         if "winword.exe" in w[3] and document.Name in w[2]), 0)))
+        def dictate():
+            document.Content.Text = ""
+            document.Range(0, 0).Select()
+            text = "Xin chào Việt Nam 👋 — kiểm thử Word."
+            execute(parser, executor, hwnd, text, Mode.DICTATION)
+            time.sleep(0.2)
+            actual = document.Content.Text.rstrip("\r")
+            require(actual == text, f"Word input mismatch: expected={text!r}, actual={actual!r}")
+            return "Word document equals Vietnamese and emoji input"
+        runner.check("word_dictation", dictate)
+    finally:
+        executor.shutdown()
+        if document is not None:
+            with contextlib.suppress(Exception):
+                document.Close(False)
+        if app is not None:
+            with contextlib.suppress(Exception):
+                app.Quit()
+        document = app = None
+        pythoncom.CoUninitialize()
+    return runner.checks
+
+
+def powerpoint_show_window(windows, pid: int, class_name: Callable[[int], str]) -> int:
+    """Observe the fixture show through Win32; dynamic COM HWND dispatch fails in Office."""
+    return next((hwnd for hwnd, owner, _title, image in windows
+                 if owner == pid and Path(image).name == "powerpnt.exe"
+                 and class_name(hwnd) == "screenClass"), 0)
+
+
+def browser_fixture_server():
+    """Serve disposable HTML with an explicit MIME type so Chromium renders it."""
     import http.server
+
+    class Pages(http.server.BaseHTTPRequestHandler):
+        def do_GET(self):  # noqa: N802
+            title = f"VoicePilot {self.server.server_port} {self.path}"
+            body = (f"<meta charset='utf-8'><title>{title}</title>"
+                    "<textarea id='text' autofocus oninput='document.title=this.value'></textarea>").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.end_headers()
+            self.wfile.write(body)
+        def log_message(self, *_):
+            pass
+    return http.server.ThreadingHTTPServer(("127.0.0.1", 0), Pages)
+
+
+def browser_suite(folder: Path, name: str, runner: Runner | None = None) -> list[Check]:
     import urllib.request
     import winreg
 
     import win32con
     import win32gui
 
-    runner = Runner(f"windows-{name}")
+    runner = runner if runner is not None else Runner(f"windows-{name}")
     executable = browser.BROWSER_EXECUTABLES[name]
     path = None
     registry_path = rf"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\{executable}"
@@ -850,16 +1033,7 @@ def browser_suite(folder: Path, name: str) -> list[Check]:
                 path = winreg.QueryValue(key, None)
     if not path or not Path(path).is_file():
         raise Blocked(f"{name} executable is not installed in App Paths")
-    class Pages(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):  # noqa: N802
-            title = f"VoicePilot {self.server.server_port} {self.path}"
-            body = f"<title>{title}</title><textarea id='text'></textarea>".encode()
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(body)
-        def log_message(self, *_):
-            pass
-    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Pages)
+    server = browser_fixture_server()
     threading.Thread(target=server.serve_forever, daemon=True).start()
     address = f"http://127.0.0.1:{server.server_port}"
     import socket
@@ -867,18 +1041,33 @@ def browser_suite(folder: Path, name: str) -> list[Check]:
         sock.bind(("127.0.0.1", 0))
         port = sock.getsockname()[1]
     process = subprocess.Popen([path, f"--user-data-dir={folder / name}", "--no-first-run",
-                                "--no-default-browser-check", f"--remote-debugging-port={port}",
+                                "--no-default-browser-check", "--disable-sync",
+                                "--disable-features=msImplicitSignin", f"--remote-debugging-port={port}",
                                 address + "/first", address + "/second"])
     hwnd = 0
     parser, executor = make_executor()
     def tabs():
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=2) as response:
-            return [tab for tab in json.load(response) if tab.get("type") == "page"]
+            return browser_page_tabs(json.load(response))
     try:
         # Chromium may hand the launch off to another PID. Match the unique local fixture title.
         hwnd = int(wait_for(lambda: browser_fixture_window(native_windows(), executable,
                                                            server.server_port), 15))
         wait_for(lambda: len(tabs()) == 2)
+        def reset_tabs():
+            current = tabs()
+            for tab in current:
+                if tab["url"] not in (address + "/first", address + "/second"):
+                    with urllib.request.urlopen(
+                            f"http://127.0.0.1:{port}/json/close/{tab['id']}", timeout=2):
+                        pass
+            wait_for(lambda: len(tabs()) == 2)
+            second = next(t for t in tabs() if t["url"] == address + "/second")
+            with urllib.request.urlopen(
+                    f"http://127.0.0.1:{port}/json/activate/{second['id']}", timeout=2):
+                pass
+            wait_for(lambda: "/second" in win32gui.GetWindowText(hwnd))
+        reset_tabs()
         def previous():
             execute(parser, executor, hwnd, "tab trước")
             wait_for(lambda: "/first" in win32gui.GetWindowText(hwnd))
@@ -901,17 +1090,36 @@ def browser_suite(folder: Path, name: str) -> list[Check]:
         # This verifies ShellExecute and tab creation without touching a personal profile.
         real_shell = browser._shell_open
         def isolated_shell(file, parameters):
-            return real_shell(path, f'--user-data-dir="{folder / name}" "{parameters}"')
+            return real_shell(path, f'--user-data-dir="{folder / name}" --no-first-run '
+                              f'--disable-sync --disable-features=msImplicitSignin "{parameters}"')
         with patch.object(browser, "_shell_open", side_effect=isolated_shell):
             def open_site():
+                before = {tab["id"] for tab in tabs()}
                 execute(parser, executor, hwnd, "mở " + address + "/opened")
-                wait_for(lambda: any(t["url"] == address + "/opened" for t in tabs()))
+                wait_for(lambda: new_browser_tab(before, tabs(), address + "/opened"))
+                wait_for(lambda: "/opened" in win32gui.GetWindowText(hwnd))
             runner.check("BROWSER_OPEN_SITE", open_site)
             def search():
+                before = {tab["id"] for tab in tabs()}
                 execute(parser, executor, hwnd, "tìm VoicePilot verification")
-                wait_for(lambda: any("google.com/search?q=VoicePilot+verification" in t["url"]
-                                    for t in tabs()))
+                wait_for(lambda: new_browser_tab(before, tabs(),
+                                                 "google.com/search?q=VoicePilot+verification"))
             runner.check("BROWSER_SEARCH", search)
+            for round_number in range(1, 4):
+                reset_tabs()
+                for intent, action in (("BROWSER_PREV_TAB", previous), ("BROWSER_NEXT_TAB", next_tab),
+                                       ("BROWSER_NEW_TAB", new), ("BROWSER_CLOSE_TAB", close),
+                                       ("BROWSER_OPEN_SITE", open_site), ("BROWSER_SEARCH", search)):
+                    runner.check(f"round{round_number}:{intent}", action)
+            def dictate():
+                execute(parser, executor, hwnd, "mở " + address + "/dictation")
+                wait_for(lambda: any(t["url"] == address + "/dictation" for t in tabs()))
+                wait_for(lambda: "/dictation" in win32gui.GetWindowText(hwnd))
+                text = "Xin chào Việt Nam 👋 — kiểm thử trình duyệt."
+                execute(parser, executor, hwnd, text, Mode.DICTATION)
+                wait_for(lambda: any(t["title"] == text for t in tabs()))
+                return "Textarea input matches Vietnamese and emoji; observed through page title"
+            runner.check("browser_dictation", dictate)
     finally:
         executor.shutdown()
         if hwnd:
@@ -923,6 +1131,17 @@ def browser_suite(folder: Path, name: str) -> list[Check]:
         server.shutdown()
         server.server_close()
     return runner.checks
+
+
+def browser_page_tabs(targets: list[dict]) -> list[dict]:
+    """Edge exposes its sign-in dialog as a page target; it is not a browser tab."""
+    return [target for target in targets if target.get("type") == "page"
+            and not target.get("url", "").startswith("edge://sync-confirmation-dialog")]
+
+
+def new_browser_tab(before: set[str], tabs: list[dict], url: str) -> bool:
+    """An old matching URL cannot satisfy a repeated ShellExecute launch."""
+    return any(tab["id"] not in before and url in tab["url"] for tab in tabs)
 
 
 def browser_fixture_window(windows: list[tuple[int, int, str, str]], executable: str, port: int) -> int:
@@ -940,10 +1159,15 @@ def run_probe(name: str, folder: Path) -> list[Check]:
             return keys_suite(folder)
         if name == "ppt":
             return ppt_suite(folder)
-        return browser_suite(folder, name)
+        if name == "word":
+            return word_suite(folder)
+        runner.layer = f"windows-{name}"
+        return browser_suite(folder, name, runner)
     except Blocked as exc:
         runner.checks.append(Check(name, runner.layer, "blocked", 0, str(exc)))
     except Exception as exc:
+        import traceback
+        traceback.print_exc()
         runner.checks.append(Check(name, runner.layer, "fail", 0, f"{type(exc).__name__}: {exc}"))
     return runner.checks
 
@@ -1043,7 +1267,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--checks", action="store_true", help="Also run pytest, ruff and selftest")
     parser.add_argument("--runtime", action="store_true", help="Check native ASR/TTS with synthetic speech")
     parser.add_argument("--output", type=Path, help="New report directory; defaults to local app data")
-    parser.add_argument("--probe", choices=("keys", "ppt", "edge", "chrome", "runtime"),
+    parser.add_argument("--probe", choices=("keys", "ppt", "word", "edge", "chrome", "runtime"),
                         help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     base = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "VoicePilot" / "verification"
@@ -1085,7 +1309,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             write_report(folder, checks)
             print(f"blocked windows: {reason}\nReport: {folder / 'report.md'}")
             return 1
-        for name in ("keys", "ppt", "edge", "chrome"):
+        for name in ("keys", "ppt", "word", "edge", "chrome"):
             environment = {**os.environ, "QT_QPA_PLATFORM": "windows"}
             checks.extend(collect_probe(name, folder, 90, environment=environment))
             write_report(folder, checks)

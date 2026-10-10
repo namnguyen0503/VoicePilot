@@ -1,6 +1,7 @@
 # VoicePilot v1 — Trợ lý giọng nói cho Windows
 
-Trạng thái: thiết kế đã được thống nhất, đang triển khai.
+Trạng thái: đã triển khai 15 chức năng; kiểm chứng tác động desktop đạt ngày 2026-10-11.
+Benchmark và demo giọng nói thật còn chờ; xem HANDOFF/TODO.
 
 Vị trí repo cố định: `C:\Users\Nam\Documents\GitHub\VoicePilot`.
 

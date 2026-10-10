@@ -1,18 +1,20 @@
 # VoicePilot — việc còn lại trước khi phát hành
 
-Cập nhật 2026-10-10. Nam chốt phạm vi 15 chức năng v1; để kiểm tra desktop sau.
+Cập nhật 2026-10-11. Nam chốt 15 chức năng v1 và đã cho kiểm desktop mở.
 Các phép thử giả lập/âm thanh tổng hợp không thay cho demo giọng nói thật.
 
 ## 1. Còn cần xác minh trên Windows
 
-- [ ] Desktop mở: overlay không lấy focus, gõ tiếng Việt/emoji trong Notepad/Word/Edge/Chrome,
-  đổi foreground trong lúc xử lý, cửa sổ admin/UIPI. Harness đã có probe Notepad/focus.
-- [ ] PowerPoint: GetActiveObject, Save/SaveAs tên tiếng Việt, chuyển slide ở editor/slideshow,
-  bắt đầu/dừng chiếu, timeout COM. Harness dùng presentation mới; chưa có native pass.
-- [ ] Tab Edge/Chrome trên profile thử, mở web/tìm kiếm qua ShellExecute; screenshot giấu overlay
-  và DPI 125–150%. Không chạy khi desktop khóa; `blocked` không tính là đạt.
-- [ ] Đối chứng app/cửa sổ sau lệnh mở ứng dụng, gồm AppsFolder/Store. Lượt debug mới nhất đã có
-  parser khớp nhiều app; chưa có chứng cứ đối chiếu cửa sổ cho toàn bộ luồng giọng nói.
+- [x] Đủ 15 chức năng qua Controller/overlay với tác động desktop thật và STT fixture:
+  PowerPoint editor/show, cả Edge/Chrome, Notepad alias/AppsFolder và screenshot 1920×1080.
+- [x] Chính tả tiếng Việt/emoji ở Notepad, Word, Edge và Chrome; Word emoji thành `12` đã có
+  regression và bản sửa SendInput Alt+X. Overlay không lấy focus; đổi foreground thật bị chặn.
+- [x] Ba vòng 10 chức năng bằng câu điều khiển đạt; browser lặp riêng ở cả Edge và Chrome.
+- [x] Hotkey native nhận một callback; micro thu PCM mono 16 kHz trong RAM. Qt scale 125/150%
+  đạt focus/input/screenshot (không đổi DPI toàn Windows).
+- [ ] Cửa sổ admin/UIPI, DPI hệ thống 125–150%/nhiều màn hình; Office thật nhiều tài liệu,
+  unsaved/trùng tên, COM bị treo. Các nhánh logic đã có fakes; chưa thay bằng native evidence.
+- [ ] Đối chứng giọng nói mở app riêng Roblox/VS Code/Photoshop/Outlook; Notepad đã đạt native.
 - [ ] Đo 30 câu nói thật theo `docs/BENCHMARKS.md`, dùng `docs/benchmark-labels.csv`.
   Chạy riêng Google/offline/hybrid, điền WER, intent/params accuracy, p50/p95, RAM.
   Tên tiếng Anh Hugging Face/Claude cần clip có câu tham chiếu đúng; không suy đoán alias.
@@ -41,11 +43,11 @@ Các phép thử giả lập/âm thanh tổng hợp không thay cho demo giọng
 
 Chi tiết nguồn và giấy phép: `THIRD_PARTY_NOTICES.md`.
 
-## 3. Đã xác minh ngày 2026-10-10
+## 3. Đã xác minh ngày 2026-10-10/11
 
 - Harness được tạo/chạy trước khi sửa app. Đủ 15 intent có kiểm tra tác động parser → executor
   với fakes; test chứng minh harness phát hiện executor lỗi và giữ trạng thái fail/blocked.
-- Pytest 1190 pass, 2 skip; ruff sạch. Pytest dùng basetemp mới và tắt cache để tránh ACL/cache
+- Pytest mới nhất 1200 pass, 2 skip; ruff sạch. Pytest dùng basetemp mới và tắt cache để tránh ACL/cache
   cũ ở máy Nam. Không xóa thư mục test cũ bị lỗi quyền.
   Bản copy có đường dẫn dài: 1145 pass, 3 skip; thêm một fixture thư mục 150 ký tự tự bỏ qua
   vì tmp_path đã quá dài. Hai skip mặc định Windows kiểm đường dẫn cấu hình của OS khác.
@@ -92,11 +94,13 @@ Chi tiết nguồn và giấy phép: `THIRD_PARTY_NOTICES.md`.
   biến Python/model ngoài; 125 module quan sát thuộc bundle hoặc Windows. Python/ONNX Runtime
   đến từ bundle. Thư mục model không tồn tại cho lỗi đúng; máy sạch vẫn chờ kiểm riêng.
 
+Báo cáo cuối: `verification\20261011-010358-974613c8\report.md` trong LocalAppData,
+215 checks pass, gồm 79 Windows thật. Những lần thất bại trước sửa được giữ nguyên để đối chứng.
+
 ## 4. Cách tiếp tục
 
 Chạy `python tools/verify_features.py --checks --runtime` để lấy báo cáo mới trong
-`%LOCALAPPDATA%\VoicePilot\verification\`. Chỉ thêm `--windows` khi Nam cho phép kiểm desktop,
-máy mở khóa và không thao tác. Hướng dẫn và giới hạn: `docs/VERIFICATION.vi.md`.
+`%LOCALAPPDATA%\VoicePilot\verification\`. Thêm `--windows` khi máy mở khóa và không thao tác; Nam đã cho chạy các probe này. Hướng dẫn và giới hạn: `docs/VERIFICATION.vi.md`.
 
 Nam chạy app với `--debug` rồi nói “xem log đi”: chỉ đọc session/lượt mới nhất trong
 `%LOCALAPPDATA%\VoicePilot\logs\debug.log` và clip tương ứng. Mọi lỗi Windows mới phải có regression;

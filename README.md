@@ -4,7 +4,7 @@ A Vietnamese voice assistant for Windows. Press a hotkey, say a command in Vietn
 
 VoicePilot runs on an ordinary laptop with no GPU. Speech recognition runs in two paths: Google's Vietnamese recognizer and an offline model (Gipformer 1.5, INT8, on CPU). Commands are matched with rules, not a language model, so each recognized utterance either maps to one known function or asks the user to try again.
 
-> **Status:** pre-release (v0.1.0). Open items before release are listed in [`docs/TODO.md`](docs/TODO.md). Unit tests use fake backends and need no microphone, network or Office. Paths that need real hardware (microphone, PowerPoint COM, foreground-window focus, Edge/Chrome keystrokes) are checked manually on Windows; see [`docs/DEMO.vi.md`](docs/DEMO.vi.md). No benchmark numbers are published yet; the measurement procedure is in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
+> **Status:** pre-release (v0.1.0). Open items before release are listed in [`docs/TODO.md`](docs/TODO.md). Unit tests use fake backends and need no microphone, network or Office. All 15 desktop actions have been verified on Windows with controlled transcripts through the real controller and overlay, including PowerPoint, both browsers, Unicode dictation, hotkeys and microphone capture. The spoken demo remains pending; see [`docs/DEMO.vi.md`](docs/DEMO.vi.md). No real-voice benchmark numbers are published yet; the measurement procedure is in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
 
 ## Features
 
@@ -93,9 +93,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tools\build.ps1
 
 The script creates `.venv` with Python 3.12, installs the locked dependencies, runs ruff and pytest, downloads the models, builds `dist\VoicePilot\VoicePilot.exe`, retains wheel license texts, copies models and documents, writes `SOURCE.txt`, and creates `dist\VoicePilot-<version>-win64.zip`. Its `--selftest-runtime` smoke check loads ASR/TTS together and decodes synthetic speech without a microphone or playback. Reports are retained under `build\selftest-<id>`.
 
-PowerShell 5.1 builds and frozen selftests were verified in a path containing spaces and Vietnamese characters on Windows 10. Testing on a clean machine without Python and testing interactive desktop actions are still pending. Set `-RepoUrl` to the actual source repository before publishing; this checkout currently has no remote. See [`docs/TODO.md`](docs/TODO.md) for the remaining release checks and model redistribution question.
+PowerShell 5.1 builds and frozen selftests were verified in a path containing spaces and Vietnamese characters on Windows 10. All 15 interactive desktop actions passed the native harness. Testing on a clean machine without Python and the real-voice benchmark remain pending. Set `-RepoUrl` to the actual source repository before publishing; this checkout currently has no remote. See [`docs/TODO.md`](docs/TODO.md) for the remaining release checks and model redistribution question.
 
-Run the repeatable feature harness with `python tools/verify_features.py --checks --runtime`. Add `--windows` on an unlocked, idle desktop to exercise disposable Notepad, PowerPoint and browser windows. See [`docs/VERIFICATION.vi.md`](docs/VERIFICATION.vi.md) for evidence and limitations.
+Run the repeatable feature harness with `python tools/verify_features.py --checks --runtime`. Add `--windows` on an unlocked, idle desktop to exercise disposable Notepad, Word, PowerPoint and browser windows, including three repeated rounds of ten functions. See [`docs/VERIFICATION.vi.md`](docs/VERIFICATION.vi.md) for evidence and limitations.
 
 `python tools/verify_downloads.py` checks the real downloader CLI through loopback TLS and an authenticated proxy without changing Windows trust settings. `python tools/verify_portable.py --zip dist/VoicePilot-0.1.0-win64.zip` relocates an existing ZIP and verifies native inference with only Windows directories on PATH, including loaded DLL locations. This is isolation on the current host; clean-machine testing remains pending.
 
@@ -118,7 +118,7 @@ Run the repeatable feature harness with `python tools/verify_features.py --check
 - The Google path uses SpeechRecognition's public web endpoint, not a Google Cloud API key. It may change or stop working without notice.
 - Commands use fixed phrasings from `commands.toml`. Unusual wording falls back to the example prompt.
 - Gipformer is a CPU model; on the target laptop its latency depends on the number of threads and the clip length.
-- PowerPoint actions require desktop Office. Microphone quality, Word/admin input, DPI scaling and the full voice demo require testing on the target machine.
+- PowerPoint actions require desktop Office. Vietnamese and emoji dictation passed in Notepad, Word, Edge and Chrome. Real-voice accuracy, admin/UIPI targets, system DPI changes and the full spoken demo still need separate validation.
 
 ## Roadmap
 

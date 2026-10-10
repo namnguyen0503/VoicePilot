@@ -151,3 +151,84 @@ def test_browser_fixture_identifies_pid_handoff_without_touching_personal_window
                (30, 300, "VoicePilot 5432 /first - Edge", "msedge.exe")]
     assert harness.browser_fixture_window(windows, "msedge.exe", 4321) == 20
     assert harness.browser_fixture_window(windows, "chrome.exe", 4321) == 0
+
+
+def test_powerpoint_fixture_observes_show_without_com_hwnd_dispatch():
+    windows = [(10, 100, "Fixture - PowerPoint", "powerpnt.exe"),
+               (20, 100, "PowerPoint Slide Show - Fixture", "powerpnt.exe"),
+               (30, 200, "PowerPoint Slide Show - Personal", "powerpnt.exe"),
+               (40, 100, "Other", "notepad.exe")]
+    classes = {10: "PPTFrameClass", 20: "screenClass", 30: "screenClass", 40: "screenClass"}
+    assert harness.powerpoint_show_window(windows, 100, classes.__getitem__) == 20
+    assert harness.powerpoint_show_window(windows, 300, classes.__getitem__) == 0
+
+
+@pytest.mark.parametrize("dictation", [False, True])
+def test_native_turn_harness_routes_controller_to_executor_once(monkeypatch, qapp, dictation):
+    from unittest.mock import Mock
+
+    from voicepilot.contracts import AppKind, Mode, WindowContext
+    from voicepilot.windows.executor import WindowsExecutor
+
+    config = harness.load_config(harness.ROOT / "verification-unused-config.toml")
+    parser = harness.RuleParser(config.website_aliases, config.app_aliases)
+    ctx = WindowContext(100, 200, "msedge.exe", "Fixture", AppKind.BROWSER, "edge")
+    provider = Mock(capture=Mock(return_value=ctx), is_still_target=Mock(return_value=True))
+    keys = Mock()
+    executor = WindowsExecutor(config, provider, keys=keys, powerpoint=Mock())
+    monkeypatch.setattr(harness, "activate", lambda _: ctx)
+    monkeypatch.setattr(harness, "Win32ContextProvider", lambda: provider)
+    mode = Mode.DICTATION if dictation else Mode.COMMAND
+    text = "Xin chào Việt Nam 👋" if dictation else "tab mới"
+    result = harness.execute(parser, executor, 100, text, mode)
+    assert result.status is harness.ResultStatus.OK
+    if dictation:
+        keys.type_unicode.assert_called_once_with(text)
+        keys.send_hotkey.assert_not_called()
+    else:
+        keys.send_hotkey.assert_called_once_with("ctrl", "t")
+        keys.type_unicode.assert_not_called()
+    assert executor._hide_overlay is None
+
+
+def test_browser_fixture_is_served_as_html_for_native_title_observation():
+    import threading
+    import urllib.request
+
+    server = harness.browser_fixture_server()
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{server.server_port}/first", timeout=2) as response:
+            assert response.headers.get_content_type() == "text/html"
+            assert response.headers.get_content_charset() == "utf-8"
+            assert f"<title>VoicePilot {server.server_port} /first</title>" in response.read().decode()
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+def test_repeated_browser_launch_does_not_accept_an_old_matching_url():
+    old = [{"id": "first", "url": "http://localhost/fixture"}]
+    assert not harness.new_browser_tab({"first"}, old, "http://localhost/fixture")
+    assert not harness.new_browser_tab({"first"}, old + [{"id": "second", "url": "about:blank"}],
+                                       "http://localhost/fixture")
+    assert harness.new_browser_tab({"first"}, old + [{"id": "second", "url": "http://localhost/fixture"}],
+                                   "http://localhost/fixture")
+
+
+def test_edge_signin_dialog_is_not_counted_or_closed_as_a_fixture_tab():
+    page = {"type": "page", "id": "tab", "url": "http://localhost/first"}
+    dialog = {"type": "page", "id": "dialog", "url": "edge://sync-confirmation-dialog/"}
+    assert harness.browser_page_tabs([page, dialog, {"type": "service_worker"}]) == [page]
+
+
+def test_browser_probe_keeps_completed_checks_if_later_setup_fails(monkeypatch, tmp_path):
+    def broken(folder, name, runner):
+        runner.check("BROWSER_OPEN_SITE", lambda: "Observed new tab")
+        raise RuntimeError("Fixture reset failed")
+    monkeypatch.setattr(harness, "browser_suite", broken)
+    checks = harness.run_probe("edge", tmp_path)
+    assert [(c.name, c.status) for c in checks] == [("BROWSER_OPEN_SITE", "pass"), ("edge", "fail")]
+    assert all(c.layer == "windows-edge" for c in checks)
