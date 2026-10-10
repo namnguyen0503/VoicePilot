@@ -1,16 +1,21 @@
 # Handoff — VoicePilot v1 (2026-10-10)
 
-Bàn giao từ Claude Code sang agent tiếp theo (GPT/Codex). Đọc file này trước, sau đó `AGENTS.md`
-(quy tắc), `docs/TODO.md` (việc chi tiết), `docs/COMMANDS.vi.md` (lệnh giọng nói). Spec gốc: `docs/PLAN.md`.
+Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PLAN.md`, `docs/TODO.md`,
+`docs/COMMANDS.vi.md`. Spec gốc: `docs/PLAN.md`. Cập nhật sau đợt kiểm chứng ngày 2026-10-10.
 
 ## 1. Trạng thái hiện tại
 
-- Đủ 15 chức năng theo `docs/PLAN.md`, kèm overlay, tray, cài đặt, hybrid STT, TTS, đóng gói, tài liệu.
-- **Đã chạy trên Windows 10 thật (máy Nam).** 1103 test pass, 2 skip, ruff sạch. Git sạch trên `main`
-  (chỉ `models/` untracked, đã bị ignore có chủ đích — không commit).
-- Đã xác minh trên máy thật: cài đặt, tải model, `--selftest`, micro thật, Google STT, Gipformer, hotkey
-  (với phím tùy chỉnh), parser trên câu nói thật. **Chưa xác minh có hệ thống** các executor: COM PowerPoint,
-  SendInput gõ chữ, phím tắt tab, chụp màn hình ở DPI cao, mở app qua `shell:AppsFolder`, PyInstaller build.
+- Đủ 15 chức năng trong PLAN; Nam chốt hoàn thiện v1, để Wi-Fi và Excel ngoài phạm vi lần này.
+- **1146 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
+  khi sửa app, rồi chạy lại sau sửa. Đủ 15 luồng parser → executor với backend giả lập đều đạt.
+- Đã chạy suy luận Gipformer và TTS cùng tiến trình, gồm decoder chính tả không hotwords, bằng âm thanh
+  tổng hợp. Đây là smoke test, chưa phải số đo giọng nói thật hay chứng cứ executor desktop.
+- PyInstaller/PowerShell 5.1 đã tạo ZIP (~178 MB) và chạy exe `--selftest-runtime` trong đường dẫn
+  có dấu/khoảng trắng, gồm cả thư mục cấu hình có dấu. ASR/TTS cùng tiến trình và chính tả đều đạt.
+  `models/`, `.venv/`, `dist/`, `build/` đều được ignore. CI Windows đã có trong repo, chưa chạy trên GitHub
+  vì checkout không có remote.
+- **Nam chọn kiểm tra desktop sau.** Lần thử native gặp `LockApp.exe`; harness hiện ghi `blocked`
+  khi desktop khóa. Chưa xác nhận có hệ thống focus, SendInput, COM, tab, DPI hay demo đủ 15 chức năng.
 
 ## 2. Những gì đã làm trong phiên 2026-10-09/10 (theo commit)
 
@@ -23,6 +28,12 @@ Bàn giao từ Claude Code sang agent tiếp theo (GPT/Codex). Đọc file này 
 | `a8ea71e`, `f2d67b6` | Bí danh claude.ai (gồm cách Gipformer nghe: "cờ lốt", "cờ lao", "cloud chấm ai"…), YouTube Music, Hugging Face, "Microsoft Word/Excel/PowerPoint", "nốt pét". |
 | `6a5e333` | Validator của hybrid: kết quả mở web có URL không thuộc bảng `[websites]` (tên miền trần Google đoán) bị coi là không hợp lệ, để Gipformer khớp bí danh được thắng. |
 | `2f1ee3a` | "mở X" tìm app đã cài (Shell AppsFolder qua COM, gồm Store app; lỗi COM thì quét `.lnk` Start Menu). Chạy nền, TTL 5 phút, không chặn parse. Thứ tự: website → bí danh `[apps]` → app đã cài. App desktop chạy thẳng exe, Store app chạy `shell:AppsFolder\<AUMID>`. |
+| `ab8dd82` | Harness trước khi sửa app: 15 luồng giả lập, native probe độc lập, báo cáo trạng thái pass/fail/blocked. |
+| `8a8481c` | Thêm cách nói chuyển slide/tab; chính tả dùng decoder greedy riêng không hotwords; nhận tên app bỏ tiền tố Adobe/Microsoft với regression từ lượt "mở Photoshop". Làm rõ mở ứng dụng/trang Zalo. |
+| `18357be` | Sửa build Windows: hook webrtcvad-wheels, tránh DLL ICU từ PATH ngoài Python/Windows, UTF-8 trong PowerShell; giữ metadata/giấy phép, pin hash tokens, khôi phục CI. |
+| `3d2d790` | `--selftest-runtime` cho exe; benchmark cùng hotwords/validator/chế độ với app; mẫu nhãn 30 câu; harness giữ bằng chứng cũ và báo lỗi timeout. |
+| `d88310d` | Sửa espeak thoát tiến trình khi data_dir có dấu: short path, fallback cache ASCII giữ theo lifetime voice; ba regression với fakes. |
+| `55b8194` | Sửa BPE/hotwords thoát tiến trình khi config_dir có dấu; helper short path dùng chung và cache; hook riêng loại PocketSphinx, guard build và regression. |
 
 ## 3. Kiến trúc
 
@@ -55,6 +66,9 @@ Hotkey (windows/hotkeys.py) ──signal──▶ Controller (controller.py, mai
 5. Tên tệp khi lưu: NFC, chặn ký tự điều khiển và tên thiết bị, ≤240 ký tự, trùng thì thêm " (2)".
 6. Hotkey mặc định `Ctrl+Alt+Space` / `Ctrl+Alt+D`, nhưng trên máy Nam bị app khác giữ (lỗi 1409);
    Nam dùng `ctrl+alt+v` / `ctrl+alt+m` trong config. Chưa đổi mặc định.
+7. Chính tả offline/hybrid chọn decoder greedy riêng, nạp lười và cache, không dùng hotwords lệnh.
+   Lần chính tả offline đầu có thêm thời gian nạp model và sử dụng RAM cho decoder thứ hai.
+8. Website vẫn được ưu tiên cho "mở Zalo". Dùng "mở ứng dụng Zalo" hoặc "mở trang Zalo" để chọn rõ đích.
 
 ## 5. Cấu hình máy Nam (không nằm trong repo)
 
@@ -63,20 +77,33 @@ và `[websites]` riêng `"cloud.vn"`, `"close.vn"` → `https://claude.ai` (các
 
 ## 6. Vấn đề còn mở
 
-1. **Chưa thử mở app thật bằng giọng nói** sau commit `2f1ee3a` (đã thử parser: "mở roblox player",
-   "mở python" ra đúng exe; Notepad ra `shell:AppsFolder\{…}\notepad.exe`). Spotify không cài trên máy.
-2. "mở zalo" vẫn mở Zalo web vì `[websites]` có "zalo" và website được xét trước app.
-3. Hugging Face bị cả hai engine nghe sai nặng. "Claude dot AI" đọc kiểu tiếng Anh thì Google ra
-   "spotify"/"bluetooth" — không cứu được bằng bí danh chung.
-4. Hotwords có thể làm lệch chế độ đọc chính tả (chưa đo).
-5. Thiếu mẫu "chuyển (sang) slide/tab tiếp theo" trong `commands.toml` (đã đề xuất, Nam chưa duyệt).
-6. Nam từng thử lệnh chưa hỗ trợ: tắt wifi/mạng, "tạo file mới trong Excel". Ngoài PLAN — hỏi Nam trước khi làm.
-7. Rủi ro Windows chưa kiểm (thứ tự ưu tiên): overlay không lấy focus + SendInput tiếng Việt/emoji
-   (Word, Notepad, Edge, Chrome, cửa sổ admin/UIPI); COM PowerPoint (GetActiveObject, chuyển slide khi
-   chiếu, SaveAs tên tiếng Việt, timeout 8 s); phím tắt tab Edge/Chrome; chụp màn hình DPI 125–150%;
-   PyInstaller `build.ps1` (đường dẫn có dấu, DLL sherpa/PortAudio/pywin32) và `--selftest` trên exe.
-8. Benchmark: `tools\benchmark_stt.py` trên 30 câu, cập nhật `docs/BENCHMARKS.md`.
-9. Giấy phép: `docs/TODO.md` §2. `.github/workflows/ci.yml` cần kiểm tra có tồn tại.
+Theo thứ tự đề xuất tiếp tục; các kiểm tra desktop chờ Nam chủ động cho chạy lại:
+
+1. **Focus + SendInput** trên desktop mở: Notepad, Word, Edge/Chrome, tiếng Việt/emoji,
+   cửa sổ admin/UIPI, đổi foreground trong lúc xử lý. Harness đã có probe Notepad/focus nhưng chưa đạt native.
+2. **PowerPoint + browser + screenshot**: GetActiveObject, Save/SaveAs tên tiếng Việt, slideshow,
+   timeout COM, phím tab Edge/Chrome, screenshot giấu overlay ở DPI 125–150%. Chạy native harness rồi demo
+   đủ 15 chức năng và ba vòng 10 chức năng ổn định nhất theo PLAN.
+3. **Mở app thật và tên tiếng Anh**: debug session mới nhất có các lượt Roblox, Visual Studio Code,
+   Photoshop, Outlook, Notepad; parser đã nhận nhiều đích. Cần đối chứng app/cửa sổ thực sau khi mở.
+   Hugging Face/Claude đọc tiếng Anh vẫn cần clip có câu tham chiếu rõ; không suy đoán alias từ tên app khác.
+4. **Benchmark 30 câu thật và chất lượng TTS**: đã có `docs/benchmark-labels.csv` và công cụ đồng bộ
+   với app. Chưa có số đo WER/p95/RAM giọng thật; decoder chính tả đã tách hotwords nhưng chưa đo chất lượng
+   trên giọng Nam. Kiểm tra thêm câu dài, số, tên riêng, dấu câu khi nghe TTS.
+5. **Máy sạch và mạng**: thử ZIP không có Python, offline/online; kiểm HTTPS_PROXY/CA với tải model.
+   Build có dấu/PowerShell 5.1, native imports và ZIP đã được kiểm tại máy hiện tại.
+6. **Trước phát hành công khai**: quyền phân phối voice fine-tuned từ Lessac còn chưa rõ; xác nhận
+   provenance wheel espeak-ng và nguồn tương ứng cho GPL/FLAC. `LICENSE`, cffi, pycparser, header espeak
+   và build recipe đã đối chiếu; wheel license texts đã được giữ trong bundle. Điền RepoUrl thật vào SOURCE.txt
+   và chạy CI sau khi repo có remote.
+
+Các mục cũ đã xử lý: cách nói chuyển slide/tab; decoder chính tả không hotwords; lựa chọn Zalo rõ đích;
+hash tokens; lỗi build; CI thiếu. Wi-Fi/Excel được Nam để ngoài phạm vi v1.
+
+Bằng chứng: `%LOCALAPPDATA%\VoicePilot\verification\20261010-203447-2ab7a648\report.md`;
+hướng dẫn tái chạy và giới hạn tại `docs/VERIFICATION.vi.md`. Không tính fake/synthetic/blocked là native desktop pass.
+Exe smoke: `build\selftest-679b6f3a17344cba92ab42d27f664b09\logs\selftest.txt`;
+bundle files/FLAC: `build\bundle-verification-25330db82b694963bbf9f81588cb10c1\report.json`.
 
 ## 7. Cách debug với Nam
 
@@ -86,3 +113,6 @@ Nam chạy `.\.venv\Scripts\python.exe -m voicepilot --debug`, nói lệnh, rồ
 - `%LOCALAPPDATA%\VoicePilot\logs\clips\turn-*.wav` — audio từng lượt, chạy lại offline qua Google/Gipformer
   để tái hiện.
 - `%LOCALAPPDATA%\VoicePilot\logs\voicepilot.log` — độ trễ, trạng thái, mã lỗi.
+
+Chỉ phân tích session/lượt mới nhất; giữ mốc đã đọc để không kéo lỗi cũ vào lượt tiếp theo.
+Mọi lỗi mới tìm trên Windows thật phải có regression với fakes trước hoặc cùng bản sửa.
