@@ -3,11 +3,17 @@
 Chạy harness trước khi sửa app để giữ kết quả nền, rồi chạy lại sau sửa:
 
 ```powershell
-.\.venv\Scripts\python.exe tools\verify_features.py --checks --windows
+.\.venv\Scripts\python.exe tools\verify_features.py --checks --runtime
 ```
 
-Không có `--windows`: chỉ kiểm tra parser → executor với backend giả lập cho đủ
-15 chức năng. `--checks` chạy thêm pytest, ruff và selftest. Pytest dùng thư mục
+Không có `--windows`: kiểm tra parser → executor cho đủ 15 chức năng và thêm
+60 lượt qua recorder thật, Controller, HybridTranscriber, parser và executor. Nguồn thu
+là callback PCM 48 kHz int16 giả lập; văn bản STT và tác động Windows được kiểm soát.
+Bốn đường xử lý gồm Google, offline, hybrid và Google lỗi → offline. Mỗi lượt phải có
+đúng một tác động, giữ tham số Unicode và phản hồi đúng chế độ; chính tả không phát TTS.
+Ba tình huống thêm kiểm chọn kết quả đúng app khi Google nhầm slide/tab và đổi foreground.
+Các lượt này có nhãn `fake_pipeline`, không chứng minh độ chính xác ASR hay thao tác desktop.
+`--checks` chạy thêm pytest, ruff và selftest. Pytest dùng thư mục
 tạm mới cho mỗi lần chạy, tránh quyền truy cập/cache cũ của lần chạy trước.
 
 Thêm `--runtime` để kiểm tra nạp ASR/TTS trong cùng tiến trình và nhận dạng

@@ -17,16 +17,27 @@ import platform
 import struct
 import subprocess
 import sys
+import threading
 import time
 import uuid
 from collections.abc import Callable, Sequence
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock, patch
 
 from voicepilot.config import load_config
-from voicepilot.contracts import ActionResult, AppKind, Intent, Mode, ResultStatus, WindowContext
+from voicepilot.contracts import (
+    ActionResult,
+    AppKind,
+    Intent,
+    Mode,
+    ResultStatus,
+    SttBackendMode,
+    SttError,
+    Transcript,
+    WindowContext,
+)
 from voicepilot.intent.parser import RuleParser
 from voicepilot.windows import browser, desktop
 from voicepilot.windows.context import Win32ContextProvider
@@ -151,6 +162,139 @@ def contract_suite() -> list[Check]:
                 else:
                     keys.type_unicode.assert_called_once_with(params["text"])
         runner.check(intent.value, verify)
+    return runner.checks
+
+
+def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None, changed_target=False):
+    """Exercise the real recorder/controller/hybrid/parser/executor with observable boundaries.
+
+    PCM comes from a fake device callback. Recognizer text and Windows effects are controlled;
+    this checks turn wiring and backend selection, not microphone or recognition accuracy.
+    """
+    import numpy as np
+    from PySide6.QtCore import QCoreApplication
+
+    from voicepilot.audio.capture import Recorder
+    from voicepilot.controller import Controller
+    from voicepilot.stt.hybrid import HybridTranscriber
+
+    app = QCoreApplication.instance() or QCoreApplication([])
+    config = replace(load_config(ROOT / "verification-unused-config.toml"), vad_enabled=True)
+    parser = RuleParser(config.website_aliases, config.app_aliases)
+    ctx = WindowContext(100, 200, "test.exe", "Synthetic target", kind,
+                        "edge" if kind is AppKind.BROWSER else None)
+    provider = Mock(capture=Mock(return_value=ctx), is_still_target=Mock(return_value=True))
+    # A 48 kHz int16 (frames, 1) callback covers the real Windows scaling regression.
+    tone = (6000 * np.sin(2 * np.pi * 440 * np.arange(14400) / 48000)).astype(np.int16)
+    pcm = np.concatenate((tone, np.zeros(48000, dtype=np.int16))).reshape(-1, 1)
+    stream = Mock()
+    def stream_factory(**kwargs):
+        stream.start.side_effect = lambda: kwargs["callback"](pcm, len(pcm), None, None)
+        return stream
+    recorder = Recorder(config, stream_factory=stream_factory, input_rate=48000,
+                        is_speech=lambda frame: np.max(np.abs(np.frombuffer(frame, dtype="<i2"))) > 500)
+    received = []
+    selected_modes = []
+    class Backend:
+        def __init__(self, response, source):
+            self.response, self.source = response, source
+        def transcribe(self, clip):
+            require(clip.sample_rate == 16000 and clip.turn_id > 0, "Incorrect normalized clip")
+            samples = np.frombuffer(clip.samples, dtype="<i2")
+            require(5000 < np.max(np.abs(samples)) < 6500, "PCM scaled or clipped")
+            received.append(self.source)
+            if changed_target:
+                provider.is_still_target.return_value = False
+            if self.response is None:
+                raise SttError("Synthetic backend failure")
+            return Transcript(self.response, self.source, 1.0, clip.turn_id)
+        def without_hotwords(self):
+            selected_modes.append(Mode.DICTATION)
+            return self
+    google = Backend(text if google_text is None else google_text, "google")
+    if backend_mode == "fallback":
+        google.response = None
+    offline = Backend(text, "gipformer")
+    mode = SttBackendMode.HYBRID if backend_mode == "fallback" else SttBackendMode(backend_mode)
+    transcriber = HybridTranscriber(google, offline, mode, google_timeout_s=0.05)
+    ppt, keys, speaker = Mock(), Mock(), Mock()
+    for method in PPT_METHODS.values():
+        getattr(ppt, method).return_value = ActionResult(ResultStatus.OK, "Đã thực hiện.")
+    executor = WindowsExecutor(config, provider, powerpoint=ppt, keys=keys)
+    controller = Controller(config, recorder, transcriber, parser, executor, speaker, provider)
+    results, transcripts = [], []
+    controller.result_ready.connect(results.append)
+    controller.transcript_changed.connect(transcripts.append)
+    try:
+        with (patch.object(desktop, "open_app") as launch,
+              patch.object(desktop, "screenshot", return_value=Path("synthetic.png")) as screenshot,
+              patch.object(browser, "launch_url") as url):
+            if intent is Intent.DICTATE_TEXT:
+                controller.toggle_mode()
+            controller.toggle_listen()
+            def finished():
+                app.processEvents()
+                return results
+            wait_for(finished)
+            require(len(results) == 1, "Turn produced more than one outcome")
+            if changed_target:
+                require(results[0].status is ResultStatus.NEEDS_RETRY, "Changed target was accepted")
+                require(not any(mock.mock_calls for mock in (ppt, keys, launch, screenshot, url)),
+                        "Changed target received an effect")
+                return "Foreground change rejected before any Windows effect"
+            require(results[0].status is ResultStatus.OK,
+                    f"Execution returned {results[0].status.value}: {results[0].error_code}")
+            require(transcripts[-1] == text, "Wrong backend transcript selected")
+            require(controller.history[-1][3] == intent.value, "Wrong intent reached execution")
+            require(stream.stop.call_count == stream.close.call_count == 1, "Device not released")
+            if intent in PPT_METHODS:
+                expected = (ctx, params["filename"]) if intent is Intent.PPT_SAVE_AS else (ctx,)
+                getattr(ppt, PPT_METHODS[intent]).assert_called_once_with(*expected)
+            elif intent in browser.TAB_HOTKEYS:
+                keys.send_hotkey.assert_called_once_with(*browser.TAB_HOTKEYS[intent])
+            elif intent is Intent.BROWSER_OPEN_SITE:
+                url.assert_called_once_with(params["url"], ctx)
+            elif intent is Intent.BROWSER_SEARCH:
+                url.assert_called_once_with(browser.build_search_url(params["query"]), ctx)
+            elif intent is Intent.WIN_OPEN_APP:
+                launch.assert_called_once_with(params["app"])
+            elif intent is Intent.WIN_SCREENSHOT:
+                screenshot.assert_called_once_with(ctx, hide_overlay=None)
+            else:
+                keys.type_unicode.assert_called_once_with(params["text"])
+                require(speaker.speak.call_count == 0, "Dictation spoke a command response")
+                if mode is not SttBackendMode.GOOGLE:
+                    require(selected_modes == [Mode.DICTATION], "Dictation decoder was not selected")
+            if intent is not Intent.DICTATE_TEXT:
+                speaker.speak.assert_called_once_with(results[0].message_vi)
+            effects = sum(mock.call_count for mock in (launch, screenshot, url, keys.send_hotkey,
+                          keys.type_unicode, *(getattr(ppt, name) for name in PPT_METHODS.values())))
+            require(effects == 1, "Turn executed more than one effect")
+            require(provider.capture.call_count == 1, "Target was not captured once at turn start")
+            if backend_mode == "fallback":
+                require(received == ["google", "gipformer"], "Offline fallback did not run")
+            return "48 kHz PCM -> recorder -> Controller -> hybrid -> parser -> one fake Windows effect"
+    finally:
+        controller.shutdown()
+
+
+def pipeline_suite() -> list[Check]:
+    """All fifteen functions through each STT mode, plus context/focus selection probes."""
+    runner = Runner("fake_pipeline")
+    for backend_mode in ("google", "offline", "hybrid", "fallback"):
+        for intent, text, kind, params in CASES:
+            runner.check(f"{backend_mode}:{intent.value}",
+                         lambda i=intent, t=text, k=kind, p=params, b=backend_mode:
+                         pipeline_case(i, t, k, p, b))
+    runner.check("hybrid_browser_context", lambda: pipeline_case(
+        Intent.BROWSER_NEXT_TAB, "tab tiếp theo", AppKind.BROWSER, {}, "hybrid",
+        google_text="slide tiếp theo"))
+    runner.check("hybrid_powerpoint_context", lambda: pipeline_case(
+        Intent.PPT_NEXT_SLIDE, "slide tiếp theo", AppKind.POWERPOINT, {}, "hybrid",
+        google_text="tab tiếp theo"))
+    runner.check("changed_target_no_effect", lambda: pipeline_case(
+        Intent.DICTATE_TEXT, "Xin chào", AppKind.OTHER, {"text": "Xin chào"}, "offline",
+        changed_target=True))
     return runner.checks
 
 
@@ -387,7 +531,6 @@ def ppt_suite(folder: Path) -> list[Check]:
 
 def browser_suite(folder: Path, name: str) -> list[Check]:
     import http.server
-    import threading
     import urllib.request
     import winreg
 
@@ -606,7 +749,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         checks = run_probe(args.probe, folder)
         write_report(folder, checks)
         return int(any(check.status == "fail" for check in checks))
-    checks = contract_suite()
+    checks = contract_suite() + pipeline_suite()
     if args.checks:
         commands = {
             "pytest": [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",

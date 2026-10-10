@@ -89,7 +89,9 @@ Tùy chọn quan trọng:
 Công cụ dùng cùng `HybridTranscriber` và `RuleParser` như ứng dụng. Với `--backends google`, Gipformer không được tải. Với `--backends offline`, Google không được gọi.
 
 Model lệnh dùng hotwords từ cấu hình như app; đọc chính tả chọn decoder riêng không có hotwords.
-Validator cũng ưu tiên URL nằm trong bảng website, như controller. Lần đầu đọc chính tả offline có thể
+Validator dùng chung với controller: ưu tiên lệnh phù hợp app đích (slide cần PowerPoint,
+tab cần browser) và URL nằm trong bảng website. Nếu cả hai kết quả không hợp lệ, hybrid vẫn
+trả văn bản tốt nhất để app giải thích điều kiện thiếu. Lần đầu đọc chính tả offline có thể
 nạp thêm decoder; thời gian này nằm trong độ trễ của câu đó. Bộ luồng được đóng sau mỗi backend.
 
 Đầu ra JSON không chứa nội dung nhận dạng, chỉ có độ trễ, nguồn, trạng thái và số lỗi từng câu.

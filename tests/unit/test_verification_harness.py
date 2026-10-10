@@ -34,6 +34,23 @@ def test_executor_failure_is_not_reported_as_success(monkeypatch):
     assert all(check.status == "fail" for check in checks)
 
 
+def test_all_fifteen_features_through_controller_and_each_stt_mode(qapp):
+    checks = harness.pipeline_suite()
+    expected = {f"{mode}:{intent.value}" for mode in ("google", "offline", "hybrid", "fallback")
+                for intent in Intent if intent is not Intent.UNKNOWN}
+    assert expected <= {check.name for check in checks}
+    assert len(checks) == 63
+    assert all(check.status == "pass" for check in checks), [c for c in checks if c.status != "pass"]
+
+
+def test_pipeline_harness_detects_executor_failure(monkeypatch, qapp):
+    from voicepilot.contracts import ActionResult, AppKind, ResultStatus
+
+    monkeypatch.setattr(harness.WindowsExecutor, "execute", lambda *_: ActionResult(ResultStatus.ERROR, ""))
+    with pytest.raises(AssertionError, match="Execution returned error"):
+        harness.pipeline_case(Intent.WIN_SCREENSHOT, "chụp màn hình", AppKind.OTHER, {}, "offline")
+
+
 def test_missing_prerequisite_is_distinct_from_failure():
     runner = harness.Runner("windows")
     def unavailable():

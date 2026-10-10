@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from voicepilot.config import AppConfig, load_config
-from voicepilot.contracts import Intent, Mode, Transcript, WindowContext
+from voicepilot.contracts import AppKind, Intent, Mode, Transcript, WindowContext
 from voicepilot.intent.parser import RuleParser
 
 spec = importlib.util.spec_from_file_location(
@@ -34,6 +34,22 @@ def test_benchmark_rejects_unlisted_domain_like_controller(monkeypatch):
     valid = benchmark.is_valid_for(parser, case(Intent.BROWSER_OPEN_SITE))
     assert not valid(Transcript("mở close.vn", "google", 1, 0))
     assert valid(Transcript("mở claude", "gipformer", 1, 0))
+
+
+@pytest.mark.parametrize("kind, wrong, correct", [
+    (AppKind.BROWSER, "slide tiếp theo", "tab tiếp theo"),
+    (AppKind.POWERPOINT, "tab tiếp theo", "slide tiếp theo"),
+    (AppKind.OTHER, "tab tiếp theo", "chụp màn hình"),
+    (AppKind.NONE, "lưu lại", "mở word"),
+])
+def test_benchmark_prefers_candidate_compatible_with_target(kind, wrong, correct, monkeypatch):
+    config = load_config(Path("unused-benchmark-config.toml"))
+    monkeypatch.setattr(benchmark, "load_config", lambda: config)
+    context = WindowContext(0, 0, "", "", kind, None)
+    sample = benchmark.Case(Path("synthetic.wav"), Intent.WIN_SCREENSHOT, {}, context, None)
+    valid = benchmark.is_valid_for(RuleParser(config.website_aliases, config.app_aliases), sample)
+    assert not valid(Transcript(wrong, "google", 1, 0))
+    assert valid(Transcript(correct, "gipformer", 1, 0))
 
 
 def test_benchmark_dictation_uses_unbiased_mode(monkeypatch):

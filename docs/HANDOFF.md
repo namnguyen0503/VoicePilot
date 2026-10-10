@@ -6,8 +6,11 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
 ## 1. Trạng thái hiện tại
 
 - Đủ 15 chức năng trong PLAN; Nam chốt hoàn thiện v1, để Wi-Fi và Excel ngoài phạm vi lần này.
-- **1162 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
+- **1168 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
   khi sửa app, rồi chạy lại sau sửa. Đủ 15 luồng parser → executor với backend giả lập đều đạt.
+- Harness thêm 60 lượt recorder → Controller → hybrid → parser → executor cho 15 chức năng
+  qua bốn đường STT. Đã tái hiện/sửa hai lỗi chọn câu slide trong browser và câu tab trong PowerPoint;
+  validator chung với benchmark ưu tiên kết quả phù hợp app đích. Đổi foreground chặn mọi tác động.
 - Đã chạy suy luận Gipformer và TTS cùng tiến trình, gồm decoder chính tả không hotwords, bằng âm thanh
   tổng hợp. Đây là smoke test, chưa phải số đo giọng nói thật hay chứng cứ executor desktop.
 - PyInstaller/PowerShell 5.1 đã tạo ZIP (~178 MB) và chạy exe `--selftest-runtime` trong đường dẫn
@@ -54,7 +57,8 @@ Hotkey (windows/hotkeys.py) ──signal──▶ Controller (controller.py, mai
   `BROWSER_SEARCH: query`, `WIN_OPEN_APP: app, app_name`, `DICTATE_TEXT: text`.
 - Hybrid: Google chạy trước; Gipformer chạy khi Google lỗi/không hợp lệ/sau 2 s. Kết quả hợp lệ đầu tiên
   thắng; không có kết quả hợp lệ thì lấy kết quả không rỗng tốt nhất, ưu tiên Google. Validator nằm ở
-  `controller._validator`.
+  `controller._validator`, dùng chính sách chung `intent/validation.py` với benchmark. Lệnh slide/tab
+  không đúng app đích không chặn một kết quả offline phù hợp; parser vẫn nhận câu để executor báo điều kiện.
 - `config.py`: `defaults.toml` rồi đè `%LOCALAPPDATA%\VoicePilot\config.toml`; khóa sai thì chỉ khóa đó về mặc định.
 
 ## 4. Quyết định đã chốt (chi tiết hơn PLAN)

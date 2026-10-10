@@ -40,6 +40,7 @@ from voicepilot.contracts import (
     Transcript,
     WindowContext,
 )
+from voicepilot.intent.validation import is_valid_candidate
 
 log = logging.getLogger("voicepilot.controller")
 
@@ -564,12 +565,7 @@ class Controller(QObject):
 
         def is_valid(transcript: Transcript) -> bool:
             command = self._parse(transcript.text, turn.context)
-            if command.intent is Intent.BROWSER_OPEN_SITE and command.params.get("url") not in known_sites:
-                # A bare domain is a weak match: Google often turns a misheard name into "x.vn". Counting it
-                # invalid lets the other backend's alias or command win; if none is valid, the hybrid
-                # transcriber still falls back to this transcript.
-                return False
-            return command.is_executable
+            return is_valid_candidate(command, turn.context, known_sites)
 
         return is_valid
 

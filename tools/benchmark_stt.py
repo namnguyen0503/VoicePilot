@@ -62,6 +62,7 @@ from voicepilot.contracts import (  # noqa: E402
     WindowContext,
 )
 from voicepilot.intent.parser import RuleParser  # noqa: E402
+from voicepilot.intent.validation import is_valid_candidate  # noqa: E402
 from voicepilot.stt.gipformer import DEFAULT_MODEL_SUBDIR, GipformerStt  # noqa: E402
 from voicepilot.stt.google import GoogleStt  # noqa: E402
 from voicepilot.stt.hotwords import command_phrases  # noqa: E402
@@ -241,9 +242,7 @@ def is_valid_for(parser: RuleParser, case: Case) -> Callable[[Transcript], bool]
         if mode is Mode.DICTATION:
             return bool(transcript.text.strip())
         command = parser.parse(transcript.text, case.context, mode)
-        if command.intent is Intent.BROWSER_OPEN_SITE and command.params.get("url") not in known_sites:
-            return False
-        return command.is_executable
+        return is_valid_candidate(command, case.context, known_sites)
 
     return check
 
