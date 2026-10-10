@@ -28,7 +28,8 @@ def test_all_feature_contracts_have_observable_checks():
 def test_executor_failure_is_not_reported_as_success(monkeypatch):
     from voicepilot.contracts import ActionResult, ResultStatus
 
-    monkeypatch.setattr(harness.WindowsExecutor, "execute", lambda *_: ActionResult(ResultStatus.ERROR, ""))
+    monkeypatch.setattr(harness.WindowsExecutor, "execute",
+                        lambda *_, **__: ActionResult(ResultStatus.ERROR, ""))
     checks = harness.contract_suite()
     assert len(checks) == 15
     assert all(check.status == "fail" for check in checks)
@@ -39,21 +40,22 @@ def test_all_fifteen_features_through_controller_and_each_stt_mode(qapp):
     expected = {f"{mode}:{intent.value}" for mode in ("google", "offline", "hybrid", "fallback")
                 for intent in Intent if intent is not Intent.UNKNOWN}
     assert expected <= {check.name for check in checks}
-    assert len(checks) == 63
+    assert len(checks) == 64
     assert all(check.status == "pass" for check in checks), [c for c in checks if c.status != "pass"]
 
 
 def test_pipeline_harness_detects_executor_failure(monkeypatch, qapp):
     from voicepilot.contracts import ActionResult, AppKind, ResultStatus
 
-    monkeypatch.setattr(harness.WindowsExecutor, "execute", lambda *_: ActionResult(ResultStatus.ERROR, ""))
+    monkeypatch.setattr(harness.WindowsExecutor, "execute",
+                        lambda *_, **__: ActionResult(ResultStatus.ERROR, ""))
     with pytest.raises(AssertionError, match="Execution returned error"):
         harness.pipeline_case(Intent.WIN_SCREENSHOT, "chụp màn hình", AppKind.OTHER, {}, "offline")
 
 
 def test_powerpoint_worker_drops_expired_jobs_and_rechecks_target():
     checks = harness.powerpoint_worker_suite()
-    assert len(checks) == 34
+    assert len(checks) == 46
     assert all(check.status == "pass" for check in checks), [c for c in checks if c.status != "pass"]
 
 

@@ -147,7 +147,7 @@ def contract_suite() -> list[Check]:
                 require(result.status is ResultStatus.OK, f"Execution returned {result.status.value}")
                 if intent in PPT_METHODS:
                     expected = (ctx, params["filename"]) if intent is Intent.PPT_SAVE_AS else (ctx,)
-                    getattr(ppt, PPT_METHODS[intent]).assert_called_once_with(*expected)
+                    getattr(ppt, PPT_METHODS[intent]).assert_called_once_with(*expected, cancel=None)
                 elif intent in browser.TAB_HOTKEYS:
                     keys.send_hotkey.assert_called_once_with(*browser.TAB_HOTKEYS[intent])
                 elif intent is Intent.BROWSER_OPEN_SITE:
@@ -165,7 +165,8 @@ def contract_suite() -> list[Check]:
     return runner.checks
 
 
-def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None, changed_target=False):
+def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
+                  changed_target=False, cancel_during_com=False):
     """Exercise the real recorder/controller/hybrid/parser/executor with observable boundaries.
 
     PCM comes from a fake device callback. Recognizer text and Windows effects are controlled;
@@ -220,6 +221,21 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
     ppt, keys, speaker = Mock(), Mock(), Mock()
     for method in PPT_METHODS.values():
         getattr(ppt, method).return_value = ActionResult(ResultStatus.OK, "Đã thực hiện.")
+    gate, entered = threading.Event(), threading.Event()
+    save_effect = Mock()
+    if cancel_during_com:
+        from voicepilot.windows.powerpoint import PowerPointController
+
+        presentation = Mock(Name=ctx.title, Path="C:/synthetic", FullName="C:/synthetic/Test.pptx",
+                            Windows=Mock(Count=0), SlideShowWindow=None, Save=save_effect)
+        collection = Mock(Count=1)
+        collection.Item.return_value = presentation
+        def source():
+            entered.set()
+            require(gate.wait(2), "Harness did not release COM after cancellation")
+            return Mock(Presentations=collection)
+        ppt = PowerPointController(app_source=source, apartment=contextlib.nullcontext,
+                                   context_provider=provider, timeout_s=2)
     executor = WindowsExecutor(config, provider, powerpoint=ppt, keys=keys)
     controller = Controller(config, recorder, transcriber, parser, executor, speaker, provider)
     results, transcripts = [], []
@@ -232,6 +248,23 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
             if intent is Intent.DICTATE_TEXT:
                 controller.toggle_mode()
             controller.toggle_listen()
+            cancel_token = controller._turn.cancel_event
+            if cancel_during_com:
+                def waiting_for_com():
+                    app.processEvents()
+                    return entered.is_set()
+                wait_for(waiting_for_com, timeout=1)
+                turn_future = controller._last_future
+                controller.cancel()
+                gate.set()
+                ppt._jobs.put(None)
+                ppt._thread.join(timeout=1)
+                wait_for(lambda: turn_future.done(), timeout=1)
+                app.processEvents()
+                require(save_effect.call_count == 0, "Cancelled turn still saved after COM returned")
+                require(not results and not controller.history and speaker.speak.call_count == 0,
+                        "Cancelled turn produced a late response/history/TTS")
+                return "Controller cancellation propagated to COM; no save or late response"
             def finished():
                 app.processEvents()
                 return results
@@ -249,7 +282,7 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
             require(stream.stop.call_count == stream.close.call_count == 1, "Device not released")
             if intent in PPT_METHODS:
                 expected = (ctx, params["filename"]) if intent is Intent.PPT_SAVE_AS else (ctx,)
-                getattr(ppt, PPT_METHODS[intent]).assert_called_once_with(*expected)
+                getattr(ppt, PPT_METHODS[intent]).assert_called_once_with(*expected, cancel=cancel_token)
             elif intent in browser.TAB_HOTKEYS:
                 keys.send_hotkey.assert_called_once_with(*browser.TAB_HOTKEYS[intent])
             elif intent is Intent.BROWSER_OPEN_SITE:
@@ -275,6 +308,7 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
                 require(received == ["google", "gipformer"], "Offline fallback did not run")
             return "48 kHz PCM -> recorder -> Controller -> hybrid -> parser -> one fake Windows effect"
     finally:
+        gate.set()
         controller.shutdown()
 
 
@@ -295,6 +329,8 @@ def pipeline_suite() -> list[Check]:
     runner.check("changed_target_no_effect", lambda: pipeline_case(
         Intent.DICTATE_TEXT, "Xin chào", AppKind.OTHER, {"text": "Xin chào"}, "offline",
         changed_target=True))
+    runner.check("cancel_during_com_no_effect", lambda: pipeline_case(
+        Intent.PPT_SAVE, "lưu lại", AppKind.POWERPOINT, {}, "offline", cancel_during_com=True))
     return runner.checks
 
 
@@ -309,6 +345,7 @@ def powerpoint_worker_case(intent: Intent, scenario: str) -> str:
     provider = Mock(is_still_target=Mock(return_value=True))
     gate = threading.Event()
     entered = threading.Event()
+    cancel_token = threading.Event()
     effects = Mock()
     view = Mock(CurrentShowPosition=2, Slide=Mock(SlideIndex=2))
     view.Next = effects.Next
@@ -320,6 +357,8 @@ def powerpoint_worker_case(intent: Intent, scenario: str) -> str:
     def delay_or_change(stage):
         if scenario == f"focus_{stage}":
             provider.is_still_target.return_value = False
+        elif scenario == f"cancel_{stage}":
+            cancel_token.set()
         elif scenario == f"timeout_{stage}" or (scenario == "queued_timeout" and stage == "source"):
             entered.set()
             require(gate.wait(2), "Harness failed to release the synthetic COM call")
@@ -365,7 +404,8 @@ def powerpoint_worker_case(intent: Intent, scenario: str) -> str:
         with patch("voicepilot.windows.executor.PowerPointController", side_effect=controller_factory):
             executor = WindowsExecutor(config, provider)
         try:
-            result = executor.execute(command, ctx)
+            result = executor.execute(command, ctx,
+                                      cancel=cancel_token if scenario.startswith("cancel_") else None)
             if "timeout" in scenario:
                 require(entered.is_set(), "The worker never entered the controlled COM delay")
                 require(result.status is ResultStatus.ERROR and result.error_code == "ppt_timeout",
@@ -377,6 +417,9 @@ def powerpoint_worker_case(intent: Intent, scenario: str) -> str:
                 require(result.status is ResultStatus.NEEDS_RETRY and
                         result.error_code == "target_changed",
                         f"Changed target returned {result.status.value}/{result.error_code}")
+            elif scenario.startswith("cancel_"):
+                require(result.status is ResultStatus.NEEDS_RETRY and result.error_code == "ppt_cancelled",
+                        f"Cancelled action returned {result.status.value}/{result.error_code}")
             else:
                 require(result.status is ResultStatus.OK, f"Healthy action returned {result.status.value}")
         finally:
@@ -409,7 +452,8 @@ def powerpoint_worker_case(intent: Intent, scenario: str) -> str:
 
 def powerpoint_worker_suite() -> list[Check]:
     runner = Runner("fake_com_worker")
-    for scenario in ("healthy", "timeout_source", "timeout_resolve", "focus_source", "focus_resolve"):
+    for scenario in ("healthy", "timeout_source", "timeout_resolve", "focus_source", "focus_resolve",
+                     "cancel_source", "cancel_resolve"):
         for intent in PPT_METHODS:
             runner.check(f"{scenario}:{intent.value}",
                          lambda intent=intent, scenario=scenario: powerpoint_worker_case(intent, scenario))

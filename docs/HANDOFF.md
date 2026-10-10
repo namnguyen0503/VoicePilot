@@ -6,16 +6,19 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
 ## 1. Trạng thái hiện tại
 
 - Đủ 15 chức năng trong PLAN; Nam chốt hoàn thiện v1, để Wi-Fi và Excel ngoài phạm vi lần này.
-- **1173 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
+- **1190 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
   khi sửa app, rồi chạy lại sau sửa. Đủ 15 luồng parser → executor với backend giả lập đều đạt.
 - Harness thêm 60 lượt recorder → Controller → hybrid → parser → executor cho 15 chức năng
   qua bốn đường STT. Đã tái hiện/sửa hai lỗi chọn câu slide trong browser và câu tab trong PowerPoint;
   validator chung với benchmark ưu tiên kết quả phù hợp app đích. Đổi foreground chặn mọi tác động.
 - Harness worker COM tái hiện 25 lỗi chờ/đổi đích trước khi sửa: cả sáu thao tác có thể chạy
   sau timeout hoặc sau khi foreground đổi. Đã thêm deadline, bỏ job hết hạn trong hàng đợi,
-  kiểm đích sau lấy app/đọc thuộc tính và trước tác động. 34 tình huống giả lập đạt, gồm
+  kiểm đích sau lấy app/đọc thuộc tính và trước tác động. 46 tình huống giả lập đạt, gồm
   `Run()` chậm, cửa sổ slideshow mới và shutdown. Shutdown bỏ job chưa bắt đầu, ngăn worker
   mới chồng lên COM cũ bị kẹt; khởi động lại được sau khi COM cũ xong. Không thu hồi COM đã bắt đầu.
+- Nút Hủy trước đây chỉ bỏ kết quả: COM đang chờ vẫn lưu sau khi trả về. Harness qua Controller
+  tái hiện trước sửa. `Executor.execute(..., cancel=turn.cancel_event)` nay truyền token của từng lượt,
+  chặn thao tác chưa bắt đầu và bỏ job đã hủy trong hàng đợi; không ảnh hưởng lượt mới.
 - Đã chạy suy luận Gipformer và TTS cùng tiến trình, gồm decoder chính tả không hotwords, bằng âm thanh
   tổng hợp. Đây là smoke test, chưa phải số đo giọng nói thật hay chứng cứ executor desktop.
 - Probe TTS native tái hiện callback tiếp tục/hủy bị đảo; fake cũ cũng mô phỏng sai API.
@@ -120,9 +123,9 @@ Theo thứ tự đề xuất tiếp tục; các kiểm tra desktop chờ Nam ch�
 Các mục cũ đã xử lý: cách nói chuyển slide/tab; decoder chính tả không hotwords; lựa chọn Zalo rõ đích;
 hash tokens; lỗi build; CI thiếu. Wi-Fi/Excel được Nam để ngoài phạm vi v1.
 
-Bằng chứng mới: `%LOCALAPPDATA%\VoicePilot\verification\20261010-222718-35e07727\report.md`
-(115 kiểm tra đạt, gồm 63 lượt pipeline, 34 tình huống worker COM giả lập và pytest/ruff/selftest).
-5 probe runtime gần nhất đạt tại `verification\20261010-222306-665deb59\report.md`.
+Bằng chứng mới: `%LOCALAPPDATA%\VoicePilot\verification\20261010-223439-4a08a700\report.md`
+(133 kiểm tra đạt, gồm 64 lượt pipeline, 46 tình huống worker COM giả lập, pytest/ruff/selftest
+và 5 probe runtime). Trước sửa Hủy: `verification\20261010-222916-f9551467\report.md`.
 Trước sửa shutdown: `verification\20261010-222521-ec93fd96\report.md`. Trước sửa worker COM:
 `%LOCALAPPDATA%\VoicePilot\verification\20261010-221920-883fd081\report.md` (25 lỗi).
 Trước sửa ngữ cảnh: `%LOCALAPPDATA%\VoicePilot\verification\20261010-214424-00449b74\report.md`

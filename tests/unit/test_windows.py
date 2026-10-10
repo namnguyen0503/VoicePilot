@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
+import threading
 import time
 import unicodedata
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -831,6 +833,75 @@ def test_powerpoint_unexpected_error_is_reported_not_raised(ppt: Callable[..., P
 # ---------------------------------------------------------------- executor dispatch
 
 
+@pytest.mark.parametrize("intent", [intent for intent in Intent if intent is not Intent.UNKNOWN])
+def test_cancelled_command_never_reaches_a_windows_backend(intent, monkeypatch):
+    cancel = threading.Event()
+    cancel.set()
+    powerpoint = MagicMock()
+    executor, keys = make_executor(powerpoint=powerpoint)
+    launch, screenshot, url = MagicMock(), MagicMock(), MagicMock()
+    monkeypatch.setattr(desktop, "open_app", launch)
+    monkeypatch.setattr(desktop, "screenshot", screenshot)
+    monkeypatch.setattr(browser, "launch_url", url)
+    params = {"filename": "Test", "text": "Xin chào", "url": "https://example.com",
+              "query": "Test", "app": "notepad.exe"}
+    result = executor.execute(Command(intent, "Synthetic", params=params), make_ctx(), cancel=cancel)
+    assert result.status is ResultStatus.NEEDS_RETRY and result.error_code == "cancelled"
+    assert not any(mock.mock_calls for mock in (powerpoint, launch, screenshot, url))
+    assert keys.hotkeys == [] and keys.texts == []
+
+
+def test_cancel_during_context_check_prevents_sendinput():
+    cancel = threading.Event()
+    def still_target(_ctx):
+        cancel.set()
+        return True
+    keys = FakeKeys()
+    executor = WindowsExecutor(AppConfig(), SimpleNamespace(is_still_target=still_target),
+                               powerpoint=MagicMock(), keys=keys)
+    result = executor.execute(Command(Intent.BROWSER_CLOSE_TAB, "đóng tab"),
+                              make_ctx(kind=AppKind.BROWSER, browser_name="edge"), cancel=cancel)
+    assert result.status is ResultStatus.NEEDS_RETRY and result.error_code == "cancelled"
+    assert keys.hotkeys == []
+
+
+def test_powerpoint_cancellation_is_per_turn_and_skips_cancelled_queue(ppt, tmp_path):
+    presentation = FakePresentation("Test.pptx", path=str(tmp_path))
+    app = FakeApp(presentation)
+    gate, entered = threading.Event(), threading.Event()
+    calls = []
+    def source():
+        calls.append(threading.get_ident())
+        if len(calls) == 1:
+            entered.set()
+            assert gate.wait(3)
+        return app
+    controller = ppt(source, timeout_s=3)
+    ctx = make_ctx(title="Test.pptx")
+    first_cancel, second_cancel = threading.Event(), threading.Event()
+    pool = ThreadPoolExecutor(max_workers=2)
+    try:
+        first = pool.submit(controller.save, ctx, cancel=first_cancel)
+        assert entered.wait(1)
+        first_cancel.set()
+        assert first.result(timeout=1).error_code == "ppt_cancelled"
+        second = pool.submit(controller.save, ctx, cancel=second_cancel)
+        deadline = time.monotonic() + 1
+        while controller._jobs.qsize() != 1 and time.monotonic() < deadline:
+            time.sleep(0.005)
+        assert controller._jobs.qsize() == 1
+        second_cancel.set()
+        assert second.result(timeout=1).error_code == "ppt_cancelled"
+        third = pool.submit(controller.save, ctx)
+        assert presentation.saves == 0
+        gate.set()
+        assert third.result(timeout=1).status is ResultStatus.OK
+        assert presentation.saves == 1 and len(calls) == 2
+    finally:
+        gate.set()
+        pool.shutdown(wait=True)
+
+
 def test_target_changed_returns_needs_retry_and_sends_nothing() -> None:
     powerpoint = MagicMock()
     executor, keys = make_executor(still_target=False, powerpoint=powerpoint)
@@ -1094,4 +1165,3 @@ def test_executor_shutdown_stops_powerpoint_worker() -> None:
     executor, _ = make_executor(powerpoint=powerpoint)
     executor.shutdown()
     powerpoint.shutdown.assert_called_once_with()
-

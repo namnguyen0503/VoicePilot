@@ -11,17 +11,20 @@ Không có `--windows`: kiểm tra parser → executor cho đủ 15 chức năng
 là callback PCM 48 kHz int16 giả lập; văn bản STT và tác động Windows được kiểm soát.
 Bốn đường xử lý gồm Google, offline, hybrid và Google lỗi → offline. Mỗi lượt phải có
 đúng một tác động, giữ tham số Unicode và phản hồi đúng chế độ; chính tả không phát TTS.
-Ba tình huống thêm kiểm chọn kết quả đúng app khi Google nhầm slide/tab và đổi foreground.
+Bốn tình huống thêm kiểm chọn kết quả đúng app khi Google nhầm slide/tab, đổi foreground
+và hủy trong lúc worker PowerPoint đang chờ COM. Sau hủy phải không lưu và không có phản hồi muộn.
 Các lượt này có nhãn `fake_pipeline`, không chứng minh độ chính xác ASR hay thao tác desktop.
 
 Nhóm `fake_com_worker` chạy worker PowerPoint thật qua executor mặc định, với COM giả lập.
-34 tình huống kiểm đủ sáu thao tác khi bình thường, timeout lúc lấy app/đọc thuộc tính,
+46 tình huống kiểm đủ sáu thao tác khi bình thường, timeout/hủy lúc lấy app/đọc thuộc tính,
 đổi foreground trong lúc chờ, lệnh hết hạn trong hàng đợi và bước tiếp sau `Run()` chậm.
 Hết hạn hoặc đổi đích trước thao tác phải không gây tác động. Lời gọi COM đã bắt đầu
 không thể thu hồi; worker chỉ chặn các bước còn chưa bắt đầu. Cửa sổ trình chiếu do `Run()`
 tạo ra có thể tự lấy focus nên bước chuyển về slide 1 chỉ kiểm hạn/hủy, không so HWND cũ.
 Probe shutdown bỏ việc còn chờ, giữ một apartment khi COM cũ kẹt và khởi động lại sau khi
 worker cũ kết thúc. Test cố tình bỏ guard deadline xác nhận harness vẫn phát hiện lưu muộn.
+`Executor.execute` nhận `cancel` dạng Event tùy chọn; Controller truyền Event riêng của lượt,
+WindowsExecutor kiểm trước tác động và PowerPoint worker kiểm lại sau mỗi bước COM chuẩn bị.
 
 `--checks` chạy thêm pytest, ruff và selftest. Pytest dùng thư mục
 tạm mới cho mỗi lần chạy, tránh quyền truy cập/cache cũ của lần chạy trước.

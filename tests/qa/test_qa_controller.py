@@ -101,7 +101,7 @@ class Executor:
         self.raise_exc = raise_exc
         self.shut_down = False
 
-    def execute(self, command, context):
+    def execute(self, command, context, *, cancel=None):
         self.calls.append(command)
         if self.gate is not None:
             self.gate.wait(5)

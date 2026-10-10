@@ -368,6 +368,7 @@ class _Request:
     context: WindowContext
     deadline: float
     abandoned: threading.Event
+    cancel: threading.Event | None
 
 
 class PowerPointController:
@@ -406,32 +407,37 @@ class PowerPointController:
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
 
-    def save(self, ctx: WindowContext) -> ActionResult:
+    def save(self, ctx: WindowContext, *, cancel: threading.Event | None = None) -> ActionResult:
         """Save the presentation of the target window."""
-        return self._submit(lambda app, guard, _: save_presentation(app, ctx.title, before_action=guard), ctx)
+        return self._submit(
+            lambda app, guard, _: save_presentation(app, ctx.title, before_action=guard), ctx, cancel)
 
-    def save_as(self, ctx: WindowContext, filename: str) -> ActionResult:
+    def save_as(
+        self, ctx: WindowContext, filename: str, *, cancel: threading.Event | None = None
+    ) -> ActionResult:
         """Save the presentation of the target window under a new name."""
         save_dir = self._default_save_dir()
         return self._submit(lambda app, guard, _: save_as_presentation(
-            app, ctx.title, filename, save_dir, before_action=guard), ctx)
+            app, ctx.title, filename, save_dir, before_action=guard), ctx, cancel)
 
-    def next_slide(self, ctx: WindowContext) -> ActionResult:
+    def next_slide(self, ctx: WindowContext, *, cancel: threading.Event | None = None) -> ActionResult:
         """Go to the next slide."""
-        return self._submit(lambda app, guard, _: next_slide(app, ctx.title, before_action=guard), ctx)
+        return self._submit(
+            lambda app, guard, _: next_slide(app, ctx.title, before_action=guard), ctx, cancel)
 
-    def previous_slide(self, ctx: WindowContext) -> ActionResult:
+    def previous_slide(self, ctx: WindowContext, *, cancel: threading.Event | None = None) -> ActionResult:
         """Go to the previous slide."""
-        return self._submit(lambda app, guard, _: previous_slide(app, ctx.title, before_action=guard), ctx)
+        return self._submit(
+            lambda app, guard, _: previous_slide(app, ctx.title, before_action=guard), ctx, cancel)
 
-    def start_show(self, ctx: WindowContext) -> ActionResult:
+    def start_show(self, ctx: WindowContext, *, cancel: threading.Event | None = None) -> ActionResult:
         """Start the slide show from slide 1."""
         return self._submit(lambda app, guard, followup: start_show(
-            app, ctx.title, before_action=guard, before_followup=followup), ctx)
+            app, ctx.title, before_action=guard, before_followup=followup), ctx, cancel)
 
-    def stop_show(self, ctx: WindowContext) -> ActionResult:
+    def stop_show(self, ctx: WindowContext, *, cancel: threading.Event | None = None) -> ActionResult:
         """End the running slide show."""
-        return self._submit(lambda app, guard, _: stop_show(app, ctx.title, before_action=guard), ctx)
+        return self._submit(lambda app, guard, _: stop_show(app, ctx.title, before_action=guard), ctx, cancel)
 
     def shutdown(self) -> None:
         """Abandon unstarted actions and stop the worker; already entered COM calls may finish.
@@ -457,12 +463,23 @@ class PowerPointController:
     def _default_save_dir(self) -> Path:
         return self._save_dir if self._save_dir is not None else documents_dir() / _SAVE_SUBDIR
 
-    def _submit(self, job: Job, ctx: WindowContext) -> ActionResult:
+    def _submit(self, job: Job, ctx: WindowContext, cancel: threading.Event | None) -> ActionResult:
         future: concurrent.futures.Future[ActionResult] = concurrent.futures.Future()
-        request = _Request(future, job, ctx, time.monotonic() + self._timeout_s, threading.Event())
+        request = _Request(future, job, ctx, time.monotonic() + self._timeout_s, threading.Event(), cancel)
         try:
+            if cancel is not None and cancel.is_set():
+                return _result(ResultStatus.NEEDS_RETRY, "Đã hủy lệnh PowerPoint.", "ppt_cancelled")
             self._ensure_worker(request)
-            return future.result(timeout=max(0, request.deadline - time.monotonic()))
+            while True:
+                if cancel is not None and cancel.is_set():
+                    future.cancel()
+                    return _result(ResultStatus.NEEDS_RETRY, "Đã hủy lệnh PowerPoint.", "ppt_cancelled")
+                remaining = max(0, request.deadline - time.monotonic())
+                try:
+                    return future.result(timeout=min(remaining, 0.05) if cancel is not None else remaining)
+                except concurrent.futures.TimeoutError:
+                    if future.done() or remaining <= 0 or time.monotonic() >= request.deadline:
+                        raise
         except concurrent.futures.TimeoutError:
             request.abandoned.set()
             future.cancel()  # Skip pending jobs; the event also stops a running job after COM returns.
@@ -535,7 +552,7 @@ class PowerPointController:
 
     @staticmethod
     def _check_alive(request: _Request, stopping: threading.Event) -> None:
-        if stopping.is_set():
+        if stopping.is_set() or (request.cancel is not None and request.cancel.is_set()):
             raise _Abandoned(_result(ResultStatus.NEEDS_RETRY, "Đã hủy lệnh PowerPoint.", "ppt_cancelled"))
         if request.abandoned.is_set() or time.monotonic() >= request.deadline:
             raise _Abandoned(_result(ResultStatus.ERROR, "PowerPoint không phản hồi.", "ppt_timeout"))

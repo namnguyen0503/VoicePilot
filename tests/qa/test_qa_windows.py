@@ -634,22 +634,22 @@ class FakePowerPoint:
         self.calls.append(name)
         return ActionResult(ResultStatus.OK, name)
 
-    def save(self, ctx):
+    def save(self, ctx, *, cancel=None):
         return self._rec("save")
 
-    def save_as(self, ctx, filename):
+    def save_as(self, ctx, filename, *, cancel=None):
         return self._rec(f"save_as:{filename}")
 
-    def next_slide(self, ctx):
+    def next_slide(self, ctx, *, cancel=None):
         return self._rec("next")
 
-    def previous_slide(self, ctx):
+    def previous_slide(self, ctx, *, cancel=None):
         return self._rec("prev")
 
-    def start_show(self, ctx):
+    def start_show(self, ctx, *, cancel=None):
         return self._rec("start")
 
-    def stop_show(self, ctx):
+    def stop_show(self, ctx, *, cancel=None):
         return self._rec("stop")
 
     def shutdown(self):

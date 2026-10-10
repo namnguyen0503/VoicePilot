@@ -515,7 +515,7 @@ class Controller(QObject):
         self._stage.emit(turn.turn_id, State.EXECUTING.value)
         t_exec = now()
         try:
-            result = self._executor.execute(command, turn.context)
+            result = self._executor.execute(command, turn.context, cancel=turn.cancel_event)
         except Exception as exc:
             log.error("turn id=%d executor error=%s", turn.turn_id, type(exc).__name__)
             result = ActionResult(ResultStatus.ERROR, MSG_EXEC_FAILED, "executor_error")

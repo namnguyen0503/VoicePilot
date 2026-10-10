@@ -116,7 +116,11 @@ class _DevContextProvider:
 class _DevExecutor:
     """Non-Windows stand-in: logs the intent and reports that actions need Windows."""
 
-    def execute(self, command: Command, context: WindowContext) -> ActionResult:
+    def execute(
+        self, command: Command, context: WindowContext, *, cancel: threading.Event | None = None
+    ) -> ActionResult:
+        if cancel is not None and cancel.is_set():
+            return ActionResult(ResultStatus.NEEDS_RETRY, "Đã hủy lệnh.", "cancelled")
         log.info("dev executor: intent=%s not run on %s", command.intent.value, sys.platform)
         return ActionResult(ResultStatus.NOT_AVAILABLE, "Chỉ thực hiện được trên Windows", "not_windows")
 

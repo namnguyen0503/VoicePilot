@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+from threading import Event
 from typing import Any, Literal, Protocol
 
 SAMPLE_WIDTH_BYTES = 2  # PCM int16 mono little-endian
@@ -187,8 +188,13 @@ class IntentParser(Protocol):
 class Executor(Protocol):
     """Runs a Command against the target application."""
 
-    def execute(self, command: Command, context: WindowContext) -> ActionResult:
-        """Execute command against the window described by context."""
+    def execute(
+        self, command: Command, context: WindowContext, *, cancel: Event | None = None
+    ) -> ActionResult:
+        """Execute against context; cancel prevents effects that have not started yet.
+
+        An already entered OS/COM call cannot be undone. The caller drops its late result.
+        """
         ...
 
 

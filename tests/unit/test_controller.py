@@ -134,7 +134,9 @@ class FakeExecutor:
         self.error: Exception | None = None
         self.shutdown_called = False
 
-    def execute(self, command: Command, context: WindowContext) -> ActionResult:
+    def execute(
+        self, command: Command, context: WindowContext, *, cancel: threading.Event | None = None
+    ) -> ActionResult:
         self.calls.append(command)
         if self.error is not None:
             raise self.error

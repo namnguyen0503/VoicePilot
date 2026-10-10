@@ -8,6 +8,7 @@ and are never raised. Backends are injectable so tests run without Windows.
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from contextlib import AbstractContextManager
 from typing import Any, Protocol
@@ -34,7 +35,13 @@ _NO_POWERPOINT_MESSAGE = "Hãy chuyển sang cửa sổ PowerPoint rồi thử l
 _TARGET_CHANGED_MESSAGE = "Cửa sổ đích đã thay đổi, hãy thử lại."
 _GENERIC_ERROR_MESSAGE = "Không thực hiện được lệnh."
 
-Handler = Callable[[Command, WindowContext], ActionResult]
+Handler = Callable[[Command, WindowContext, threading.Event | None], ActionResult]
+
+
+def _cancelled(cancel: threading.Event | None) -> ActionResult | None:
+    if cancel is not None and cancel.is_set():
+        return ActionResult(ResultStatus.NEEDS_RETRY, "Đã hủy lệnh.", "cancelled")
+    return None
 
 
 class KeySender(Protocol):
@@ -104,12 +111,17 @@ class WindowsExecutor:
             Intent.DICTATE_TEXT: self._dictate_text,
         }
 
-    def execute(self, command: Command, context: WindowContext) -> ActionResult:
+    def execute(
+        self, command: Command, context: WindowContext, *, cancel: threading.Event | None = None
+    ) -> ActionResult:
         """Run command against the window described by context. Never raises."""
+        cancelled = _cancelled(cancel)
+        if cancelled is not None:
+            return cancelled
         if not command.is_executable:
             return _not_executable(command)
         try:
-            return self._handlers[command.intent](command, context)
+            return self._handlers[command.intent](command, context, cancel)
         except Exception as exc:
             log.error("Command %s failed: %s", command.intent.value, type(exc).__name__)
             return ActionResult(ResultStatus.ERROR, _GENERIC_ERROR_MESSAGE, "exception")
@@ -119,7 +131,8 @@ class WindowsExecutor:
         self._powerpoint.shutdown()
 
     def _guarded(
-        self, ctx: WindowContext, action: Callable[[], ActionResult], *, strict: bool
+        self, ctx: WindowContext, action: Callable[[], ActionResult], *, strict: bool,
+        cancel: threading.Event | None,
     ) -> ActionResult:
         """Run action only if the captured window is still the foreground window.
 
@@ -131,9 +144,11 @@ class WindowsExecutor:
                 return ActionResult(ResultStatus.NOT_AVAILABLE, _NO_TARGET_MESSAGE, "no_target")
         elif not self._context.is_still_target(ctx):
             return ActionResult(ResultStatus.NEEDS_RETRY, _TARGET_CHANGED_MESSAGE, "target_changed")
-        return action()
+        return _cancelled(cancel) or action()
 
-    def _guarded_ppt(self, ctx: WindowContext, action: Callable[[], ActionResult]) -> ActionResult:
+    def _guarded_ppt(
+        self, ctx: WindowContext, action: Callable[[], ActionResult], cancel: threading.Event | None
+    ) -> ActionResult:
         """Run a PowerPoint action only when the captured window is PowerPoint and still the target.
 
         The app-kind check comes first so that PowerPoint COM is never reached from another app,
@@ -141,42 +156,60 @@ class WindowsExecutor:
         """
         if ctx.app_kind is not AppKind.POWERPOINT:
             return ActionResult(ResultStatus.NOT_AVAILABLE, _NO_POWERPOINT_MESSAGE, "no_powerpoint_window")
-        return self._guarded(ctx, action, strict=True)
+        return self._guarded(ctx, action, strict=True, cancel=cancel)
 
-    def _ppt_save(self, command: Command, ctx: WindowContext) -> ActionResult:
-        return self._guarded_ppt(ctx, lambda: self._powerpoint.save(ctx))
+    def _ppt_save(self, command: Command, ctx: WindowContext, cancel: threading.Event | None) -> ActionResult:
+        return self._guarded_ppt(ctx, lambda: self._powerpoint.save(ctx, cancel=cancel), cancel)
 
-    def _ppt_save_as(self, command: Command, ctx: WindowContext) -> ActionResult:
+    def _ppt_save_as(
+        self, command: Command, ctx: WindowContext, cancel: threading.Event | None
+    ) -> ActionResult:
         filename = command.params.get("filename", "")
-        return self._guarded_ppt(ctx, lambda: self._powerpoint.save_as(ctx, filename))
+        return self._guarded_ppt(ctx, lambda: self._powerpoint.save_as(ctx, filename, cancel=cancel), cancel)
 
-    def _ppt_next_slide(self, command: Command, ctx: WindowContext) -> ActionResult:
-        return self._guarded_ppt(ctx, lambda: self._powerpoint.next_slide(ctx))
+    def _ppt_next_slide(
+        self, command: Command, ctx: WindowContext, cancel: threading.Event | None
+    ) -> ActionResult:
+        return self._guarded_ppt(ctx, lambda: self._powerpoint.next_slide(ctx, cancel=cancel), cancel)
 
-    def _ppt_prev_slide(self, command: Command, ctx: WindowContext) -> ActionResult:
-        return self._guarded_ppt(ctx, lambda: self._powerpoint.previous_slide(ctx))
+    def _ppt_prev_slide(
+        self, command: Command, ctx: WindowContext, cancel: threading.Event | None
+    ) -> ActionResult:
+        return self._guarded_ppt(ctx, lambda: self._powerpoint.previous_slide(ctx, cancel=cancel), cancel)
 
-    def _ppt_start_show(self, command: Command, ctx: WindowContext) -> ActionResult:
-        return self._guarded_ppt(ctx, lambda: self._powerpoint.start_show(ctx))
+    def _ppt_start_show(
+        self, command: Command, ctx: WindowContext, cancel: threading.Event | None
+    ) -> ActionResult:
+        return self._guarded_ppt(ctx, lambda: self._powerpoint.start_show(ctx, cancel=cancel), cancel)
 
-    def _ppt_stop_show(self, command: Command, ctx: WindowContext) -> ActionResult:
-        return self._guarded_ppt(ctx, lambda: self._powerpoint.stop_show(ctx))
+    def _ppt_stop_show(
+        self, command: Command, ctx: WindowContext, cancel: threading.Event | None
+    ) -> ActionResult:
+        return self._guarded_ppt(ctx, lambda: self._powerpoint.stop_show(ctx, cancel=cancel), cancel)
 
-    def _browser_open_site(self, command: Command, ctx: WindowContext) -> ActionResult:
+    def _browser_open_site(
+        self, command: Command, ctx: WindowContext, cancel: threading.Event | None
+    ) -> ActionResult:
         url = browser.validate_url(command.params.get("url", ""))
         if url is None:
             return ActionResult(ResultStatus.INVALID_PARAM, "Địa chỉ website không hợp lệ.", "invalid_url")
         label = command.params.get("site", "").strip() or url
-        return self._guarded(ctx, lambda: self._launch(url, ctx, f"Đang mở {label}."), strict=False)
+        return self._guarded(ctx, lambda: self._launch(url, ctx, f"Đang mở {label}."),
+                             strict=False, cancel=cancel)
 
-    def _browser_search(self, command: Command, ctx: WindowContext) -> ActionResult:
+    def _browser_search(
+        self, command: Command, ctx: WindowContext, cancel: threading.Event | None
+    ) -> ActionResult:
         query = command.params.get("query", "").strip()
         if not query:
             return ActionResult(ResultStatus.INVALID_PARAM, "Thiếu nội dung tìm kiếm.", "missing_query")
         url = browser.build_search_url(query)
-        return self._guarded(ctx, lambda: self._launch(url, ctx, "Đang tìm trên Google."), strict=False)
+        return self._guarded(ctx, lambda: self._launch(url, ctx, "Đang tìm trên Google."),
+                             strict=False, cancel=cancel)
 
-    def _browser_tab(self, command: Command, ctx: WindowContext) -> ActionResult:
+    def _browser_tab(
+        self, command: Command, ctx: WindowContext, cancel: threading.Event | None
+    ) -> ActionResult:
         if ctx.app_kind is not AppKind.BROWSER:
             return ActionResult(ResultStatus.NOT_AVAILABLE, "Chưa có cửa sổ trình duyệt.", "no_browser")
         keys = browser.TAB_HOTKEYS[command.intent]
@@ -186,31 +219,40 @@ class WindowsExecutor:
             self._keys.send_hotkey(*keys)
             return ActionResult(ResultStatus.OK, message)
 
-        return self._guarded(ctx, send, strict=True)
+        return self._guarded(ctx, send, strict=True, cancel=cancel)
 
-    def _win_open_app(self, command: Command, ctx: WindowContext) -> ActionResult:
+    def _win_open_app(
+        self, command: Command, ctx: WindowContext, cancel: threading.Event | None
+    ) -> ActionResult:
         target = command.params.get("app", "")
         name = command.params.get("app_name", "").strip() or target
         if not target:
             return ActionResult(ResultStatus.INVALID_PARAM, "Thiếu tên ứng dụng.", "missing_app")
+        cancelled = _cancelled(cancel)
+        if cancelled is not None:
+            return cancelled
         try:
             desktop.open_app(target)
         except ExecutionError:
             return ActionResult(ResultStatus.NOT_AVAILABLE, f"Không mở được {name}.", "app_launch_failed")
         return ActionResult(ResultStatus.OK, f"Đang mở {name}.")
 
-    def _win_screenshot(self, command: Command, ctx: WindowContext) -> ActionResult:
+    def _win_screenshot(
+        self, command: Command, ctx: WindowContext, cancel: threading.Event | None
+    ) -> ActionResult:
         def capture() -> ActionResult:
             path = desktop.screenshot(ctx, hide_overlay=self._hide_overlay)
             return ActionResult(ResultStatus.OK, "Đã chụp màn hình.", None, {"path": str(path)})
 
-        return self._guarded(ctx, capture, strict=False)
+        return self._guarded(ctx, capture, strict=False, cancel=cancel)
 
-    def _dictate_text(self, command: Command, ctx: WindowContext) -> ActionResult:
+    def _dictate_text(
+        self, command: Command, ctx: WindowContext, cancel: threading.Event | None
+    ) -> ActionResult:
         text = command.params.get("text", "")
         if not text.strip():
             return ActionResult(ResultStatus.INVALID_PARAM, "Không có nội dung để chèn.", "empty_text")
-        return self._guarded(ctx, lambda: self._type(text), strict=True)
+        return self._guarded(ctx, lambda: self._type(text), strict=True, cancel=cancel)
 
     def _type(self, text: str) -> ActionResult:
         try:
