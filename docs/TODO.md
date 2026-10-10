@@ -75,11 +75,13 @@ Chi tiết nguồn và giấy phép: `THIRD_PARTY_NOTICES.md`.
   đã tái hiện trước sửa rồi đạt sau sửa. Validator chung với benchmark; đổi đích không gây tác động.
 - TTS native kiểm callback qua player im lặng: đã sửa đảo quy ước 1=tiếp tục, 0=dừng.
   Fake được sửa theo API thật và bắt lỗi trước khi sửa speaker; đủ câu và hủy callback đều đạt.
-- Worker PowerPoint: 46 tình huống COM giả lập đạt; harness tái hiện lỗi trước sửa.
+- Worker PowerPoint: 49 tình huống COM giả lập đạt; harness tái hiện lỗi trước sửa.
   Timeout không để job đang chờ chạy muộn; đổi đích trong lúc lấy COM/đọc thuộc tính chặn tác động.
   `Run()` chậm không gọi tiếp `GotoSlide`; lời gọi COM đã bắt đầu không thể thu hồi.
   Shutdown bỏ việc còn chờ và ngăn khởi động worker mới khi apartment cũ chưa xong;
   khởi động lại bình thường sau khi worker cũ kết thúc. Harness phát hiện khi cố ý bỏ guard deadline.
+  App COM được giải phóng trên worker trước khi đóng apartment; lỗi chuyển thành ActionResult
+  tại worker để traceback không giữ COM object sang thread gọi. Ba nhánh vòng đời đều có probe/regression.
 - Hủy truyền token riêng từ Controller xuống executor/worker COM; chặn tác động chưa bắt đầu
   và bỏ job đã hủy trong hàng đợi. Harness recorder/Controller tái hiện lưu muộn trước sửa;
   15 intent bị chặn khi token đã hủy, hủy trong kiểm focus không gửi phím, lượt mới không bị hủy theo.

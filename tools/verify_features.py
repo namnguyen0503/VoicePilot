@@ -462,6 +462,9 @@ def powerpoint_worker_suite() -> list[Check]:
         runner.check(f"{scenario}:PPT_START_SHOW",
                      lambda scenario=scenario: powerpoint_worker_case(Intent.PPT_START_SHOW, scenario))
     runner.check("shutdown_pending_and_restart", powerpoint_shutdown_probe)
+    for failure in (None, "unavailable", "unexpected"):
+        runner.check(f"com_release:{failure or 'success'}",
+                     lambda failure=failure: powerpoint_lifetime_probe(failure))
     return runner.checks
 
 
@@ -520,6 +523,49 @@ def powerpoint_shutdown_probe() -> str:
             old_worker.join(timeout=1)
         pool.shutdown(wait=True)
     return "Abandoned active/pending jobs; prevented overlapping COM apartments; clean restart succeeded"
+
+
+def powerpoint_lifetime_probe(failure: str | None) -> str:
+    """COM references must be released on their worker before apartment teardown, even on errors."""
+    import gc
+
+    from voicepilot.windows.powerpoint import PowerPointController
+
+    events = []
+    @contextlib.contextmanager
+    def apartment():
+        events.append(("initialize", threading.get_ident()))
+        try:
+            yield
+        finally:
+            events.append(("uninitialize", threading.get_ident()))
+
+    presentation = Mock(Name="Synthetic.pptx", Path="C:/synthetic", FullName="C:/synthetic/Synthetic.pptx",
+                        Windows=Mock(Count=0), SlideShowWindow=None)
+    if failure == "unexpected":
+        def fail_save():
+            raise RuntimeError("Synthetic COM failure")
+        presentation.Save.side_effect = fail_save
+    collection = Mock(Count=0 if failure == "unavailable" else 1)
+    collection.Item.return_value = presentation
+    class App:
+        Presentations = collection
+        def __del__(self):
+            events.append(("release", threading.get_ident()))
+    controller = PowerPointController(app_source=App, apartment=apartment)
+    ctx = WindowContext(100, 200, "POWERPNT.EXE", "Synthetic.pptx", AppKind.POWERPOINT, None)
+    try:
+        result = controller.save(ctx)
+        expected = {None: ResultStatus.OK, "unavailable": ResultStatus.NOT_AVAILABLE,
+                    "unexpected": ResultStatus.ERROR}[failure]
+        require(result.status is expected, "COM error mapping changed")
+    finally:
+        controller.shutdown()
+    gc.collect()
+    require([name for name, _ in events] == ["initialize", "release", "uninitialize"],
+            f"COM reference outlived its apartment: {events}")
+    require(len({ident for _, ident in events}) == 1, f"COM reference escaped its worker: {events}")
+    return "COM reference released on its worker before CoUninitialize"
 
 
 def tts_callback_probe(voice, model_path: Path, *, cancel_after_chunk: bool = False):

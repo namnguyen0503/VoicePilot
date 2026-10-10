@@ -8,9 +8,8 @@ The job functions (save_presentation, next_slide, ...) take the PowerPoint Appli
 object as a parameter and use only attribute access, so they are unit-tested with fakes.
 Pure helpers (sanitize_filename, match_by_title) are tested directly.
 
-The presentation for a captured window is found by matching the window title against the
-open presentations' names, since the official object model does not expose the window handle
-of a document or slide show window.
+The current target resolution matches the captured window title against open presentations'
+names, then falls back to a running slide show or the active presentation.
 """
 
 from __future__ import annotations
@@ -524,6 +523,7 @@ class PowerPointController:
                     self._check_request(request, stopping)
                 def followup(request: _Request = item) -> None:
                     self._check_request(request, stopping, check_target=False)
+                app = None
                 try:
                     guard()
                     app = self._app_source()
@@ -531,8 +531,16 @@ class PowerPointController:
                     future.set_result(item.job(app, guard, followup))
                 except _Abandoned as exc:
                     future.set_result(exc.result)
+                except PowerPointUnavailable as exc:
+                    future.set_result(_result(ResultStatus.NOT_AVAILABLE, exc.message_vi, exc.code))
                 except Exception as exc:
-                    future.set_exception(exc)
+                    # A transported traceback can retain COM wrappers in helper frames
+                    # and release them on the caller's thread after this apartment closes.
+                    log.error("PowerPoint command failed: %s", type(exc).__name__)
+                    future.set_result(_result(ResultStatus.ERROR,
+                                              "Lỗi khi điều khiển PowerPoint.", "ppt_error"))
+                finally:
+                    app = None  # Drop the last application reference before CoUninitialize.
 
     def _check_request(
         self, request: _Request, stopping: threading.Event, *, check_target: bool = True

@@ -55,7 +55,7 @@ def test_pipeline_harness_detects_executor_failure(monkeypatch, qapp):
 
 def test_powerpoint_worker_drops_expired_jobs_and_rechecks_target():
     checks = harness.powerpoint_worker_suite()
-    assert len(checks) == 46
+    assert len(checks) == 49
     assert all(check.status == "pass" for check in checks), [c for c in checks if c.status != "pass"]
 
 
