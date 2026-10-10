@@ -212,6 +212,8 @@ def test_loader_builds_sherpa_config_from_sibling_files(
     fake.OfflineTtsConfig = Config  # type: ignore[attr-defined]
     fake.OfflineTts = offline_tts  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "sherpa_onnx", fake)
+    # This test covers config wiring; native path adaptation has its own fake regressions.
+    monkeypatch.setattr("voicepilot.tts.piper._native_espeak_data", lambda path: (path, None))
 
     (tmp_path / "tokens.txt").write_text("a 1\n", encoding="utf-8")
     (tmp_path / "espeak-ng-data").mkdir()

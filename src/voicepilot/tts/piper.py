@@ -7,7 +7,11 @@ loads a single onnxruntime. Playback goes through sounddevice.
 from __future__ import annotations
 
 import logging
+import os
 import re
+import shutil
+import sys
+import tempfile
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -28,6 +32,59 @@ SENTENCE_END_RE = re.compile(r"(?<=[.!?])\s+")
 PcmPlayer = Callable[[bytes, int, threading.Event], None]
 
 
+def _short_windows_path(path: Path) -> Path:
+    """Get the ASCII 8.3 alias when the volume provides one; keep Windows imports lazy."""
+    import ctypes
+
+    api = ctypes.WinDLL("kernel32", use_last_error=True).GetShortPathNameW
+    api.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p, ctypes.c_uint]
+    api.restype = ctypes.c_uint
+    size = api(str(path), None, 0)
+    if not size:
+        raise ctypes.WinError(ctypes.get_last_error())
+    buffer = ctypes.create_unicode_buffer(size)
+    written = api(str(path), buffer, size)
+    if not written or written >= size:
+        raise OSError("Cannot resolve the short data path")
+    return Path(buffer.value)
+
+
+class _CachedVoice:
+    """Keep the fallback phoneme directory alive for lazy espeak reads during synthesis."""
+
+    def __init__(self, voice: Any, cache: tempfile.TemporaryDirectory) -> None:
+        self._voice = voice
+        self._cache = cache
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(self._voice, name)
+
+
+def _native_espeak_data(data_dir: Path) -> tuple[Path, tempfile.TemporaryDirectory | None]:
+    # espeak uses narrow Windows file APIs and can call exit(-1) on an unreadable data path.
+    if sys.platform != "win32" or str(data_dir).isascii():
+        return data_dir, None
+    try:
+        short = _short_windows_path(data_dir)
+        if str(short).isascii():
+            return short, None
+    except OSError:
+        pass
+    # A volume may disable 8.3 names. Copy only phoneme data, not the model weights,
+    # into a private temporary directory with an ASCII path.
+    system_root = os.environ.get("SystemRoot")
+    if not system_root or not system_root.isascii():
+        raise OSError("No ASCII Windows temporary directory is available for espeak")
+    cache = tempfile.TemporaryDirectory(prefix="voicepilot-espeak-", dir=Path(system_root) / "Temp")
+    try:
+        target = Path(cache.name) / ESPEAK_DATA_NAME
+        shutil.copytree(data_dir, target)
+    except Exception:
+        cache.cleanup()
+        raise
+    return target, cache
+
+
 def _load_sherpa_voice(model_path: Path) -> Any:
     """Load a Piper VITS voice through sherpa-onnx (imported lazily).
 
@@ -40,11 +97,18 @@ def _load_sherpa_voice(model_path: Path) -> Any:
     data_dir = model_dir / ESPEAK_DATA_NAME
     if not tokens.is_file() or not data_dir.is_dir():
         raise FileNotFoundError(f"{TOKENS_NAME} or {ESPEAK_DATA_NAME} missing beside the model")
-    vits = sherpa_onnx.OfflineTtsVitsModelConfig(
-        model=str(model_path), tokens=str(tokens), data_dir=str(data_dir)
-    )
-    model = sherpa_onnx.OfflineTtsModelConfig(vits=vits, num_threads=NUM_THREADS, provider="cpu")
-    return sherpa_onnx.OfflineTts(sherpa_onnx.OfflineTtsConfig(model=model, max_num_sentences=1))
+    native_data, cache = _native_espeak_data(data_dir)
+    try:
+        vits = sherpa_onnx.OfflineTtsVitsModelConfig(
+            model=str(model_path), tokens=str(tokens), data_dir=str(native_data)
+        )
+        model = sherpa_onnx.OfflineTtsModelConfig(vits=vits, num_threads=NUM_THREADS, provider="cpu")
+        voice = sherpa_onnx.OfflineTts(sherpa_onnx.OfflineTtsConfig(model=model, max_num_sentences=1))
+    except Exception:
+        if cache is not None:
+            cache.cleanup()
+        raise
+    return _CachedVoice(voice, cache) if cache is not None else voice
 
 
 def _split_sentences(text: str) -> list[str]:
