@@ -97,6 +97,8 @@ PowerShell 5.1 builds and frozen selftests were verified in a path containing sp
 
 Run the repeatable feature harness with `python tools/verify_features.py --checks --runtime`. Add `--windows` on an unlocked, idle desktop to exercise disposable Notepad, PowerPoint and browser windows. See [`docs/VERIFICATION.vi.md`](docs/VERIFICATION.vi.md) for evidence and limitations.
 
+`python tools/verify_downloads.py` checks the real downloader CLI through loopback TLS and an authenticated proxy without changing Windows trust settings. `python tools/verify_portable.py --zip dist/VoicePilot-0.1.0-win64.zip` relocates an existing ZIP and verifies native inference with only Windows directories on PATH, including loaded DLL locations. This is isolation on the current host; clean-machine testing remains pending.
+
 ## Privacy
 
 - **Normal logs** contain latency, status and error codes only. `--debug` opts into transcripts, parsed parameters and recordings in separate diagnostic files under `logs\debug.log` and `logs\clips\`.

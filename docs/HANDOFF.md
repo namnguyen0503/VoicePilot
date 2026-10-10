@@ -6,7 +6,7 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
 ## 1. Trạng thái hiện tại
 
 - Đủ 15 chức năng trong PLAN; Nam chốt hoàn thiện v1, để Wi-Fi và Excel ngoài phạm vi lần này.
-- **1153 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
+- **1162 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
   khi sửa app, rồi chạy lại sau sửa. Đủ 15 luồng parser → executor với backend giả lập đều đạt.
 - Đã chạy suy luận Gipformer và TTS cùng tiến trình, gồm decoder chính tả không hotwords, bằng âm thanh
   tổng hợp. Đây là smoke test, chưa phải số đo giọng nói thật hay chứng cứ executor desktop.
@@ -34,6 +34,7 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
 | `3d2d790` | `--selftest-runtime` cho exe; benchmark cùng hotwords/validator/chế độ với app; mẫu nhãn 30 câu; harness giữ bằng chứng cũ và báo lỗi timeout. |
 | `d88310d` | Sửa espeak thoát tiến trình khi data_dir có dấu: short path, fallback cache ASCII giữ theo lifetime voice; ba regression với fakes. |
 | `55b8194` | Sửa BPE/hotwords thoát tiến trình khi config_dir có dấu; helper short path dùng chung và cache; hook riêng loại PocketSphinx, guard build và regression. |
+| `aafae05` | Harness CLI downloader thật qua loopback TLS/proxy có auth, CA riêng, redirect/archive/hash/retry/cache; thêm vào CI. |
 
 ## 3. Kiến trúc
 
@@ -93,7 +94,9 @@ Theo thứ tự đề xuất tiếp tục; các kiểm tra desktop chờ Nam ch�
 5. **Máy sạch và mạng**: thử ZIP không có Python, offline/online; kiểm proxy/CA tổ chức thực tế nếu có.
    `tools/verify_downloads.py` đã chạy CLI downloader thật qua loopback HTTPS + CONNECT có auth:
    sáu tình huống redirect/archive/CA/hash/retry/cache đạt, không cài CA hay đổi mạng Windows.
-   Build có dấu/PowerShell 5.1, native imports và ZIP đã được kiểm tại máy hiện tại.
+   ZIP giải nén sang nơi khác có dấu, PATH chỉ Windows, không biến Python/model ngoài đã đạt ASR/TTS
+   và chính tả. 125 module quan sát chỉ đến từ bundle/Windows; thiếu model bị từ chối đúng.
+   Harness mới `tools/verify_portable.py`; máy hiện tại vẫn có Python, chưa tính là máy sạch.
 6. **Trước phát hành công khai**: quyền phân phối voice fine-tuned từ Lessac còn chưa rõ; xác nhận
    provenance wheel espeak-ng và nguồn tương ứng cho GPL/FLAC. `LICENSE`, cffi, pycparser, header espeak
    và build recipe đã đối chiếu; wheel license texts đã được giữ trong bundle. Điền RepoUrl thật vào SOURCE.txt
@@ -107,6 +110,7 @@ hướng dẫn tái chạy và giới hạn tại `docs/VERIFICATION.vi.md`. Kh�
 Exe smoke: `build\selftest-679b6f3a17344cba92ab42d27f664b09\logs\selftest.txt`;
 bundle files/FLAC: `build\bundle-verification-25330db82b694963bbf9f81588cb10c1\report.json`.
 TLS/proxy: `%LOCALAPPDATA%\VoicePilot\verification\downloads-20261010-211026-79eac23c\report.json`.
+ZIP cô lập: `%LOCALAPPDATA%\VoicePilot\verification\portable-20261010-211458-d5a9153b\report.json`.
 
 ## 7. Cách debug với Nam
 

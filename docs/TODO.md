@@ -45,7 +45,7 @@ Chi tiết nguồn và giấy phép: `THIRD_PARTY_NOTICES.md`.
 
 - Harness được tạo/chạy trước khi sửa app. Đủ 15 intent có kiểm tra tác động parser → executor
   với fakes; test chứng minh harness phát hiện executor lỗi và giữ trạng thái fail/blocked.
-- Pytest 1146 pass, 2 skip; ruff sạch. Pytest dùng basetemp mới và tắt cache để tránh ACL/cache
+- Pytest 1162 pass, 2 skip; ruff sạch. Pytest dùng basetemp mới và tắt cache để tránh ACL/cache
   cũ ở máy Nam. Không xóa thư mục test cũ bị lỗi quyền.
   Bản copy có đường dẫn dài: 1145 pass, 3 skip; thêm một fixture thư mục 150 ký tự tự bỏ qua
   vì tmp_path đã quá dài. Hai skip mặc định Windows kiểm đường dẫn cấu hình của OS khác.
@@ -73,6 +73,9 @@ Chi tiết nguồn và giấy phép: `THIRD_PARTY_NOTICES.md`.
 - `models/` được ignore toàn bộ, gồm dữ liệu phoneme đã giải nén; không commit model/bundle/venv.
 - Downloader CLI thật qua proxy CONNECT có Basic auth và CA riêng: redirect, archive, từ chối
   CA không tin cậy, sai hash giữ file cũ, retry và cache đều đạt; không đổi mạng/trust store Windows.
+- ZIP giải nén vào đường dẫn có dấu chạy ASR/TTS/chính tả với PATH chỉ Windows, không dùng
+  biến Python/model ngoài; 125 module quan sát thuộc bundle hoặc Windows. Python/ONNX Runtime
+  đến từ bundle. Thư mục model không tồn tại cho lỗi đúng; máy sạch vẫn chờ kiểm riêng.
 
 ## 4. Cách tiếp tục
 

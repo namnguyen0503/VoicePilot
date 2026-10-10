@@ -62,3 +62,19 @@ Máy chủ/proxy chỉ nghe và kết nối loopback; payload là fixture, khôn
 CA chỉ được tin trong tiến trình con, không cài vào kho chứng thư Windows và không đổi
 biến môi trường của app. Phép thử này xác nhận cơ chế proxy/CA trên Windows; vẫn cần thử
 proxy/CA tổ chức thực tế nếu có, cùng endpoint model công khai và máy sạch.
+
+Kiểm tra ZIP sau khi chuyển sang nơi khác:
+
+```powershell
+.\.venv\Scripts\python.exe tools\verify_portable.py --zip dist\VoicePilot-0.1.0-win64.zip
+```
+
+Harness kiểm CRC rồi giải nén ZIP vào thư mục mới có dấu/khoảng trắng. Exe chạy từ thư mục
+báo cáo với PATH chỉ chứa Windows/System32 và Windows; bỏ biến Python/venv/model từ môi
+trường ngoài, dùng config mới có dấu. Nó yêu cầu bằng chứng suy luận ASR/TTS/chính tả thực,
+quan sát DLL lúc tiến trình chạy và từ chối DLL nằm ngoài bundle hoặc Windows. Phép thử
+âm tính dùng thư mục model không tồn tại phải trả mã lỗi và báo thiếu model.
+
+`report.json` giữ SHA-256 ZIP; mỗi tình huống giữ selftest, stdout/stderr và danh sách module
+đã nạp. Bản giải nén được giữ để đối chiếu. Đây là kiểm tra cô lập trên máy hiện tại: Python
+vẫn được cài trên máy, nên chưa thay cho thử trên máy sạch, Office hay micro thật.
