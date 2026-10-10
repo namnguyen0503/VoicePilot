@@ -51,6 +51,12 @@ def test_pipeline_harness_detects_executor_failure(monkeypatch, qapp):
         harness.pipeline_case(Intent.WIN_SCREENSHOT, "chụp màn hình", AppKind.OTHER, {}, "offline")
 
 
+def test_powerpoint_worker_drops_expired_jobs_and_rechecks_target():
+    checks = harness.powerpoint_worker_suite()
+    assert len(checks) == 33
+    assert all(check.status == "pass" for check in checks), [c for c in checks if c.status != "pass"]
+
+
 @pytest.mark.parametrize("cancel_after_chunk", [False, True])
 def test_tts_probe_checks_native_callback_contract(tmp_path, cancel_after_chunk):
     import numpy as np

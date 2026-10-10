@@ -298,6 +298,121 @@ def pipeline_suite() -> list[Check]:
     return runner.checks
 
 
+def powerpoint_worker_case(intent: Intent, scenario: str) -> str:
+    """Observe real worker scheduling with fake COM, including delays before mutation."""
+    from tempfile import TemporaryDirectory
+
+    from voicepilot.windows.powerpoint import PowerPointController
+
+    ctx = WindowContext(100, 200, "POWERPNT.EXE", "Synthetic.pptx - PowerPoint",
+                        AppKind.POWERPOINT, None)
+    provider = Mock(is_still_target=Mock(return_value=True))
+    gate = threading.Event()
+    entered = threading.Event()
+    effects = Mock()
+    view = Mock(CurrentShowPosition=2, Slide=Mock(SlideIndex=2))
+    view.Next = effects.Next
+    view.Previous = effects.Previous
+    view.GotoSlide = effects.GotoSlide
+    view.Exit = effects.Exit
+    show = Mock(View=view)
+
+    def delay_or_change(stage):
+        if scenario == f"focus_{stage}":
+            provider.is_still_target.return_value = False
+        elif scenario == f"timeout_{stage}" or (scenario == "queued_timeout" and stage == "source"):
+            entered.set()
+            require(gate.wait(2), "Harness failed to release the synthetic COM call")
+
+    with TemporaryDirectory(prefix="voicepilot-com-") as folder:
+        presentation = Mock(Name="Synthetic.pptx", Path=folder, FullName=f"{folder}/Synthetic.pptx",
+                            Slides=Mock(Count=3), Windows=Mock(Count=1))
+        presentation.Windows.Item.return_value = Mock(View=view)
+        presentation.Save = effects.Save
+        presentation.SaveAs = effects.SaveAs
+        presentation.SlideShowWindow = show if intent is Intent.PPT_STOP_SHOW else None
+        presentation.SlideShowSettings.Run = effects.Run
+        def run_show():
+            if scenario == "show_focus":
+                provider.is_still_target.return_value = False
+            delay_or_change("run")
+            return show
+        effects.Run.side_effect = run_show
+        collection = Mock(Count=1)
+        collection.Item.return_value = presentation
+
+        class App:
+            @property
+            def Presentations(self):
+                delay_or_change("resolve")
+                return collection
+
+        source_calls = []
+        def source():
+            source_calls.append(threading.get_ident())
+            delay_or_change("source")
+            return App()
+
+        def controller_factory(**kwargs):
+            return PowerPointController(app_source=source, apartment=contextlib.nullcontext,
+                                        save_dir=Path(folder),
+                                        timeout_s=0.05 if "timeout" in scenario else 2, **kwargs)
+
+        config = load_config(ROOT / "verification-unused-config.toml")
+        parser = RuleParser(config.website_aliases, config.app_aliases)
+        text = next(text for case_intent, text, *_ in CASES if case_intent is intent)
+        command = parser.parse(text, ctx, Mode.COMMAND)
+        with patch("voicepilot.windows.executor.PowerPointController", side_effect=controller_factory):
+            executor = WindowsExecutor(config, provider)
+        try:
+            result = executor.execute(command, ctx)
+            if "timeout" in scenario:
+                require(entered.is_set(), "The worker never entered the controlled COM delay")
+                require(result.status is ResultStatus.ERROR and result.error_code == "ppt_timeout",
+                        f"Expected timeout, observed {result.status.value}/{result.error_code}")
+                if scenario == "queued_timeout":
+                    queued = executor.execute(command, ctx)
+                    require(queued.error_code == "ppt_timeout", "Queued call did not time out")
+            elif scenario.startswith("focus_"):
+                require(result.status is ResultStatus.NEEDS_RETRY and
+                        result.error_code == "target_changed",
+                        f"Changed target returned {result.status.value}/{result.error_code}")
+            else:
+                require(result.status is ResultStatus.OK, f"Healthy action returned {result.status.value}")
+        finally:
+            gate.set()
+            executor.shutdown()
+        if scenario in ("healthy", "show_focus"):
+            expected = {Intent.PPT_SAVE: "Save", Intent.PPT_SAVE_AS: "SaveAs",
+                        Intent.PPT_NEXT_SLIDE: "GotoSlide", Intent.PPT_PREV_SLIDE: "GotoSlide",
+                        Intent.PPT_START_SHOW: "Run", Intent.PPT_STOP_SHOW: "Exit"}[intent]
+            getattr(effects, expected).assert_called_once()
+            if intent is Intent.PPT_START_SHOW:
+                effects.GotoSlide.assert_called_once_with(1)
+        elif scenario == "timeout_run":
+            effects.Run.assert_called_once()
+            require(effects.GotoSlide.call_count == 0,
+                    "Timed out Run was followed by a late GotoSlide")
+        else:
+            require(not effects.mock_calls, f"Abandoned command caused late effects: {effects.mock_calls}")
+        if scenario == "queued_timeout":
+            require(len(source_calls) == 1, "Expired queued job acquired another COM application")
+    return "Observed worker outcome and COM effects; no desktop or Office instance used"
+
+
+def powerpoint_worker_suite() -> list[Check]:
+    runner = Runner("fake_com_worker")
+    for scenario in ("healthy", "timeout_source", "timeout_resolve", "focus_source", "focus_resolve"):
+        for intent in PPT_METHODS:
+            runner.check(f"{scenario}:{intent.value}",
+                         lambda intent=intent, scenario=scenario: powerpoint_worker_case(intent, scenario))
+    runner.check("queued_timeout:PPT_SAVE", lambda: powerpoint_worker_case(Intent.PPT_SAVE, "queued_timeout"))
+    for scenario in ("timeout_run", "show_focus"):
+        runner.check(f"{scenario}:PPT_START_SHOW",
+                     lambda scenario=scenario: powerpoint_worker_case(Intent.PPT_START_SHOW, scenario))
+    return runner.checks
+
+
 def tts_callback_probe(voice, model_path: Path, *, cancel_after_chunk: bool = False):
     """Use the real speaker and a silent player to verify sherpa's callback contract."""
     from voicepilot.tts.piper import PiperSpeaker
@@ -785,7 +900,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         checks = run_probe(args.probe, folder)
         write_report(folder, checks)
         return int(any(check.status == "fail" for check in checks))
-    checks = contract_suite() + pipeline_suite()
+    checks = contract_suite() + pipeline_suite() + powerpoint_worker_suite()
     if args.checks:
         commands = {
             "pytest": [sys.executable, "-m", "pytest", "-q", "-p", "no:cacheprovider",

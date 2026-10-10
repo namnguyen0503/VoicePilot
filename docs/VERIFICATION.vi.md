@@ -13,6 +13,14 @@ Bốn đường xử lý gồm Google, offline, hybrid và Google lỗi → offl
 đúng một tác động, giữ tham số Unicode và phản hồi đúng chế độ; chính tả không phát TTS.
 Ba tình huống thêm kiểm chọn kết quả đúng app khi Google nhầm slide/tab và đổi foreground.
 Các lượt này có nhãn `fake_pipeline`, không chứng minh độ chính xác ASR hay thao tác desktop.
+
+Nhóm `fake_com_worker` chạy worker PowerPoint thật qua executor mặc định, với COM giả lập.
+33 tình huống kiểm đủ sáu thao tác khi bình thường, timeout lúc lấy app/đọc thuộc tính,
+đổi foreground trong lúc chờ, lệnh hết hạn trong hàng đợi và bước tiếp sau `Run()` chậm.
+Hết hạn hoặc đổi đích trước thao tác phải không gây tác động. Lời gọi COM đã bắt đầu
+không thể thu hồi; worker chỉ chặn các bước còn chưa bắt đầu. Cửa sổ trình chiếu do `Run()`
+tạo ra có thể tự lấy focus nên bước chuyển về slide 1 chỉ kiểm hạn/hủy, không so HWND cũ.
+
 `--checks` chạy thêm pytest, ruff và selftest. Pytest dùng thư mục
 tạm mới cho mỗi lần chạy, tránh quyền truy cập/cache cũ của lần chạy trước.
 

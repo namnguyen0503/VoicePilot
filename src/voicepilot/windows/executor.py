@@ -83,7 +83,8 @@ class WindowsExecutor:
         self._config = config
         self._context = context_provider
         self._hide_overlay = hide_overlay
-        self._powerpoint = powerpoint if powerpoint is not None else PowerPointController()
+        self._powerpoint = (powerpoint if powerpoint is not None
+                            else PowerPointController(context_provider=context_provider))
         self._keys: KeySender = keys if keys is not None else _SendInputKeys()
         self._handlers: dict[Intent, Handler] = {
             Intent.PPT_SAVE: self._ppt_save,

@@ -20,13 +20,14 @@ import contextlib
 import logging
 import queue
 import threading
+import time
 import unicodedata
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from voicepilot.contracts import ActionResult, ResultStatus, WindowContext
+from voicepilot.contracts import ActionResult, ContextProvider, ResultStatus, WindowContext
 from voicepilot.windows.desktop import documents_dir, unique_path
 
 log = logging.getLogger(__name__)
@@ -51,6 +52,11 @@ _RESERVED_NAMES = frozenset(
 )
 _PPTX_SUFFIX = ".pptx"
 _SAVE_SUBDIR = "VoicePilot"
+BeforeAction = Callable[[], None]
+
+
+def _unguarded() -> None:
+    """Allow direct helper calls without worker scheduling or window checks."""
 
 
 class PowerPointUnavailable(Exception):
@@ -177,7 +183,7 @@ def resolve_target(app: Any, title: str) -> PresentationTarget:
     return PresentationTarget(presentation, _running_show(presentation), windows[0] if windows else None)
 
 
-def save_presentation(app: Any, title: str) -> ActionResult:
+def save_presentation(app: Any, title: str, *, before_action: BeforeAction = _unguarded) -> ActionResult:
     """Save the target presentation to its current file, or ask for a name when it was never saved."""
     presentation = resolve_target(app, title).presentation
     if not str(presentation.Path or ""):
@@ -186,11 +192,15 @@ def save_presentation(app: Any, title: str) -> ActionResult:
             "Tệp chưa được lưu. Hãy nói: lưu thành tên tệp.",
             "unsaved",
         )
-    presentation.Save()
+    save = presentation.Save
+    before_action()
+    save()
     return _result(ResultStatus.OK, "Đã lưu", data={"path": str(presentation.FullName)})
 
 
-def save_as_presentation(app: Any, title: str, filename: str, default_dir: Path) -> ActionResult:
+def save_as_presentation(
+    app: Any, title: str, filename: str, default_dir: Path, *, before_action: BeforeAction = _unguarded
+) -> ActionResult:
     """Save a copy of the target presentation as filename as a .pptx.
 
     The file goes next to the current file, or into default_dir for a presentation that has
@@ -205,42 +215,56 @@ def save_as_presentation(app: Any, title: str, filename: str, default_dir: Path)
     fitted = _fit_to_path(name, folder)
     if fitted is None:
         return _result(ResultStatus.INVALID_PARAM, "Tên tệp không hợp lệ, hãy nói lại.", "invalid_filename")
+    before_action()
     folder.mkdir(parents=True, exist_ok=True)
     path = unique_path(folder, fitted)
-    presentation.SaveAs(str(path), PP_SAVE_AS_OPEN_XML_PRESENTATION)
+    save_as = presentation.SaveAs
+    before_action()
+    save_as(str(path), PP_SAVE_AS_OPEN_XML_PRESENTATION)
     return _result(ResultStatus.OK, f"Đã lưu thành {path.name}", data={"path": str(path)})
 
 
-def next_slide(app: Any, title: str) -> ActionResult:
+def next_slide(app: Any, title: str, *, before_action: BeforeAction = _unguarded) -> ActionResult:
     """Move to the next slide in the slide show or in the edit view."""
-    return _step_slide(app, title, +1)
+    return _step_slide(app, title, +1, before_action)
 
 
-def previous_slide(app: Any, title: str) -> ActionResult:
+def previous_slide(app: Any, title: str, *, before_action: BeforeAction = _unguarded) -> ActionResult:
     """Move to the previous slide in the slide show or in the edit view."""
-    return _step_slide(app, title, -1)
+    return _step_slide(app, title, -1, before_action)
 
 
-def start_show(app: Any, title: str) -> ActionResult:
+def start_show(
+    app: Any, title: str, *, before_action: BeforeAction = _unguarded,
+    before_followup: BeforeAction = _unguarded,
+) -> ActionResult:
     """Start the slide show of the target presentation from its first slide."""
     target = resolve_target(app, title)
     if target.show is not None:
         return _result(ResultStatus.OK, "Trình chiếu đang chạy.")
-    show = target.presentation.SlideShowSettings.Run()
-    show.View.GotoSlide(1)
+    run = target.presentation.SlideShowSettings.Run
+    before_action()
+    show = run()
+    goto = show.View.GotoSlide
+    # Run can legitimately create and focus a new slide show window. Only recheck
+    # cancellation/deadline for this follow-up, not the original foreground HWND.
+    before_followup()
+    goto(1)
     return _result(ResultStatus.OK, "Đang bắt đầu trình chiếu.")
 
 
-def stop_show(app: Any, title: str) -> ActionResult:
+def stop_show(app: Any, title: str, *, before_action: BeforeAction = _unguarded) -> ActionResult:
     """End the running slide show and return to editing."""
     target = resolve_target(app, title)
     if target.show is None:
         return _result(ResultStatus.OK, "Không có trình chiếu nào đang chạy.")
-    target.show.View.Exit()
+    exit_show = target.show.View.Exit
+    before_action()
+    exit_show()
     return _result(ResultStatus.OK, "Đã dừng trình chiếu.")
 
 
-def _step_slide(app: Any, title: str, step: int) -> ActionResult:
+def _step_slide(app: Any, title: str, step: int, before_action: BeforeAction) -> ActionResult:
     target = resolve_target(app, title)
     count = int(target.presentation.Slides.Count)
     if target.show is not None:
@@ -250,10 +274,9 @@ def _step_slide(app: Any, title: str, step: int) -> ActionResult:
             return _boundary("Đã ở slide cuối.", "last_slide")
         if step < 0 and position <= 1:
             return _boundary("Đã ở slide đầu.", "first_slide")
-        if step > 0:
-            view.Next()
-        else:
-            view.Previous()
+        move = view.Next if step > 0 else view.Previous
+        before_action()
+        move()
     else:
         view = _edit_view(target)
         index = int(view.Slide.SlideIndex)
@@ -261,7 +284,9 @@ def _step_slide(app: Any, title: str, step: int) -> ActionResult:
             return _boundary("Đã ở slide cuối.", "last_slide")
         if step < 0 and index <= 1:
             return _boundary("Đã ở slide đầu.", "first_slide")
-        view.GotoSlide(index + step)
+        goto = view.GotoSlide
+        before_action()
+        goto(index + step)
     message = "Đã chuyển slide tiếp." if step > 0 else "Đã chuyển slide trước."
     return _result(ResultStatus.OK, message)
 
@@ -328,7 +353,21 @@ def _active_app() -> Any:
         raise PowerPointUnavailable("PowerPoint chưa mở.", "ppt_not_running") from exc
 
 
-Job = Callable[[Any], ActionResult]
+Job = Callable[[Any, BeforeAction, BeforeAction], ActionResult]
+
+
+class _Abandoned(Exception):
+    def __init__(self, result: ActionResult) -> None:
+        self.result = result
+
+
+@dataclass
+class _Request:
+    future: concurrent.futures.Future[ActionResult]
+    job: Job
+    context: WindowContext
+    deadline: float
+    abandoned: threading.Event
 
 
 class PowerPointController:
@@ -345,6 +384,7 @@ class PowerPointController:
         apartment: Callable[[], contextlib.AbstractContextManager[Any]] | None = None,
         save_dir: Path | None = None,
         timeout_s: float = DEFAULT_TIMEOUT_S,
+        context_provider: ContextProvider | None = None,
     ) -> None:
         """Create the controller. Nothing is started until the first call.
 
@@ -354,39 +394,43 @@ class PowerPointController:
             apartment: Context manager that prepares COM on the worker thread. Defaults to CoInitialize.
             save_dir: Folder for presentations that were never saved. Defaults to Documents\\VoicePilot.
             timeout_s: How long a public call waits for PowerPoint before reporting a timeout.
+            context_provider: Rechecks the target after COM resolution and before mutation.
         """
         self._app_source = app_source or _active_app
         self._apartment = apartment or _com_apartment
         self._save_dir = save_dir
         self._timeout_s = timeout_s
-        self._jobs: queue.Queue[tuple[concurrent.futures.Future[ActionResult], Job] | None] = queue.Queue()
+        self._context = context_provider
+        self._jobs: queue.Queue[_Request | None] = queue.Queue()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
 
     def save(self, ctx: WindowContext) -> ActionResult:
         """Save the presentation of the target window."""
-        return self._submit(lambda app: save_presentation(app, ctx.title))
+        return self._submit(lambda app, guard, _: save_presentation(app, ctx.title, before_action=guard), ctx)
 
     def save_as(self, ctx: WindowContext, filename: str) -> ActionResult:
         """Save the presentation of the target window under a new name."""
         save_dir = self._default_save_dir()
-        return self._submit(lambda app: save_as_presentation(app, ctx.title, filename, save_dir))
+        return self._submit(lambda app, guard, _: save_as_presentation(
+            app, ctx.title, filename, save_dir, before_action=guard), ctx)
 
     def next_slide(self, ctx: WindowContext) -> ActionResult:
         """Go to the next slide."""
-        return self._submit(lambda app: next_slide(app, ctx.title))
+        return self._submit(lambda app, guard, _: next_slide(app, ctx.title, before_action=guard), ctx)
 
     def previous_slide(self, ctx: WindowContext) -> ActionResult:
         """Go to the previous slide."""
-        return self._submit(lambda app: previous_slide(app, ctx.title))
+        return self._submit(lambda app, guard, _: previous_slide(app, ctx.title, before_action=guard), ctx)
 
     def start_show(self, ctx: WindowContext) -> ActionResult:
         """Start the slide show from slide 1."""
-        return self._submit(lambda app: start_show(app, ctx.title))
+        return self._submit(lambda app, guard, followup: start_show(
+            app, ctx.title, before_action=guard, before_followup=followup), ctx)
 
     def stop_show(self, ctx: WindowContext) -> ActionResult:
         """End the running slide show."""
-        return self._submit(lambda app: stop_show(app, ctx.title))
+        return self._submit(lambda app, guard, _: stop_show(app, ctx.title, before_action=guard), ctx)
 
     def shutdown(self) -> None:
         """Stop the worker thread. Pending jobs are abandoned."""
@@ -401,13 +445,16 @@ class PowerPointController:
     def _default_save_dir(self) -> Path:
         return self._save_dir if self._save_dir is not None else documents_dir() / _SAVE_SUBDIR
 
-    def _submit(self, job: Job) -> ActionResult:
+    def _submit(self, job: Job, ctx: WindowContext) -> ActionResult:
         future: concurrent.futures.Future[ActionResult] = concurrent.futures.Future()
+        request = _Request(future, job, ctx, time.monotonic() + self._timeout_s, threading.Event())
         self._ensure_worker()
-        self._jobs.put((future, job))
+        self._jobs.put(request)
         try:
-            return future.result(timeout=self._timeout_s)
+            return future.result(timeout=max(0, request.deadline - time.monotonic()))
         except concurrent.futures.TimeoutError:
+            request.abandoned.set()
+            future.cancel()  # Skip pending jobs; the event also stops a running job after COM returns.
             log.error("PowerPoint did not answer within %.1f s", self._timeout_s)
             return _result(ResultStatus.ERROR, "PowerPoint không phản hồi.", "ppt_timeout")
         except PowerPointUnavailable as exc:
@@ -428,10 +475,35 @@ class PowerPointController:
                 item = self._jobs.get()
                 if item is None:
                     return
-                future, job = item
+                future = item.future
                 if not future.set_running_or_notify_cancel():
                     continue
+                def guard(request: _Request = item) -> None:
+                    self._check_request(request)
+                def followup(request: _Request = item) -> None:
+                    self._check_request(request, check_target=False)
                 try:
-                    future.set_result(job(self._app_source()))
+                    guard()
+                    app = self._app_source()
+                    guard()
+                    future.set_result(item.job(app, guard, followup))
+                except _Abandoned as exc:
+                    future.set_result(exc.result)
                 except Exception as exc:
                     future.set_exception(exc)
+
+    def _check_request(self, request: _Request, *, check_target: bool = True) -> None:
+        if request.abandoned.is_set() or time.monotonic() >= request.deadline:
+            raise _Abandoned(_result(ResultStatus.ERROR, "PowerPoint không phản hồi.", "ppt_timeout"))
+        if check_target and self._context is not None:
+            try:
+                still_target = self._context.is_still_target(request.context)
+            except Exception as exc:
+                log.error("PowerPoint target check failed: %s", type(exc).__name__)
+                still_target = False
+            if not still_target:
+                raise _Abandoned(_result(ResultStatus.NEEDS_RETRY,
+                                         "Cửa sổ đích đã thay đổi, hãy thử lại.", "target_changed"))
+        # A slow context check must not permit an already expired action.
+        if request.abandoned.is_set() or time.monotonic() >= request.deadline:
+            raise _Abandoned(_result(ResultStatus.ERROR, "PowerPoint không phản hồi.", "ppt_timeout"))
