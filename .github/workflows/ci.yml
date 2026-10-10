@@ -33,3 +33,5 @@ jobs:
         run: python -m pytest -q -p no:cacheprovider --basetemp "$env:RUNNER_TEMP/voicepilot-pytest"
       - name: Feature contracts
         run: python tools/verify_features.py
+      - name: Downloader through loopback TLS and proxy
+        run: python tools/verify_downloads.py

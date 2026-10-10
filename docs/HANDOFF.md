@@ -6,7 +6,7 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
 ## 1. Trạng thái hiện tại
 
 - Đủ 15 chức năng trong PLAN; Nam chốt hoàn thiện v1, để Wi-Fi và Excel ngoài phạm vi lần này.
-- **1146 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
+- **1153 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
   khi sửa app, rồi chạy lại sau sửa. Đủ 15 luồng parser → executor với backend giả lập đều đạt.
 - Đã chạy suy luận Gipformer và TTS cùng tiến trình, gồm decoder chính tả không hotwords, bằng âm thanh
   tổng hợp. Đây là smoke test, chưa phải số đo giọng nói thật hay chứng cứ executor desktop.
@@ -90,7 +90,9 @@ Theo thứ tự đề xuất tiếp tục; các kiểm tra desktop chờ Nam ch�
 4. **Benchmark 30 câu thật và chất lượng TTS**: đã có `docs/benchmark-labels.csv` và công cụ đồng bộ
    với app. Chưa có số đo WER/p95/RAM giọng thật; decoder chính tả đã tách hotwords nhưng chưa đo chất lượng
    trên giọng Nam. Kiểm tra thêm câu dài, số, tên riêng, dấu câu khi nghe TTS.
-5. **Máy sạch và mạng**: thử ZIP không có Python, offline/online; kiểm HTTPS_PROXY/CA với tải model.
+5. **Máy sạch và mạng**: thử ZIP không có Python, offline/online; kiểm proxy/CA tổ chức thực tế nếu có.
+   `tools/verify_downloads.py` đã chạy CLI downloader thật qua loopback HTTPS + CONNECT có auth:
+   sáu tình huống redirect/archive/CA/hash/retry/cache đạt, không cài CA hay đổi mạng Windows.
    Build có dấu/PowerShell 5.1, native imports và ZIP đã được kiểm tại máy hiện tại.
 6. **Trước phát hành công khai**: quyền phân phối voice fine-tuned từ Lessac còn chưa rõ; xác nhận
    provenance wheel espeak-ng và nguồn tương ứng cho GPL/FLAC. `LICENSE`, cffi, pycparser, header espeak
@@ -104,6 +106,7 @@ Bằng chứng: `%LOCALAPPDATA%\VoicePilot\verification\20261010-203447-2ab7a648
 hướng dẫn tái chạy và giới hạn tại `docs/VERIFICATION.vi.md`. Không tính fake/synthetic/blocked là native desktop pass.
 Exe smoke: `build\selftest-679b6f3a17344cba92ab42d27f664b09\logs\selftest.txt`;
 bundle files/FLAC: `build\bundle-verification-25330db82b694963bbf9f81588cb10c1\report.json`.
+TLS/proxy: `%LOCALAPPDATA%\VoicePilot\verification\downloads-20261010-211026-79eac23c\report.json`.
 
 ## 7. Cách debug với Nam
 

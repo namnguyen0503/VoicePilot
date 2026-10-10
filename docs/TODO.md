@@ -19,7 +19,8 @@ Các phép thử giả lập/âm thanh tổng hợp không thay cho demo giọng
 - [ ] Đo độ trễ từ ngừng nói đến phản hồi và demo đủ 15 chức năng; ba vòng 10 chức năng ổn định
   nhất theo PLAN. Chưa kết luận đạt p95 4 giây từ smoke synthetic.
 - [ ] Nghe TTS câu dài, số, tên riêng, dấu câu; chất lượng đọc chính tả trên giọng Nam.
-- [ ] ZIP trên máy sạch không Python, có/không mạng; kiểm tải model với HTTPS_PROXY và CA thực tế.
+- [ ] ZIP trên máy sạch không Python, có/không mạng; tải endpoint model qua proxy/CA tổ chức
+  thực tế nếu có. Harness loopback TLS/proxy có auth đã đạt sáu tình huống trên Windows.
 - [ ] CI trên GitHub sau khi repo có remote. Workflow Windows đã được thêm và kiểm tra nội dung;
   checkout hiện không có remote nên chưa có GitHub run.
 
@@ -70,6 +71,8 @@ Chi tiết nguồn và giấy phép: `THIRD_PARTY_NOTICES.md`.
 - Các câu chuyển slide/tab, tên Photoshop bỏ tiền tố Adobe và chính tả không hotwords đã sửa.
   Website ưu tiên cho “mở Zalo”; dùng “mở ứng dụng Zalo”/“mở trang Zalo” để chọn đích.
 - `models/` được ignore toàn bộ, gồm dữ liệu phoneme đã giải nén; không commit model/bundle/venv.
+- Downloader CLI thật qua proxy CONNECT có Basic auth và CA riêng: redirect, archive, từ chối
+  CA không tin cậy, sai hash giữ file cũ, retry và cache đều đạt; không đổi mạng/trust store Windows.
 
 ## 4. Cách tiếp tục
 

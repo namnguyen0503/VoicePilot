@@ -46,3 +46,19 @@ với tham số profile thử riêng. Các kiểm tra backend giả lập đư�
 Harness chưa thay cho thử micro thật, chất lượng giọng đọc, Word, cửa sổ admin/UIPI,
 DPI 125–150% hoặc máy sạch không Python. Những điều kiện đó cần chạy riêng và ghi
 bằng chứng cụ thể. Dữ liệu tổng hợp không được tính là benchmark giọng nói của Nam.
+
+Kiểm tra downloader qua TLS và proxy cục bộ, chạy được khi desktop khóa:
+
+```powershell
+.\.venv\Scripts\python.exe tools\verify_downloads.py
+```
+
+Harness gọi CLI downloader thật trong tiến trình con với `HTTPS_PROXY` có Basic auth và
+`SSL_CERT_FILE` riêng. Nó kiểm redirect, hash, giải nén archive, từ chối CA không tin cậy,
+giữ file cũ khi lỗi, tải lại và bỏ qua file đã đúng hash. File `.part` phải được dọn sau lỗi.
+Mỗi lần có thư mục báo cáo mới, gồm `report.json` và stdout/stderr từng tình huống.
+
+Máy chủ/proxy chỉ nghe và kết nối loopback; payload là fixture, không phải model thật.
+CA chỉ được tin trong tiến trình con, không cài vào kho chứng thư Windows và không đổi
+biến môi trường của app. Phép thử này xác nhận cơ chế proxy/CA trên Windows; vẫn cần thử
+proxy/CA tổ chức thực tế nếu có, cùng endpoint model công khai và máy sạch.
