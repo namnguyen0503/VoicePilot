@@ -99,8 +99,8 @@ def _load_sherpa_voice(model_path: Path) -> Any:
 def _split_sentences(text: str) -> list[str]:
     """Split text at sentence-ending punctuation.
 
-    sherpa-onnx drops later sentences when one generate() call with a callback covers several
-    sentences, so each sentence is synthesized by its own call.
+    Each sentence is synthesized separately so cancellation can be checked before
+    starting another sentence, in addition to the native generation callback.
     """
     parts = (part.strip() for part in SENTENCE_END_RE.split(text.strip()))
     return [part for part in parts if part]
@@ -191,11 +191,11 @@ class PiperSpeaker:
             rate = int(voice.sample_rate)
 
             def on_chunk(samples: Any, _progress: float) -> int:
-                # sherpa-onnx calls this with each synthesized chunk; a non-zero return stops generation.
+                # sherpa-onnx requires 1 to continue generation and 0 to stop.
                 if cancel.is_set():
-                    return 1
+                    return 0
                 self._player(_to_pcm(samples), rate, cancel)
-                return 1 if cancel.is_set() else 0
+                return 0 if cancel.is_set() else 1
 
             for sentence in _split_sentences(text):
                 if cancel.is_set():

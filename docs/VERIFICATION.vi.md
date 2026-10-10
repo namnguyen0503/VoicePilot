@@ -21,6 +21,11 @@ Thêm `--runtime` để kiểm tra nạp ASR/TTS trong cùng tiến trình và n
 Chế độ này chạy được khi desktop khóa; kết quả là smoke test, không phải benchmark
 giọng thật. `--windows` ghi `blocked` và không mở cửa sổ khi máy đang khóa.
 
+Probe runtime dùng PiperSpeaker thật với player chỉ thu PCM, không phát loa. Nó kiểm ba
+câu phản hồi có số/tên/dấu câu và hủy sau callback đầu: callback sherpa trả 1 để tiếp tục,
+0 để dừng; khi hủy không sinh câu tiếp theo. Chất lượng nghe vẫn cần Nam kiểm riêng.
+Quy ước callback theo [ví dụ Python của sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx/blob/11afbd009a7f8c08f4bcf2fc1b265d0df4670fbf/python-api-examples/offline-tts-play.py).
+
 Với `--windows`, harness mở Notepad, PowerPoint và profile thử riêng cho Edge/Chrome.
 Nó tạo tài liệu mới để thử, đóng những cửa sổ nó đã tạo sau khi xong. Không dùng
 tài liệu đang làm hoặc profile trình duyệt cá nhân. Trong lúc chạy không thao tác

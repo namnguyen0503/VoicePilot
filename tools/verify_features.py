@@ -298,6 +298,39 @@ def pipeline_suite() -> list[Check]:
     return runner.checks
 
 
+def tts_callback_probe(voice, model_path: Path, *, cancel_after_chunk: bool = False):
+    """Use the real speaker and a silent player to verify sherpa's callback contract."""
+    from voicepilot.tts.piper import PiperSpeaker
+
+    cancelled = threading.Event()
+    decisions, played, generated = [], [], []
+    class ObservedVoice:
+        sample_rate = voice.sample_rate
+        def generate(self, text, **kwargs):
+            generated.append(text)
+            callback = kwargs.pop("callback")
+            def observe(samples, progress):
+                decision = callback(samples, progress)
+                decisions.append((cancelled.is_set(), decision))
+                return decision
+            return voice.generate(text, callback=observe, **kwargs)
+    def silent_player(pcm, rate, stop):
+        require(pcm and len(pcm) % 2 == 0 and rate > 0, "Invalid TTS PCM")
+        played.append(len(pcm))
+        if cancel_after_chunk:
+            stop.set()
+    speaker = PiperSpeaker(model_path, player=silent_player, voice_loader=lambda _: ObservedVoice())
+    speaker._run("Đã lưu báo cáo tháng 10 năm 2026. Xin chào, Nam! Thử lại nhé.", cancelled)
+    require(played and decisions, "Speaker produced no callback audio")
+    require(all(decision == (0 if stopped else 1) for stopped, decision in decisions),
+            f"Wrong sherpa callback decisions: {decisions}; 1 continues and 0 stops")
+    if cancel_after_chunk:
+        require(len(played) == len(generated) == 1, "TTS continued after cancellation")
+        return "Cancellation returns 0 to native TTS; later sentences were not generated"
+    require(len(generated) == 3, "TTS dropped a feedback sentence")
+    return f"{len(played)} PCM callbacks; active callbacks return 1; no audio device used"
+
+
 def native_windows() -> list[tuple[int, int, str, str]]:
     import win32gui
     import win32process
@@ -629,7 +662,7 @@ def browser_fixture_window(windows: list[tuple[int, int, str, str]], executable:
 
 
 def run_probe(name: str, folder: Path) -> list[Check]:
-    runner = Runner("windows")
+    runner = Runner("runtime" if name == "runtime" else "windows")
     try:
         if name == "runtime":
             return runtime_suite(folder)
@@ -639,9 +672,9 @@ def run_probe(name: str, folder: Path) -> list[Check]:
             return ppt_suite(folder)
         return browser_suite(folder, name)
     except Blocked as exc:
-        runner.checks.append(Check(name, "windows", "blocked", 0, str(exc)))
+        runner.checks.append(Check(name, runner.layer, "blocked", 0, str(exc)))
     except Exception as exc:
-        runner.checks.append(Check(name, "windows", "fail", 0, f"{type(exc).__name__}: {exc}"))
+        runner.checks.append(Check(name, runner.layer, "fail", 0, f"{type(exc).__name__}: {exc}"))
     return runner.checks
 
 
@@ -662,8 +695,8 @@ def runtime_suite(folder: Path) -> list[Check]:
     asr = GipformerStt(models_dir() / "asr" / "gipformer1.5-int8",
                        hotwords=command_phrases(config.app_aliases, config.website_aliases))
     runner.check("gipformer_model_load", asr.warmup)
-    voice = _load_sherpa_voice(models_dir() / "tts" / "vits-piper-vi_VN-vais1000-medium"
-                              / "vi_VN-vais1000-medium.onnx")
+    voice_path = models_dir() / "tts" / "vits-piper-vi_VN-vais1000-medium" / "vi_VN-vais1000-medium.onnx"
+    voice = _load_sherpa_voice(voice_path)
     def roundtrip():
         audio = voice.generate("Chụp màn hình.", sid=0, speed=1.0)
         require(len(audio.samples) > 0 and audio.sample_rate > 0, "TTS did not generate PCM")
@@ -682,6 +715,9 @@ def runtime_suite(folder: Path) -> list[Check]:
         require(result.text.strip(), "Unbiased dictation returned no text")
         return "Unbiased decoder returned text from synthetic PCM"
     runner.check("dictation_unbiased_runtime", dictation)
+    runner.check("tts_feedback_callback", lambda: tts_callback_probe(voice, voice_path))
+    runner.check("tts_cancel_callback",
+                 lambda: tts_callback_probe(voice, voice_path, cancel_after_chunk=True))
     return runner.checks
 
 

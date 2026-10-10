@@ -1,6 +1,6 @@
 # Benchmark STT và bộ phân tích lệnh
 
-Tài liệu này mô tả cách đo độ chính xác, độ trễ và bộ nhớ của ba chế độ nhận dạng (Google, Gipformer offline, Hybrid) và bộ phân tích lệnh. Kết quả đo thật được điền vào mục 6. **Chưa có số đo nào được điền sẵn.**
+Tài liệu này mô tả cách đo độ chính xác, độ trễ và bộ nhớ của ba chế độ nhận dạng (Google, Gipformer offline, Hybrid) và bộ phân tích lệnh. Mục 6 chờ giọng nói thật; mục 7 giữ số đo tổng hợp để chẩn đoán.
 
 Yêu cầu của kế hoạch: ít nhất **30 câu**, đo trên laptop mục tiêu (Intel i3-1005G1, 16 GB RAM, Windows 10), ghi độ chính xác intent, độ trễ p50 và p95 và RAM. Mục tiêu p95 từ lúc ngừng nói đến khi có phản hồi cho lệnh ngắn là **không quá 4 giây**. Công cụ này chỉ đo phần STT và phân tích lệnh. Thời gian đến khi có phản hồi trên màn hình cần đo riêng khi quay video demo.
 
@@ -144,3 +144,25 @@ Ngày 2026-10-10 đã chạy smoke bằng giọng tổng hợp: ASR/TTS cùng ti
 - Chức năng có độ trễ p95 cao nhất:
 - Hybrid có lấy kết quả Gipformer ở câu nào không (cột "Nguồn kết quả"):
 - Có vượt mục tiêu p95 4 giây không:
+
+## 7. Bộ âm thanh tổng hợp để chẩn đoán (2026-10-10)
+
+Đã tự sinh 30 WAV từ câu tham chiếu bằng Piper, không thu micro/phát loa, rồi gọi CLI
+benchmark riêng cho từng backend trên i3-1005G1/Windows 10. Mã lúc đo là `de4085f`,
+trước bản sửa chọn STT theo app đích. Giọng tổng hợp này không phải giọng Nam và không
+được dùng để đánh dấu hoàn thành benchmark thật hay demo v1.
+
+| Backend | Câu | Không có kết quả | Intent đúng | Tham số đúng | WER | p50 (ms) | p95 (ms) | Nạp model (ms) | RAM đỉnh (MB) |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Google | 30 | 18 | 16.7% | 10.0% | 58.8% | 318.8 | 808.9 | — | 146.2 |
+| Offline | 30 | 0 | 36.7% | 36.7% | 32.4% | 40.4 | 70.1 | 2181.5 | 404.4 |
+| Hybrid | 30 | 0 | 36.7% | 33.3% | 36.3% | 396.0 | 3942.0 | 2193.5 | 371.3 |
+
+Các câu ngắn có tên tiếng Anh như slide/tab/Word dễ sai; nhiều WAV dưới một giây.
+Thêm khoảng lặng đầu/cuối chỉ tăng intent offline từ 11/30 lên 12/30; sinh lại có
+dấu chấm cuối vẫn 11/30. Greedy không hotwords đạt 10/30 trên bộ có dấu chấm.
+Chưa có cơ sở đổi alias theo những câu nhận nhầm này hoặc kết luận độ chính xác giọng thật.
+Số p95 chỉ gồm STT/parser, không phải ngừng nói → phản hồi toàn app.
+
+WAV, nhãn, JSON/Markdown, stdout và chẩn đoán giữ ở thư mục bị Git ignore:
+`build/synthetic-corpus-5733e942ee924b5e9718553326215e8a/`.

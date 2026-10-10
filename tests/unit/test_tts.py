@@ -38,7 +38,7 @@ class FakeVoice:
     """Mimics sherpa_onnx.OfflineTts: generate() calls the callback once per word.
 
     The float samples encode the word's character codes, so tests can check what was played.
-    A non-zero callback return stops generation, as in sherpa-onnx.
+    A zero callback return stops generation, as in sherpa-onnx; 1 continues.
     """
 
     sample_rate = RATE
@@ -52,7 +52,7 @@ class FakeVoice:
         self.generated.append(text)
         for word in text.split():
             samples = np.array([ord(c) for c in word], dtype=np.float32) / 32767
-            if callback is not None and callback(samples, 0.5):
+            if callback is not None and callback(samples, 0.5) == 0:
                 break
         return SimpleNamespace(samples=[], sample_rate=RATE)
 

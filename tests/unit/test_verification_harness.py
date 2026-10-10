@@ -51,6 +51,24 @@ def test_pipeline_harness_detects_executor_failure(monkeypatch, qapp):
         harness.pipeline_case(Intent.WIN_SCREENSHOT, "chụp màn hình", AppKind.OTHER, {}, "offline")
 
 
+@pytest.mark.parametrize("cancel_after_chunk", [False, True])
+def test_tts_probe_checks_native_callback_contract(tmp_path, cancel_after_chunk):
+    import numpy as np
+
+    model = tmp_path / "voice.onnx"
+    model.write_bytes(b"synthetic")
+    chunks = []
+    class NativeContractVoice:
+        sample_rate = 16000
+        def generate(self, text, callback, **kwargs):
+            for _ in range(2):
+                chunks.append(text)
+                if callback(np.full(160, 0.1, dtype=np.float32), 0.5) == 0:
+                    break
+    harness.tts_callback_probe(NativeContractVoice(), model, cancel_after_chunk=cancel_after_chunk)
+    assert len(chunks) == (1 if cancel_after_chunk else 6)
+
+
 def test_missing_prerequisite_is_distinct_from_failure():
     runner = harness.Runner("windows")
     def unavailable():
@@ -101,6 +119,14 @@ def test_runtime_timeout_becomes_a_failed_report_check(monkeypatch, tmp_path):
     checks = harness.collect_probe("runtime", tmp_path, 120)
     assert checks[0].status == "fail" and checks[0].layer == "runtime"
     assert checks[0].elapsed_ms == 120000
+
+
+def test_runtime_load_failure_keeps_runtime_layer(monkeypatch, tmp_path):
+    def broken(_folder):
+        raise OSError("Synthetic voice load failure")
+    monkeypatch.setattr(harness, "runtime_suite", broken)
+    checks = harness.run_probe("runtime", tmp_path)
+    assert checks[0].status == "fail" and checks[0].layer == "runtime"
 
 
 def test_browser_fixture_identifies_pid_handoff_without_touching_personal_window():

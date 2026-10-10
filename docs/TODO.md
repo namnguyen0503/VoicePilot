@@ -45,7 +45,7 @@ Chi tiết nguồn và giấy phép: `THIRD_PARTY_NOTICES.md`.
 
 - Harness được tạo/chạy trước khi sửa app. Đủ 15 intent có kiểm tra tác động parser → executor
   với fakes; test chứng minh harness phát hiện executor lỗi và giữ trạng thái fail/blocked.
-- Pytest 1168 pass, 2 skip; ruff sạch. Pytest dùng basetemp mới và tắt cache để tránh ACL/cache
+- Pytest 1171 pass, 2 skip; ruff sạch. Pytest dùng basetemp mới và tắt cache để tránh ACL/cache
   cũ ở máy Nam. Không xóa thư mục test cũ bị lỗi quyền.
   Bản copy có đường dẫn dài: 1145 pass, 3 skip; thêm một fixture thư mục 150 ký tự tự bỏ qua
   vì tmp_path đã quá dài. Hai skip mặc định Windows kiểm đường dẫn cấu hình của OS khác.
@@ -73,6 +73,8 @@ Chi tiết nguồn và giấy phép: `THIRD_PARTY_NOTICES.md`.
 - Thêm 60 lượt qua recorder/Controller/hybrid thật với PCM và tác động Windows giả lập:
   đủ 15 chức năng ở Google/offline/hybrid/fallback đạt. Hai lỗi Google nhầm slide/tab ở app khác
   đã tái hiện trước sửa rồi đạt sau sửa. Validator chung với benchmark; đổi đích không gây tác động.
+- TTS native kiểm callback qua player im lặng: đã sửa đảo quy ước 1=tiếp tục, 0=dừng.
+  Fake được sửa theo API thật và bắt lỗi trước khi sửa speaker; đủ câu và hủy callback đều đạt.
 - `models/` được ignore toàn bộ, gồm dữ liệu phoneme đã giải nén; không commit model/bundle/venv.
 - Downloader CLI thật qua proxy CONNECT có Basic auth và CA riêng: redirect, archive, từ chối
   CA không tin cậy, sai hash giữ file cũ, retry và cache đều đạt; không đổi mạng/trust store Windows.

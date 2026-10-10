@@ -6,13 +6,16 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
 ## 1. Trạng thái hiện tại
 
 - Đủ 15 chức năng trong PLAN; Nam chốt hoàn thiện v1, để Wi-Fi và Excel ngoài phạm vi lần này.
-- **1168 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
+- **1171 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
   khi sửa app, rồi chạy lại sau sửa. Đủ 15 luồng parser → executor với backend giả lập đều đạt.
 - Harness thêm 60 lượt recorder → Controller → hybrid → parser → executor cho 15 chức năng
   qua bốn đường STT. Đã tái hiện/sửa hai lỗi chọn câu slide trong browser và câu tab trong PowerPoint;
   validator chung với benchmark ưu tiên kết quả phù hợp app đích. Đổi foreground chặn mọi tác động.
 - Đã chạy suy luận Gipformer và TTS cùng tiến trình, gồm decoder chính tả không hotwords, bằng âm thanh
   tổng hợp. Đây là smoke test, chưa phải số đo giọng nói thật hay chứng cứ executor desktop.
+- Probe TTS native tái hiện callback tiếp tục/hủy bị đảo; fake cũ cũng mô phỏng sai API.
+  Đã sửa cả speaker và regression. Player im lặng kiểm đủ câu, PCM và dừng sinh câu sau hủy;
+  chưa đánh giá chất lượng nghe.
 - PyInstaller/PowerShell 5.1 đã tạo ZIP (~178 MB) và chạy exe `--selftest-runtime` trong đường dẫn
   có dấu/khoảng trắng, gồm cả thư mục cấu hình có dấu. ASR/TTS cùng tiến trình và chính tả đều đạt.
   `models/`, `.venv/`, `dist/`, `build/` đều được ignore. CI Windows đã có trong repo, chưa chạy trên GitHub
@@ -95,6 +98,9 @@ Theo thứ tự đề xuất tiếp tục; các kiểm tra desktop chờ Nam ch�
 4. **Benchmark 30 câu thật và chất lượng TTS**: đã có `docs/benchmark-labels.csv` và công cụ đồng bộ
    với app. Chưa có số đo WER/p95/RAM giọng thật; decoder chính tả đã tách hotwords nhưng chưa đo chất lượng
    trên giọng Nam. Kiểm tra thêm câu dài, số, tên riêng, dấu câu khi nghe TTS.
+   Đã tự chạy 30 WAV Piper ở ba backend; intent chỉ 5/30 Google và 11/30 offline/hybrid.
+   Padding/dấu chấm không cải thiện đáng kể. Giữ số đo tổng hợp ở BENCHMARKS §7;
+   không tính là chất lượng giọng thật hoặc thêm alias cho câu nhận nhầm. Callback TTS đã sửa/kiểm native.
 5. **Máy sạch và mạng**: thử ZIP không có Python, offline/online; kiểm proxy/CA tổ chức thực tế nếu có.
    `tools/verify_downloads.py` đã chạy CLI downloader thật qua loopback HTTPS + CONNECT có auth:
    sáu tình huống redirect/archive/CA/hash/retry/cache đạt, không cài CA hay đổi mạng Windows.
@@ -109,7 +115,10 @@ Theo thứ tự đề xuất tiếp tục; các kiểm tra desktop chờ Nam ch�
 Các mục cũ đã xử lý: cách nói chuyển slide/tab; decoder chính tả không hotwords; lựa chọn Zalo rõ đích;
 hash tokens; lỗi build; CI thiếu. Wi-Fi/Excel được Nam để ngoài phạm vi v1.
 
-Bằng chứng: `%LOCALAPPDATA%\VoicePilot\verification\20261010-203447-2ab7a648\report.md`;
+Bằng chứng mới: `%LOCALAPPDATA%\VoicePilot\verification\20261010-215531-f175d3a3\report.md`
+(86 kiểm tra đạt, gồm 63 lượt pipeline giả lập, pytest/ruff/selftest và 5 probe runtime).
+Trước sửa ngữ cảnh: `%LOCALAPPDATA%\VoicePilot\verification\20261010-214424-00449b74\report.md`
+(hai lỗi slide/tab). Bằng chứng nền: `%LOCALAPPDATA%\VoicePilot\verification\20261010-203447-2ab7a648\report.md`;
 hướng dẫn tái chạy và giới hạn tại `docs/VERIFICATION.vi.md`. Không tính fake/synthetic/blocked là native desktop pass.
 Exe smoke: `build\selftest-679b6f3a17344cba92ab42d27f664b09\logs\selftest.txt`;
 bundle files/FLAC: `build\bundle-verification-25330db82b694963bbf9f81588cb10c1\report.json`.
