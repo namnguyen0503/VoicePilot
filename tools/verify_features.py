@@ -473,6 +473,8 @@ def browser_suite(folder: Path, name: str) -> list[Check]:
 def run_probe(name: str, folder: Path) -> list[Check]:
     runner = Runner("windows")
     try:
+        if name == "runtime":
+            return runtime_suite(folder)
         if name == "keys":
             return keys_suite(folder)
         if name == "ppt":
@@ -482,6 +484,46 @@ def run_probe(name: str, folder: Path) -> list[Check]:
         runner.checks.append(Check(name, "windows", "blocked", 0, str(exc)))
     except Exception as exc:
         runner.checks.append(Check(name, "windows", "fail", 0, f"{type(exc).__name__}: {exc}"))
+    return runner.checks
+
+
+def runtime_suite(folder: Path) -> list[Check]:
+    """Native ASR and TTS share one process; synthetic speech is smoke evidence only."""
+    import numpy as np
+
+    from voicepilot.audio.capture import convert_to_16k
+    from voicepilot.contracts import AudioClip
+    from voicepilot.paths import models_dir
+    from voicepilot.stt.gipformer import GipformerStt
+    from voicepilot.stt.hotwords import command_phrases
+    from voicepilot.tts.piper import _load_sherpa_voice, _to_pcm
+
+    os.environ["VOICEPILOT_CONFIG_DIR"] = str(folder / "config")
+    config = load_config()
+    runner = Runner("runtime")
+    asr = GipformerStt(models_dir() / "asr" / "gipformer1.5-int8",
+                       hotwords=command_phrases(config.app_aliases, config.website_aliases))
+    runner.check("gipformer_model_load", asr.warmup)
+    voice = _load_sherpa_voice(models_dir() / "tts" / "vits-piper-vi_VN-vais1000-medium"
+                              / "vi_VN-vais1000-medium.onnx")
+    def roundtrip():
+        audio = voice.generate("Chụp màn hình.", sid=0, speed=1.0)
+        require(len(audio.samples) > 0 and audio.sample_rate > 0, "TTS did not generate PCM")
+        samples = np.frombuffer(_to_pcm(audio.samples), dtype="<i2")
+        normalized = convert_to_16k(samples, audio.sample_rate)
+        result = asr.transcribe(AudioClip(normalized.tobytes(), 1))
+        parser = RuleParser(config.website_aliases, config.app_aliases)
+        require(parser.parse(result.text, None, Mode.COMMAND).intent is Intent.WIN_SCREENSHOT,
+                "Synthesized command did not reach the expected intent")
+        return f"Synthetic TTS -> ASR -> parser; ASR {result.latency_ms:.0f} ms"
+    runner.check("asr_tts_same_process", roundtrip)
+    def dictation():
+        audio = voice.generate("Xin chào, tôi đang kiểm thử chức năng đọc chính tả.", sid=0, speed=1.0)
+        samples = convert_to_16k(np.frombuffer(_to_pcm(audio.samples), dtype="<i2"), audio.sample_rate)
+        result = asr.without_hotwords().transcribe(AudioClip(samples.tobytes(), 2))
+        require(result.text.strip(), "Unbiased dictation returned no text")
+        return "Unbiased decoder returned text from synthetic PCM"
+    runner.check("dictation_unbiased_runtime", dictation)
     return runner.checks
 
 
@@ -518,8 +560,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--windows", action="store_true", help="Exercise disposable native app windows")
     parser.add_argument("--checks", action="store_true", help="Also run pytest, ruff and selftest")
+    parser.add_argument("--runtime", action="store_true", help="Check native ASR/TTS with synthetic speech")
     parser.add_argument("--output", type=Path, help="New report directory; defaults to local app data")
-    parser.add_argument("--probe", choices=("keys", "ppt", "edge", "chrome"), help=argparse.SUPPRESS)
+    parser.add_argument("--probe", choices=("keys", "ppt", "edge", "chrome", "runtime"),
+                        help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
     base = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "VoicePilot" / "verification"
     folder = args.output or base / (datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:8])
@@ -548,6 +592,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return result.stdout.strip().splitlines()[-1] if result.stdout.strip() else "Exit 0"
             runner.check(name, invoke)
         checks.extend(runner.checks)
+    if args.runtime:
+        target = folder / "runtime"
+        result = subprocess.run([sys.executable, __file__, "--probe", "runtime", "--output", str(target)],
+                                cwd=ROOT, capture_output=True, text=True,
+                                encoding="utf-8", errors="replace", timeout=120)
+        (folder / "runtime.txt").write_text(result.stdout + result.stderr, encoding="utf-8")
+        if (target / "report.json").is_file():
+            checks.extend(Check(**raw) for raw in json.loads(
+                (target / "report.json").read_text(encoding="utf-8"))["checks"])
+        else:
+            checks.append(Check("runtime", "runtime", "fail", 0,
+                                f"Probe exited {result.returncode}; see runtime.txt"))
     if args.windows:
         require(sys.platform == "win32", "--windows requires an interactive Windows desktop")
         reason = desktop_block_reason(Win32ContextProvider().capture())

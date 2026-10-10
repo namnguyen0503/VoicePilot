@@ -28,6 +28,7 @@ _MIN_QUERY_CHARS = 3
 _APPS_FOLDER_TARGET = "shell:AppsFolder"
 _START_MENU_SUBPATH = Path("Microsoft", "Windows", "Start Menu", "Programs")
 _SHORTCUT_SUFFIX = ".lnk"
+_PUBLISHER_PREFIXES = frozenset({"adobe", "microsoft"})
 # Entries whose normalized name contains one of these phrases are not launchable apps.
 _EXCLUDED_PHRASES = (
     "uninstall",
@@ -104,6 +105,15 @@ def match_app(spoken: str, entries: Sequence[AppEntry]) -> str | None:
             prefix_hits.append((len(normalized), normalized, target))
     if prefix_hits:
         return min(prefix_hits)[2]
+    # Display names such as "Adobe Photoshop 2026" include a publisher that users
+    # normally omit. Only strip known leading publishers, never arbitrary inner words.
+    publisher_hits: list[tuple[int, str, str]] = []
+    for normalized, target in candidates:
+        tokens = normalized.split()
+        if tokens[0] in _PUBLISHER_PREFIXES and tokens[1 : 1 + len(query_tokens)] == query_tokens:
+            publisher_hits.append((len(normalized), normalized, target))
+    if publisher_hits:
+        return min(publisher_hits)[2]
     return None
 
 

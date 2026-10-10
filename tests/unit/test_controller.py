@@ -170,6 +170,24 @@ class ClosableTranscriber(FakeTranscriber):
             raise self.close_error
 
 
+def test_controller_selects_dictation_backend_before_recognition(build_rig, qtbot):
+    plain = FakeTranscriber()
+    plain.text = "nội dung tự do"
+    class ModeAwareTranscriber(FakeTranscriber):
+        def for_mode(self, mode):
+            assert mode is Mode.DICTATION
+            return plain
+    command = ModeAwareTranscriber()
+    rig = build_rig(transcriber=command)
+    rig.controller.toggle_mode()
+    rig.controller.toggle_listen()
+    qtbot.waitUntil(lambda: bool(rig.results))
+    assert not command.entered.is_set()
+    assert plain.entered.is_set()
+    assert rig.executor.calls[0].params["text"] == "nội dung tự do"
+    assert rig.speaker.spoken == []
+
+
 @dataclass
 class Rig:
     """A controller wired to fakes, plus the lists its signals fill in."""

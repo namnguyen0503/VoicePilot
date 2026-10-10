@@ -21,7 +21,7 @@ import time
 from collections.abc import Callable
 from concurrent.futures import Future
 
-from voicepilot.contracts import AudioClip, SttBackend, SttBackendMode, SttError, Transcript
+from voicepilot.contracts import AudioClip, Mode, SttBackend, SttBackendMode, SttError, Transcript
 from voicepilot.debuglog import debug_log
 
 log = logging.getLogger(__name__)
@@ -105,6 +105,18 @@ class HybridTranscriber:
         for pool in self._owned:
             pool.shutdown(wait=False, cancel_futures=True)
         self._owned.clear()
+
+    def for_mode(self, mode: Mode) -> HybridTranscriber:
+        """Select unbiased offline recognition for dictation, sharing the existing pools."""
+        if mode is not Mode.DICTATION or self._mode is SttBackendMode.GOOGLE:
+            return self
+        unbiased = getattr(self._offline, "without_hotwords", None)
+        if not callable(unbiased):
+            return self
+        return HybridTranscriber(
+            self._google, unbiased(), self._mode, self._timeout_s,
+            executor=self._google_executor, offline_executor=self._offline_executor,
+        )
 
     def transcribe(
         self,

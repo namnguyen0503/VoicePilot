@@ -10,6 +10,11 @@ Không có `--windows`: chỉ kiểm tra parser → executor với backend giả
 15 chức năng. `--checks` chạy thêm pytest, ruff và selftest. Pytest dùng thư mục
 tạm mới cho mỗi lần chạy, tránh quyền truy cập/cache cũ của lần chạy trước.
 
+Thêm `--runtime` để kiểm tra nạp ASR/TTS trong cùng tiến trình và nhận dạng
+âm thanh tổng hợp qua decoder lệnh và decoder chính tả không có hotwords.
+Chế độ này chạy được khi desktop khóa; kết quả là smoke test, không phải benchmark
+giọng thật. `--windows` ghi `blocked` và không mở cửa sổ khi máy đang khóa.
+
 Với `--windows`, harness mở Notepad, PowerPoint và profile thử riêng cho Edge/Chrome.
 Nó tạo tài liệu mới để thử, đóng những cửa sổ nó đã tạo sau khi xong. Không dùng
 tài liệu đang làm hoặc profile trình duyệt cá nhân. Trong lúc chạy không thao tác

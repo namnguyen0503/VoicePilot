@@ -446,7 +446,11 @@ class Controller(QObject):
         self._stage.emit(turn.turn_id, State.RECOGNIZING.value)
         t_stt = now()
         try:
-            transcript = turn.transcriber.transcribe(clip, self._validator(turn), turn.cancel_event)
+            transcriber = turn.transcriber
+            select_mode = getattr(transcriber, "for_mode", None)
+            if callable(select_mode):
+                transcriber = select_mode(turn.mode)
+            transcript = transcriber.transcribe(clip, self._validator(turn), turn.cancel_event)
         except SttError:
             if turn.cancel_event.is_set():
                 return None

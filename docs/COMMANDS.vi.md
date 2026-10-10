@@ -30,7 +30,7 @@ Chỉ chạy khi cửa sổ PowerPoint đang ở phía trước.
 |---|---|---|
 | Lưu | `lưu`, `lưu lại`, `lưu file`, `save` | Lưu bài trình chiếu đang mở. Với bài chưa có tên, nên dùng "lưu thành" để đặt tên. |
 | Lưu thành tên khác | `lưu thành Báo cáo tháng 10`<br>`lưu tên khác là Hợp đồng 2026`<br>`lưu với tên Kế hoạch 10 năm`<br>`lưu thành Bài thuyết trình, chấm pptx` | Tên tệp giữ nguyên như bạn nói, VoicePilot tự thêm `.pptx`. Ngoặc đi kèm được giữ, ví dụ "Báo cáo Q3 (bản cuối)". Nếu nói thêm "chấm pptx" hoặc ".pptx" ở cuối, phần đó bị bỏ đi. Trùng tên sẽ tự thêm `(2)`, `(3)`… Nói "lưu thành" mà không kèm tên thì VoicePilot sẽ nhắc nói thêm tên. |
-| Slide tiếp | `slide tiếp theo`, `trang tiếp`, `chuyển slide`, `qua slide`, `next slide` | Không nên chỉ nói "tiếp theo"; xem mục "Từ mơ hồ" bên dưới. |
+| Slide tiếp | `slide tiếp theo`, `trang tiếp`, `chuyển slide`, `chuyển slide tiếp theo`, `chuyển sang slide tiếp theo`, `qua slide`, `next slide` | Không nên chỉ nói "tiếp theo"; xem mục "Từ mơ hồ" bên dưới. |
 | Slide trước | `slide trước`, `trang trước`, `quay lại slide`, `lùi slide`, `previous slide` | Không nên chỉ nói "quay lại"; xem mục "Từ mơ hồ" bên dưới. |
 | Bắt đầu trình chiếu | `bắt đầu trình chiếu`, `trình chiếu`, `chiếu slide`, `start show` | Bắt đầu từ slide đầu tiên. |
 | Dừng trình chiếu | `dừng trình chiếu`, `kết thúc trình chiếu`, `thoát trình chiếu`, `đóng trình chiếu`, `end show` | Trở về chế độ chỉnh sửa. |
@@ -41,8 +41,8 @@ Chỉ chạy khi cửa sổ PowerPoint đang ở phía trước.
 |---|---|---|
 | Mở website | `mở youtube`, `vào facebook`, `mở trang vnexpress`, `mở vnexpress.net`, `mở https://example.com` | Chạy từ mọi cửa sổ. Tên phải có trong danh sách website bên dưới, hoặc là tên miền như `mở vnexpress.net` hoặc `mở github.com/abc`. Chỉ `http://` và `https://` được mở trực tiếp; các giao thức khác như `ftp://` không được mở. Tên tệp như `notepad.exe` và đường dẫn ổ đĩa như `C:\Windows\...` không được mở như website. Tên lạ sẽ không mở được. Chỉ nói "mở trang" sẽ được hỏi lại. |
 | Tìm kiếm | `tìm thời tiết hôm nay`, `tìm kiếm giá vàng`, `google giá vàng`, `tra cứu lịch thi học kỳ` | Chạy từ mọi cửa sổ. Câu tìm kiếm giữ nguyên như bạn nói. Chỉ nói "tìm" sẽ được hỏi lại nội dung. |
-| Tab tiếp | `tab tiếp theo`, `tab sau`, `chuyển tab`, `next tab` | Cần Edge hoặc Chrome ở phía trước. |
-| Tab trước | `tab trước`, `quay lại tab`, `lùi tab`, `previous tab` | Cần Edge hoặc Chrome ở phía trước. |
+| Tab tiếp | `tab tiếp theo`, `tab sau`, `chuyển tab`, `chuyển tab tiếp theo`, `chuyển sang tab tiếp theo`, `next tab` | Cần Edge hoặc Chrome ở phía trước. |
+| Tab trước | `tab trước`, `quay lại tab`, `chuyển về tab trước`, `lùi tab`, `previous tab` | Cần Edge hoặc Chrome ở phía trước. |
 | Tab mới | `tab mới`, `mở tab mới`, `thêm tab`, `tab trống` | Cần Edge hoặc Chrome ở phía trước. |
 | Đóng tab | `đóng tab`, `đóng tab này`, `tắt tab`, `close tab` | Cần Edge hoặc Chrome ở phía trước. Đóng tab đang hoạt động. |
 
@@ -99,6 +99,12 @@ Danh sách dưới đây là tên có sẵn. Bạn có thể thêm tên khác tr
 Danh sách dưới đây là tên có sẵn. Bạn có thể thêm ứng dụng trong mục `[apps]` của `config.toml`.
 
 Ứng dụng đã cài trên máy mà không có trong danh sách cũng mở được bằng "mở <tên ứng dụng>", ví dụ "mở spotify", nếu tên đó có trong menu Start. Nếu không tìm thấy, VoicePilot sẽ báo chưa hiểu.
+
+Khi một tên có cả website và ứng dụng, hãy nói rõ **"mở ứng dụng Zalo"** để mở
+Zalo desktop, hoặc **"mở trang Zalo"** để mở web. "Mở Zalo" giữ ưu tiên website.
+Với ứng dụng như "Adobe Photoshop 2026", có thể nói "mở Photoshop".
+Trong chính tả, Gipformer dùng decoder không có hotwords của lệnh/website/app;
+decoder riêng chỉ tải khi cần nhận dạng chính tả offline.
 
 | Tên nói | Ứng dụng |
 |---|---|

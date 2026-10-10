@@ -96,6 +96,20 @@ class GipformerStt:
         self._load_lock = threading.Lock()
         self._decode_lock = threading.Lock()
         self._recognizer: Any = None
+        self._unbiased: GipformerStt | None = None
+
+    def without_hotwords(self) -> GipformerStt:
+        """Reuse a lazy greedy decoder for dictation, without command/alias bias.
+
+        The additional model is loaded only when offline dictation is needed. Keeping
+        recognizers separate avoids mutating decoding settings during overlapping turns.
+        """
+        if not self._hotwords:
+            return self
+        with self._load_lock:
+            if self._unbiased is None:
+                self._unbiased = GipformerStt(self._model_dir, self._num_threads)
+            return self._unbiased
 
     def warmup(self) -> None:
         """Load the model now so the first recognition does not pay the load time.
