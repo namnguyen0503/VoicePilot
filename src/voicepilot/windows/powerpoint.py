@@ -402,6 +402,7 @@ class PowerPointController:
         self._timeout_s = timeout_s
         self._context = context_provider
         self._jobs: queue.Queue[_Request | None] = queue.Queue()
+        self._stopping = threading.Event()
         self._thread: threading.Thread | None = None
         self._lock = threading.Lock()
 
@@ -433,13 +434,24 @@ class PowerPointController:
         return self._submit(lambda app, guard, _: stop_show(app, ctx.title, before_action=guard), ctx)
 
     def shutdown(self) -> None:
-        """Stop the worker thread. Pending jobs are abandoned."""
+        """Abandon unstarted actions and stop the worker; already entered COM calls may finish.
+
+        A restart is allowed once the old apartment has finished, never while it is blocked.
+        """
         with self._lock:
             thread = self._thread
-            self._thread = None
-        if thread is None:
-            return
-        self._jobs.put(None)
+            if thread is None or not thread.is_alive():
+                return
+            self._stopping.set()
+            while True:
+                try:
+                    request = self._jobs.get_nowait()
+                except queue.Empty:
+                    break
+                if request is not None:
+                    request.abandoned.set()
+                    request.future.cancel()
+            self._jobs.put(None)
         thread.join(timeout=_SHUTDOWN_TIMEOUT_S)
 
     def _default_save_dir(self) -> Path:
@@ -448,40 +460,53 @@ class PowerPointController:
     def _submit(self, job: Job, ctx: WindowContext) -> ActionResult:
         future: concurrent.futures.Future[ActionResult] = concurrent.futures.Future()
         request = _Request(future, job, ctx, time.monotonic() + self._timeout_s, threading.Event())
-        self._ensure_worker()
-        self._jobs.put(request)
         try:
+            self._ensure_worker(request)
             return future.result(timeout=max(0, request.deadline - time.monotonic()))
         except concurrent.futures.TimeoutError:
             request.abandoned.set()
             future.cancel()  # Skip pending jobs; the event also stops a running job after COM returns.
             log.error("PowerPoint did not answer within %.1f s", self._timeout_s)
             return _result(ResultStatus.ERROR, "PowerPoint không phản hồi.", "ppt_timeout")
+        except concurrent.futures.CancelledError:
+            return _result(ResultStatus.NEEDS_RETRY, "Đã hủy lệnh PowerPoint.", "ppt_cancelled")
         except PowerPointUnavailable as exc:
             return _result(ResultStatus.NOT_AVAILABLE, exc.message_vi, exc.code)
         except Exception as exc:
             log.error("PowerPoint command failed: %s", type(exc).__name__)
             return _result(ResultStatus.ERROR, "Lỗi khi điều khiển PowerPoint.", "ppt_error")
 
-    def _ensure_worker(self) -> None:
+    def _ensure_worker(self, request: _Request) -> None:
         with self._lock:
-            if self._thread is None or not self._thread.is_alive():
-                self._thread = threading.Thread(target=self._work, name="voicepilot-powerpoint", daemon=True)
+            if self._thread is not None and self._thread.is_alive():
+                if self._stopping.is_set():
+                    raise PowerPointUnavailable("PowerPoint đang dừng, hãy thử lại.", "ppt_shutting_down")
+            else:
+                # Each apartment owns its queue and stop token. A stale sentinel cannot
+                # stop a later generation, and submissions cannot race past shutdown.
+                self._jobs = queue.Queue()
+                self._stopping = threading.Event()
+                self._thread = threading.Thread(target=self._work, args=(self._jobs, self._stopping),
+                                                name="voicepilot-powerpoint", daemon=True)
                 self._thread.start()
+            self._jobs.put(request)
 
-    def _work(self) -> None:
+    def _work(self, jobs: queue.Queue[_Request | None], stopping: threading.Event) -> None:
         with self._apartment():
             while True:
-                item = self._jobs.get()
+                item = jobs.get()
                 if item is None:
                     return
                 future = item.future
+                if stopping.is_set():
+                    future.cancel()
+                    continue
                 if not future.set_running_or_notify_cancel():
                     continue
                 def guard(request: _Request = item) -> None:
-                    self._check_request(request)
+                    self._check_request(request, stopping)
                 def followup(request: _Request = item) -> None:
-                    self._check_request(request, check_target=False)
+                    self._check_request(request, stopping, check_target=False)
                 try:
                     guard()
                     app = self._app_source()
@@ -492,9 +517,10 @@ class PowerPointController:
                 except Exception as exc:
                     future.set_exception(exc)
 
-    def _check_request(self, request: _Request, *, check_target: bool = True) -> None:
-        if request.abandoned.is_set() or time.monotonic() >= request.deadline:
-            raise _Abandoned(_result(ResultStatus.ERROR, "PowerPoint không phản hồi.", "ppt_timeout"))
+    def _check_request(
+        self, request: _Request, stopping: threading.Event, *, check_target: bool = True
+    ) -> None:
+        self._check_alive(request, stopping)
         if check_target and self._context is not None:
             try:
                 still_target = self._context.is_still_target(request.context)
@@ -505,5 +531,11 @@ class PowerPointController:
                 raise _Abandoned(_result(ResultStatus.NEEDS_RETRY,
                                          "Cửa sổ đích đã thay đổi, hãy thử lại.", "target_changed"))
         # A slow context check must not permit an already expired action.
+        self._check_alive(request, stopping)
+
+    @staticmethod
+    def _check_alive(request: _Request, stopping: threading.Event) -> None:
+        if stopping.is_set():
+            raise _Abandoned(_result(ResultStatus.NEEDS_RETRY, "Đã hủy lệnh PowerPoint.", "ppt_cancelled"))
         if request.abandoned.is_set() or time.monotonic() >= request.deadline:
             raise _Abandoned(_result(ResultStatus.ERROR, "PowerPoint không phản hồi.", "ppt_timeout"))

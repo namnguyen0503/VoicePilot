@@ -381,6 +381,13 @@ def powerpoint_worker_case(intent: Intent, scenario: str) -> str:
                 require(result.status is ResultStatus.OK, f"Healthy action returned {result.status.value}")
         finally:
             gate.set()
+            # Let queued work finish without calling shutdown's cancellation path;
+            # otherwise shutdown could conceal a broken deadline/foreground guard.
+            worker = executor._powerpoint._thread
+            if worker is not None and worker.is_alive():
+                executor._powerpoint._jobs.put(None)
+                worker.join(timeout=2)
+                require(not worker.is_alive(), "Synthetic COM worker did not finish")
             executor.shutdown()
         if scenario in ("healthy", "show_focus"):
             expected = {Intent.PPT_SAVE: "Save", Intent.PPT_SAVE_AS: "SaveAs",
@@ -410,7 +417,65 @@ def powerpoint_worker_suite() -> list[Check]:
     for scenario in ("timeout_run", "show_focus"):
         runner.check(f"{scenario}:PPT_START_SHOW",
                      lambda scenario=scenario: powerpoint_worker_case(Intent.PPT_START_SHOW, scenario))
+    runner.check("shutdown_pending_and_restart", powerpoint_shutdown_probe)
     return runner.checks
+
+
+def powerpoint_shutdown_probe() -> str:
+    """A blocked old COM apartment must not overlap a restarted worker or save pending jobs."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    from voicepilot.windows.powerpoint import PowerPointController
+
+    ctx = WindowContext(100, 200, "POWERPNT.EXE", "Synthetic.pptx", AppKind.POWERPOINT, None)
+    effects = Mock()
+    presentation = Mock(Name="Synthetic.pptx", Path="C:/synthetic", FullName="C:/synthetic/Synthetic.pptx",
+                        Windows=Mock(Count=0), SlideShowWindow=None)
+    presentation.Save = effects.Save
+    collection = Mock(Count=1)
+    collection.Item.return_value = presentation
+    app = Mock(Presentations=collection)
+    gate, entered = threading.Event(), threading.Event()
+    calls = []
+    def source():
+        calls.append(threading.get_ident())
+        if len(calls) == 1:
+            entered.set()
+            require(gate.wait(2), "Harness did not release the blocked COM source")
+        return app
+    controller = PowerPointController(app_source=source, apartment=contextlib.nullcontext, timeout_s=0.5)
+    pool = ThreadPoolExecutor(max_workers=2)
+    old_worker = None
+    try:
+        first = pool.submit(controller.save, ctx)
+        require(entered.wait(1), "Worker did not enter the controlled COM source")
+        old_worker = controller._thread
+        second = pool.submit(controller.save, ctx)
+        wait_for(lambda: controller._jobs.qsize() == 1, timeout=0.3)
+        with patch("voicepilot.windows.powerpoint._SHUTDOWN_TIMEOUT_S", 0.02):
+            controller.shutdown()
+        restart = controller.save(ctx)
+        require(restart.status is ResultStatus.NOT_AVAILABLE and
+                restart.error_code == "ppt_shutting_down",
+                f"Restart during blocked shutdown returned {restart.status.value}/{restart.error_code}")
+        require(len(calls) == 1, "A second COM worker started before the old apartment finished")
+        gate.set()
+        old_worker.join(timeout=1)
+        require(not old_worker.is_alive(), "Old worker did not stop after COM returned")
+        require(first.result(timeout=1).error_code == "ppt_cancelled",
+                "Active unstarted action was not abandoned")
+        require(second.result(timeout=1).error_code == "ppt_cancelled", "Pending action was not abandoned")
+        require(not effects.mock_calls, f"Shutdown caused late effects: {effects.mock_calls}")
+        healthy = controller.save(ctx)
+        require(healthy.status is ResultStatus.OK, "Worker did not restart after shutdown completed")
+        effects.Save.assert_called_once()
+    finally:
+        gate.set()
+        controller.shutdown()
+        if old_worker is not None:
+            old_worker.join(timeout=1)
+        pool.shutdown(wait=True)
+    return "Abandoned active/pending jobs; prevented overlapping COM apartments; clean restart succeeded"
 
 
 def tts_callback_probe(voice, model_path: Path, *, cancel_after_chunk: bool = False):

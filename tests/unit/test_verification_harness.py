@@ -53,8 +53,16 @@ def test_pipeline_harness_detects_executor_failure(monkeypatch, qapp):
 
 def test_powerpoint_worker_drops_expired_jobs_and_rechecks_target():
     checks = harness.powerpoint_worker_suite()
-    assert len(checks) == 33
+    assert len(checks) == 34
     assert all(check.status == "pass" for check in checks), [c for c in checks if c.status != "pass"]
+
+
+def test_powerpoint_harness_detects_a_missing_deadline_guard(monkeypatch):
+    from voicepilot.windows.powerpoint import PowerPointController
+
+    monkeypatch.setattr(PowerPointController, "_check_alive", staticmethod(lambda *_: None))
+    with pytest.raises(AssertionError, match="late effects"):
+        harness.powerpoint_worker_case(Intent.PPT_SAVE, "timeout_source")
 
 
 @pytest.mark.parametrize("cancel_after_chunk", [False, True])
