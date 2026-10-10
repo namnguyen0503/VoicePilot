@@ -40,6 +40,9 @@ $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $Utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+# Redirected Python/pip output otherwise uses cp1252 on Windows and fails on Vietnamese paths.
+$env:PYTHONUTF8 = '1'
+$env:PYTHONIOENCODING = 'utf-8'
 
 $Root = [System.IO.Path]::GetFullPath((Join-Path -Path $PSScriptRoot -ChildPath '..'))
 $VenvDir = Join-Path -Path $Root -ChildPath '.venv'
@@ -105,6 +108,15 @@ function Get-GitState {
     return $result
 }
 
+function Assert-ChildPath {
+    param([string]$Path, [string]$Parent)
+    $resolved = [System.IO.Path]::GetFullPath($Path)
+    $parentPrefix = [System.IO.Path]::GetFullPath($Parent).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $resolved.StartsWith($parentPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw ('Refusing to remove a path outside the expected directory: ' + $resolved)
+    }
+}
+
 Push-Location -LiteralPath $Root
 try {
     $Version = Get-AppVersion
@@ -120,7 +132,10 @@ try {
 
     if (-not $SkipTests) {
         Write-Step 'Unit tests'
-        Invoke-Native -Exe $VenvPy -Arguments @('-m', 'pytest', '-q')
+        New-Item -ItemType Directory -Force -Path $BuildDir | Out-Null
+        $testHome = Join-Path -Path $BuildDir -ChildPath ('pytest-' + [guid]::NewGuid().ToString('N'))
+        Invoke-Native -Exe $VenvPy -Arguments @('-m', 'ruff', 'check', 'src', 'tests', 'tools')
+        Invoke-Native -Exe $VenvPy -Arguments @('-m', 'pytest', '-q', '-p', 'no:cacheprovider', '--basetemp', $testHome)
     }
 
     if (-not $SkipModels) {
@@ -142,6 +157,7 @@ try {
 
     Write-Step 'PyInstaller (onedir, windowed)'
     if (Test-Path -LiteralPath $AppDir) {
+        Assert-ChildPath -Path $AppDir -Parent $DistDir
         Remove-Item -LiteralPath $AppDir -Recurse -Force
     }
     $pyiWork = Join-Path -Path $BuildDir -ChildPath 'pyinstaller'
@@ -180,7 +196,7 @@ try {
         $exe = Join-Path -Path $AppDir -ChildPath 'VoicePilot.exe'
         # A fresh config folder keeps the check away from the user's settings and logs. Without
         # VOICEPILOT_MODELS_DIR the app looks for models\ next to VoicePilot.exe, as it does when installed.
-        $smokeHome = Join-Path -Path ([System.IO.Path]::GetTempPath()) -ChildPath ('voicepilot-selftest-' + [guid]::NewGuid().ToString('N'))
+        $smokeHome = Join-Path -Path $BuildDir -ChildPath ('selftest-' + [guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Force -Path $smokeHome | Out-Null
         $savedConfigDir = $env:VOICEPILOT_CONFIG_DIR
         $savedModelsDir = $env:VOICEPILOT_MODELS_DIR
@@ -188,7 +204,11 @@ try {
             $env:VOICEPILOT_CONFIG_DIR = $smokeHome
             Remove-Item -LiteralPath 'Env:VOICEPILOT_MODELS_DIR' -ErrorAction SilentlyContinue
             # The app is a windowed (GUI) executable, so use Start-Process to get the exit code.
-            $proc = Start-Process -FilePath $exe -ArgumentList '--selftest' -Wait -PassThru -WindowStyle Hidden
+            $proc = Start-Process -FilePath $exe -ArgumentList '--selftest' -PassThru -WindowStyle Hidden
+            if (-not $proc.WaitForExit(30000)) {
+                Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+                throw 'Smoke check timed out after 30 seconds; inspect the retained build logs'
+            }
             $reportPath = Join-Path -Path $smokeHome -ChildPath 'logs\selftest.txt'
             if (-not (Test-Path -LiteralPath $reportPath)) {
                 throw ('Smoke check: no selftest report at ' + $reportPath + ' (exit code ' + $proc.ExitCode + ')')
@@ -203,7 +223,7 @@ try {
         finally {
             $env:VOICEPILOT_CONFIG_DIR = $savedConfigDir
             $env:VOICEPILOT_MODELS_DIR = $savedModelsDir
-            Remove-Item -LiteralPath $smokeHome -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host ('Smoke report retained at ' + $smokeHome)
         }
     }
 

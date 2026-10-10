@@ -6,11 +6,18 @@ Models are NOT bundled here; build.ps1 copies models/ next to VoicePilot.exe, ou
 Speech synthesis and recognition both run on sherpa-onnx, which ships its own onnxruntime.dll.
 """
 
+import os
+import sys
 from pathlib import Path
 
-from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs
+from PyInstaller.utils.hooks import collect_data_files, collect_dynamic_libs, copy_metadata
 
 ROOT = Path(SPECPATH).resolve().parent  # noqa: F821 - SPECPATH is provided by PyInstaller
+sys.path.insert(0, str(ROOT / "tools"))
+from build_support import windows_build_path
+
+if sys.platform == "win32":
+    os.environ["PATH"] = windows_build_path(Path(sys.base_prefix), Path(os.environ["SystemRoot"]))
 SRC = ROOT / "src"
 ICON = ROOT / "build" / "icon.ico"
 ENTRY = SRC / "voicepilot" / "__main__.py"
@@ -24,6 +31,11 @@ datas = [
     for path in sorted((SRC / "voicepilot" / "resources").glob("*"))
     if path.is_file()
 ]
+# Keep version metadata and wheel license texts beside the frozen runtime.
+datas += copy_metadata("voicepilot")
+for requirement in (ROOT / "requirements.lock").read_text(encoding="utf-8").splitlines():
+    if "==" in requirement and not requirement.lstrip().startswith("#"):
+        datas += copy_metadata(requirement.split("==", 1)[0].strip())
 
 binaries = []
 
@@ -87,7 +99,7 @@ a = Analysis(  # noqa: F821 - Analysis is provided by PyInstaller
     binaries=binaries,
     datas=datas,
     hiddenimports=hiddenimports,
-    hookspath=[],
+    hookspath=[str(ROOT / "packaging" / "hooks")],
     hooksconfig={},
     runtime_hooks=[],
     excludes=excludes,

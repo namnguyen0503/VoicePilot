@@ -7,11 +7,8 @@ dist/
 *.egg-info/
 .pytest_cache/
 
-# Model và dữ liệu nhị phân (manifest models.toml vẫn được theo dõi)
-models/**/*.onnx
-models/**/*.onnx.json
-models/**/*.bin
-models/**/*.txt
+# Model binaries and extracted voice data; the manifest lives under src/.
+/models/
 *.onnx
 *.wav
 .mypy_cache/

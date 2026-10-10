@@ -48,13 +48,13 @@ encoder = "encoder.int8.onnx"
 decoder = "decoder.int8.onnx"
 joiner = "joiner.int8.onnx"
 tokens = "tokens.txt"
-# sha256 values are Hugging Face LFS oids (checked twice). tokens.txt is not shown as an LFS file,
-# so no sha256 is listed for it; the downloader prints its hash for the manifest.
+# Weight hashes are Hugging Face LFS oids. The tokens hash was computed from the
+# downloaded file and verified against the pinned upstream revision on 2026-10-10.
 files = [
   { name = "encoder.int8.onnx", sha256 = "b528768939c7711a889be81a718ea7f2ee50d0d2d384d53f399e15b44bd9408c" },
   { name = "decoder.int8.onnx", sha256 = "e0a156b5454722a524230f9e35d5d928cfcdd3723437b418e5bd5e04f1c3a101" },
   { name = "joiner.int8.onnx", sha256 = "12636559d135315f002a1e1b477077d415e888477378db0fd450aee5b21ac551" },
-  { name = "tokens.txt", sha256 = "TODO" },
+  { name = "tokens.txt", sha256 = "f536d03c2e95ebd2930cf0abec88e823bd17d3c1933da7ae6a82db3b80605e15" },
 ]
 
 [[model]]
