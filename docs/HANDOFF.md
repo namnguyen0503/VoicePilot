@@ -6,7 +6,7 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
 ## 1. Trạng thái hiện tại
 
 - Đủ 15 chức năng trong PLAN; Nam chốt hoàn thiện v1, để Wi-Fi và Excel ngoài phạm vi lần này.
-- **1388 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
+- **1390 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
   khi sửa app, rồi chạy lại sau sửa. Đủ 15 luồng parser → executor với backend giả lập đều đạt.
 - Harness thêm 60 lượt recorder → Controller → hybrid → parser → executor cho 15 chức năng
   qua bốn đường STT. Đã tái hiện/sửa hai lỗi chọn câu slide trong browser và câu tab trong PowerPoint;
@@ -81,6 +81,12 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
   `verification\custom-ff9df862356245b1947c3b819b15555f\report.md` trong LocalAppData.
   Harness: `tools/verify_custom_commands.py`; bộ ví dụ: `docs/custom-commands.example.json`.
   Đây là mẫu do người dùng tự tạo, chưa bổ sung LLM/NLU hay macro nhiều hành động.
+
+- Cài đặt không hiện khi launcher dùng Windows STARTUPINFO `SW_HIDE`: Qt báo visible
+  nhưng HWND vẫn ẩn. Harness pythonw thật tái hiện trước sửa và xác nhận sau sửa.
+  Mở Cài đặt nay kiểm native visibility, hiện lại HWND và phục hồi cửa sổ thu nhỏ;
+  chỉ áp dụng khi người dùng yêu cầu Cài đặt, không tác động overlay. Hai regression
+  với fakes bắt lỗi trước sửa và đạt sau sửa. App tương tác phải khởi chạy Normal.
 
 ## 2. Những gì đã làm trong phiên 2026-10-09/10 (theo commit)
 

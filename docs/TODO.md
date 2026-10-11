@@ -21,6 +21,8 @@ Các phép thử giả lập/âm thanh tổng hợp không thay cho demo giọng
 - [x] Lệnh custom đầy đủ CRUD/bật-tắt/nhập-xuất/preview, nhiều cách gọi và tham số động;
   16 hành động qua bốn đường STT, snapshot giữa lượt; 59 native checks đạt (7 custom).
   UI checkbox có regression tương phản từ kiểm chứng Windows thật.
+- [x] Cài đặt hiện cả khi launcher truyền SW_HIDE; phục hồi khi thu nhỏ.
+  Harness pythonw/Win32 trước-sau và hai regression với fakes đều xác nhận bản sửa.
 - [ ] Cửa sổ admin/UIPI, DPI hệ thống 125–150%/nhiều màn hình; Office thật nhiều tài liệu,
   unsaved/trùng tên, COM bị treo. Các nhánh logic đã có fakes; chưa thay bằng native evidence.
 - [ ] Đối chứng giọng nói mở app riêng Roblox/VS Code/Photoshop/Outlook; Notepad đã đạt native.
@@ -56,7 +58,7 @@ Chi tiết nguồn và giấy phép: `THIRD_PARTY_NOTICES.md`.
 
 - Harness được tạo/chạy trước khi sửa app. Đủ 15 intent có kiểm tra tác động parser → executor
   với fakes; test chứng minh harness phát hiện executor lỗi và giữ trạng thái fail/blocked.
-- Pytest mới nhất 1388 pass, 2 skip; ruff sạch. Pytest dùng basetemp mới và tắt cache để tránh ACL/cache
+- Pytest mới nhất 1390 pass, 2 skip; ruff sạch. Pytest dùng basetemp mới và tắt cache để tránh ACL/cache
   cũ ở máy Nam. Không xóa thư mục test cũ bị lỗi quyền.
   Bản copy có đường dẫn dài: 1145 pass, 3 skip; thêm một fixture thư mục 150 ký tự tự bỏ qua
   vì tmp_path đã quá dài. Hai skip mặc định Windows kiểm đường dẫn cấu hình của OS khác.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from dataclasses import replace
 
 from PySide6.QtCore import Signal
@@ -49,6 +50,33 @@ def validate_hotkey(spec: str) -> None:
         parse_hotkey(spec)
     except ValueError as exc:
         raise ValueError(f"Phím tắt không hợp lệ: {spec}") from exc
+
+
+def show_settings_dialog(dialog: QDialog) -> None:
+    """Restore settings even when Windows STARTUPINFO hid Qt's first show.
+
+    With SW_HIDE startup flags, Qt can consider a dialog visible while its native
+    HWND remains hidden. A repeated QWidget.show() then does nothing. This guard
+    applies only to the explicitly requested settings window, never the overlay.
+    """
+    if dialog.isMinimized():
+        dialog.showNormal()
+    else:
+        dialog.show()
+    if sys.platform == "win32":
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.WinDLL("user32", use_last_error=True)
+        user32.IsWindowVisible.argtypes = [wintypes.HWND]
+        user32.IsWindowVisible.restype = wintypes.BOOL
+        user32.ShowWindow.argtypes = [wintypes.HWND, ctypes.c_int]
+        user32.ShowWindow.restype = wintypes.BOOL
+        hwnd = int(dialog.winId())
+        if not user32.IsWindowVisible(hwnd):
+            user32.ShowWindow(hwnd, 5)  # SW_SHOW preserves the window's current size/state.
+    dialog.raise_()
+    dialog.activateWindow()
 
 
 class SettingsDialog(QDialog):

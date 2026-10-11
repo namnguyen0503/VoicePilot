@@ -47,7 +47,7 @@ from voicepilot.contracts import (
 )
 from voicepilot.controller import Controller, Recorder, Transcriber
 from voicepilot.ui.overlay import Overlay
-from voicepilot.ui.settings import SettingsDialog
+from voicepilot.ui.settings import SettingsDialog, show_settings_dialog
 from voicepilot.ui.tray import Tray, show_command_help
 
 if TYPE_CHECKING:
@@ -417,9 +417,7 @@ class VoicePilot(QObject):
             dialog.settings_changed.connect(self._apply_settings)
             dialog.finished.connect(lambda _code, d=dialog: self._on_settings_closed(d))
             self._settings_dialog = dialog
-        self._settings_dialog.show()
-        self._settings_dialog.raise_()
-        self._settings_dialog.activateWindow()
+        show_settings_dialog(self._settings_dialog)
 
     def _on_settings_closed(self, dialog: SettingsDialog) -> None:
         if self._settings_dialog is dialog:

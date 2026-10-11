@@ -397,3 +397,35 @@ def test_custom_command_change_rebuilds_hotword_model_and_parser(make_app, engin
     app._apply_settings(replace(AppConfig(), custom_commands=[custom]))
     assert len(engines.gipformers) == 2
     assert app._controller._config.custom_commands == [custom]
+
+
+def test_settings_reveals_native_window_when_startup_hidden_disagrees_with_qt(make_app, monkeypatch):
+    import ctypes
+    from unittest.mock import Mock
+
+    app = make_app(AppConfig())
+    dialog = Mock()
+    dialog.isMinimized.return_value = False
+    dialog.winId.return_value = 42
+    native = Mock()
+    native.IsWindowVisible.return_value = False
+    monkeypatch.setattr(bootstrap, "SettingsDialog", lambda config: dialog)
+    monkeypatch.setattr(ctypes, "WinDLL", lambda *args, **kwargs: native, raising=False)
+    monkeypatch.setattr(sys, "platform", "win32")
+    app._open_settings()
+    native.ShowWindow.assert_called_once_with(42, 5)
+    assert app._settings_dialog is dialog
+
+
+def test_settings_restores_a_minimized_dialog_when_requested_again(make_app, monkeypatch):
+    from unittest.mock import Mock
+
+    app = make_app(AppConfig())
+    dialog = Mock()
+    dialog.isMinimized.return_value = True
+    dialog.winId.return_value = 0
+    monkeypatch.setattr(bootstrap, "SettingsDialog", lambda config: dialog)
+    monkeypatch.setattr(sys, "platform", "linux")
+    app._open_settings()
+    dialog.showNormal.assert_called_once_with()
+    dialog.activateWindow.assert_called_once_with()
