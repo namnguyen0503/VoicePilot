@@ -1,12 +1,14 @@
-# Handoff — VoicePilot v1 (2026-10-11)
+# Handoff — VoicePilot v1 (2026-10-12)
 
 Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PLAN.md`, `docs/TODO.md`,
 `docs/COMMANDS.vi.md`. Spec gốc: `docs/PLAN.md`. Cập nhật sau kiểm chứng desktop thật ngày 2026-10-11.
 
 ## 1. Trạng thái hiện tại
 
-- Đủ 15 chức năng trong PLAN; Nam chốt hoàn thiện v1, để Wi-Fi và Excel ngoài phạm vi lần này.
-- **1558 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
+- Đủ 15 chức năng gốc trong PLAN cùng các bổ sung Nam đã yêu cầu. Ngày 2026-10-12 Nam thêm
+  tạo tài liệu trắng Word/Excel/PowerPoint, cửa sổ mới/ẩn danh cho browser và đóng cửa sổ;
+  Wi-Fi vẫn ngoài phạm vi.
+- **1702 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
   khi sửa app, rồi chạy lại sau sửa. Đủ 15 luồng parser → executor với backend giả lập đều đạt.
 - Harness thêm 60 lượt recorder → Controller → hybrid → parser → executor cho 15 chức năng
   qua bốn đường STT. Đã tái hiện/sửa hai lỗi chọn câu slide trong browser và câu tab trong PowerPoint;
@@ -113,6 +115,33 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
   trong build/input-native-final-dc7a327dc24d48818c90ad7add38a5a3; hệ thống ở build/system-native-final.json; harness và giới hạn ở docs/VERIFICATION.vi.md.
 
 ## 2. Những gì đã làm trong phiên 2026-10-09/10 (theo commit)
+
+Bổ sung 2026-10-12: tạo tài liệu trắng ở Word/Excel/PowerPoint, cả Home và editor.
+Home chọn đúng template Blank qua MSAA trên HWND đã chụp; editor gửi Ctrl+N. Không dùng
+ROT để tránh nhầm instance Office; accessibility objects sống/được giải phóng trong worker COM.
+Worker giữ guard focus/cancel/deadline/shutdown; lỗi probe không gửi phím dự phòng bừa.
+Câu "tạo file mới" chọn theo ngữ cảnh Word/Excel/PowerPoint; câu rõ ở app khác báo điều kiện.
+Thêm cửa sổ thường Ctrl+N và ẩn danh Ctrl+Shift+N ở Edge/Chrome; tab mới giữ nguyên.
+Năm hành động có custom/prompt mặc định/hotwords/selftest/manual và bốn đường STT.
+Custom "Ứng dụng khác" cũ tiếp tục khớp Word/Excel để giữ cấu hình đã có.
+
+Nam bổ sung đóng cửa sổ: Alt+F4, chặn Desktop/taskbar bằng HWND shell/desktop,
+ancestor và lớp Win32. Explorer folder vẫn đóng được; lỗi đọc native chặn tác động.
+Kiểm lại focus/cancel sau probe. Không tự trả lời hộp hỏi lưu của ứng dụng.
+Harness trước code 36 fail; sau code 37 pass, gồm bốn đường STT. Native Notepad
+đóng tài liệu đã lưu, giữ tài liệu chưa lưu với hộp hỏi lưu; năm HWND Desktop/taskbar
+thật bị chặn (keys fake, không gửi Alt+F4 lên Desktop). Evidence:
+`build/close-window-native-f4e67ff991ee4248889b34b67dc1fb7e/report.json`.
+
+Harness `tools/verify_new_documents.py`: trước code 50 fail/1 pass; sau code 77 pass,
+gồm 20 lượt Controller/hybrid/parser/executor. Native `tools/verify_new_documents_native.py`
+đạt Home/editor ba Office, tab/window/private ở Edge/Chrome, kiểm đúng một tài liệu/cửa sổ,
+trắng/chưa lưu và giữ nội dung fixture cũ. Evidence:
+`build/new-documents-native-60e3e8e85b0046fbaf4ab37ad463919f/report.json`.
+Probe ban đầu dùng IDispatch của child cho AccessibleChildren gây access violation;
+bản adapter QueryInterface IAccessible trước traversal, VariantClear/release có regression.
+Harness FileTab MSO không phải button; dùng Alt+F để vào Home. Tài liệu/profile của Nam
+không được dùng làm fixture. Đây là kiểm tác động với STT fixture, chưa là benchmark giọng thật.
 
 Bổ sung theo yêu cầu Nam: `tắt tiết kiệm pin` khôi phục power plan trước khi app bật
 Power saver. Lưu trạng thái riêng `power-state.json` trước tác động; bật lặp không

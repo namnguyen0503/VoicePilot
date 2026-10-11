@@ -185,7 +185,9 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
                      custom_commands=custom_commands or [])
     parser = RuleParser(config.website_aliases, config.app_aliases,
                         custom_commands=config.custom_commands)
-    ctx = WindowContext(100, 200, "test.exe", "Synthetic target", kind,
+    process_name = {AppKind.WORD: "winword.exe", AppKind.EXCEL: "excel.exe",
+                    AppKind.POWERPOINT: "powerpnt.exe"}.get(kind, "test.exe")
+    ctx = WindowContext(100, 200, process_name, "Synthetic target", kind,
                         "edge" if kind is AppKind.BROWSER else None)
     provider = Mock(capture=Mock(return_value=ctx), is_still_target=Mock(return_value=True))
     # A 48 kHz int16 (frames, 1) callback covers the real Windows scaling regression.
@@ -241,7 +243,10 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
                                    context_provider=provider, timeout_s=2)
     system = Mock()
     system.execute.return_value = ActionResult(ResultStatus.OK, "Đã thực hiện.")
-    executor = WindowsExecutor(config, provider, powerpoint=ppt, keys=keys, system_controls=system)
+    office = Mock()
+    office.new_blank.return_value = ActionResult(ResultStatus.OK, "Đã tạo tài liệu trắng.")
+    executor = WindowsExecutor(config, provider, powerpoint=ppt, keys=keys, system_controls=system,
+                               office=office, close_window_probe=lambda hwnd: True)
     controller = Controller(config, recorder, transcriber, parser, executor, speaker, provider)
     results, transcripts = [], []
     controller.result_ready.connect(results.append)
@@ -277,7 +282,7 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
             require(len(results) == 1, "Turn produced more than one outcome")
             if changed_target:
                 require(results[0].status is ResultStatus.NEEDS_RETRY, "Changed target was accepted")
-                require(not any(mock.mock_calls for mock in (ppt, keys, launch, screenshot, url)),
+                require(not any(mock.mock_calls for mock in (ppt, office, keys, launch, screenshot, url)),
                         "Changed target received an effect")
                 return "Foreground change rejected before any Windows effect"
             require(results[0].status is ResultStatus.OK,
@@ -285,7 +290,9 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
             require(transcripts[-1] == text, "Wrong backend transcript selected")
             require(controller.history[-1][3] == intent.value, "Wrong intent reached execution")
             require(stream.stop.call_count == stream.close.call_count == 1, "Device not released")
-            if intent in PPT_METHODS:
+            if intent in (Intent.WORD_NEW_DOCUMENT, Intent.EXCEL_NEW_WORKBOOK, Intent.PPT_NEW_PRESENTATION):
+                office.new_blank.assert_called_once_with(ctx, keys, cancel=cancel_token)
+            elif intent in PPT_METHODS:
                 expected = (ctx, params["filename"]) if intent is Intent.PPT_SAVE_AS else (ctx,)
                 getattr(ppt, PPT_METHODS[intent]).assert_called_once_with(*expected, cancel=cancel_token)
             elif intent in browser.TAB_HOTKEYS:
@@ -301,6 +308,8 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
             elif (intent.value.startswith(("MEDIA_", "WIN_BRIGHTNESS_", "WIN_VOLUME_"))
                   or intent in SYSTEM_INTENTS):
                 system.execute.assert_called_once_with(intent, cancel_token)
+            elif intent is Intent.WIN_CLOSE_WINDOW:
+                keys.send_hotkey.assert_called_once_with("alt", "f4")
             elif intent is Intent.WIN_HOTKEY:
                 keys.send_hotkey.assert_called_once_with(*params["keys"].split("+"))
             else:
@@ -311,7 +320,8 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
                     require(selected_modes == [Mode.DICTATION], "Dictation decoder was not selected")
             if intent is not Intent.DICTATE_TEXT or custom_commands:
                 speaker.speak.assert_called_once_with(results[0].message_vi)
-            effects = sum(mock.call_count for mock in (system.execute, launch, screenshot, url,
+            effects = sum(mock.call_count for mock in (office.new_blank, system.execute,
+                          launch, screenshot, url,
                           keys.send_hotkey,
                           keys.type_unicode, *(getattr(ppt, name) for name in PPT_METHODS.values())))
             require(effects == 1, "Turn executed more than one effect")

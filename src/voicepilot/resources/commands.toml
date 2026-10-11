@@ -11,7 +11,7 @@
 #            A pattern without placeholders is a bare phrase; if the intent has params, the
 #            missing params are reported (for example "tìm" alone gives missing query).
 #   context  (optional) PREFERRED window context for ambiguous phrases. Values: "powerpoint",
-#            "browser", "other", "none". It does NOT filter matches. A phrase that only one
+#            "word", "excel", "browser", "other", "none". It does NOT filter matches. A phrase that only one
 #            intent owns is parsed regardless of the window (the executor then reports that
 #            the target app is not available). Only a phrase shared by several intents at the
 #            same specificity (e.g. "tiếp theo", "quay lại", "mở mới", "đóng") uses context to
@@ -143,6 +143,36 @@ example = "Dừng trình chiếu"
 # ---------------------------------------------------------------- Browser
 
 [[intent]]
+name = "WORD_NEW_DOCUMENT"
+patterns = ["tạo tài liệu Word mới", "tạo file Word mới", "tạo tài liệu mới", "tài liệu trắng", "blank document", "tạo file mới", "tạo tệp mới", "file mới", "tạo file trắng"]
+context = ["word"]
+example = "Tạo tài liệu Word mới"
+
+[[intent]]
+name = "EXCEL_NEW_WORKBOOK"
+patterns = ["tạo bảng tính mới", "tạo file Excel mới", "tạo bảng tính Excel mới", "bảng tính trắng", "blank workbook", "tạo file mới", "tạo tệp mới", "file mới", "tạo file trắng"]
+context = ["excel"]
+example = "Tạo bảng tính mới"
+
+[[intent]]
+name = "PPT_NEW_PRESENTATION"
+patterns = ["tạo bài trình chiếu mới", "tạo file PowerPoint mới", "tạo bản trình bày mới", "bài trình chiếu trắng", "blank presentation", "tạo file mới", "tạo tệp mới", "file mới", "tạo file trắng"]
+context = ["powerpoint"]
+example = "Tạo bài trình chiếu mới"
+
+[[intent]]
+name = "BROWSER_NEW_WINDOW"
+patterns = ["mở cửa sổ mới", "tạo cửa sổ mới", "cửa sổ mới", "mở cửa sổ trình duyệt mới", "new window"]
+context = ["browser"]
+example = "Mở cửa sổ mới"
+
+[[intent]]
+name = "BROWSER_PRIVATE_WINDOW"
+patterns = ["mở cửa sổ ẩn danh", "tạo cửa sổ ẩn danh", "cửa sổ ẩn danh", "mở ẩn danh", "mở cửa sổ riêng tư", "cửa sổ riêng tư", "mở inprivate", "incognito", "inprivate"]
+context = ["browser"]
+example = "Mở cửa sổ ẩn danh"
+
+[[intent]]
 name = "BROWSER_OPEN_SITE"
 patterns = [
     "mở trang {site}",
@@ -247,6 +277,7 @@ patterns = [
     "mở tab mới",
     "thêm tab",
     "tạo tab",
+    "tạo tab mới",
     "tab trống",
     "táp mới",
     "mở mới",
@@ -298,6 +329,11 @@ patterns = [
 example = "Chụp màn hình"
 
 # ---------------------------------------------------------------- Dictation (mode-driven)
+
+[[intent]]
+name = "WIN_CLOSE_WINDOW"
+patterns = ["đóng cửa sổ", "đóng cửa sổ này", "tắt cửa sổ", "close window"]
+example = "Đóng cửa sổ"
 
 [[intent]]
 name = "DICTATE_TEXT"

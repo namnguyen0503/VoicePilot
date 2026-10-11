@@ -91,7 +91,7 @@ def test_specific_literal_beats_capture_and_url_capture_is_encoded():
         {"intent": "UNKNOWN"},
         {"intent": "bad"},
         {"enabled": "yes"},
-        {"context": "excel"},
+        {"context": "unsupported_app"},
         {"process": "C:/notepad.exe"},
         {"intent": "BROWSER_OPEN_SITE", "params": {"url": "javascript:alert(1)"}},
         {"intent": "WIN_HOTKEY", "params": {"keys": "ctrl+badkey"}},
@@ -175,8 +175,12 @@ def test_all_custom_actions_through_production_pipeline(qapp, backend, action):
     kind = (
         AppKind.POWERPOINT
         if action.startswith("PPT_")
+        else AppKind.WORD
+        if action == "WORD_NEW_DOCUMENT"
+        else AppKind.EXCEL
+        if action == "EXCEL_NEW_WORKBOOK"
         else AppKind.BROWSER
-        if "TAB" in action
+        if "TAB" in action or action in ("BROWSER_NEW_WINDOW", "BROWSER_PRIVATE_WINDOW")
         else AppKind.OTHER
     )
     item = definition(patterns=["lệnh riêng của tôi"], intent=action, params=values)

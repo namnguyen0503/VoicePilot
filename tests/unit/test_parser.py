@@ -250,7 +250,7 @@ def test_loader_rejects_bad_placeholder(tmp_path: Path) -> None:
 
 
 def test_loader_rejects_unknown_context(tmp_path: Path) -> None:
-    text = RESOURCE_TEXT.replace('context = ["powerpoint"]', 'context = ["excel"]', 1)
+    text = RESOURCE_TEXT.replace('context = ["powerpoint"]', 'context = ["unsupported_app"]', 1)
     with pytest.raises(ValueError, match="unknown context"):
         RuleParser({}, {}, _write(tmp_path, text))
 

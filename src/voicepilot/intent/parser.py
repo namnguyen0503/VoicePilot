@@ -40,7 +40,7 @@ DICTATION_INTENT = Intent.DICTATE_TEXT
 
 _ALLOWED_PLACEHOLDERS = frozenset({"query", "filename", "site", "app_name", "target", "question"})
 _FREE_TEXT_PLACEHOLDERS = frozenset({"query", "filename", "question"})
-_ALLOWED_CONTEXTS = frozenset({"powerpoint", "browser", "other", "none"})
+_ALLOWED_CONTEXTS = frozenset({"powerpoint", "word", "excel", "browser", "other", "none"})
 _ROUTED_PLACEHOLDER = "target"
 _CAPTURE = "(.+)"
 _PLACEHOLDER = re.compile(r"\{([^{}]*)\}")

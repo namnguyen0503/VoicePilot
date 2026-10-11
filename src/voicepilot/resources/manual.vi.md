@@ -50,7 +50,9 @@ Có danh mục ở bên trái và ô tìm kiếm; phím tắt trong cửa sổ p
 | Nhóm lệnh | Điều kiện |
 |---|---|
 | PowerPoint | Chỉ chạy khi cửa sổ PowerPoint đang ở phía trước. |
+| Tạo tài liệu Word/Excel | Cần đúng cửa sổ Word hoặc Excel ở phía trước, kể cả màn hình Home. |
 | Tab (tab tiếp, tab mới, đóng tab…) | Cần cửa sổ Edge hoặc Chrome đang ở phía trước. |
+| Cửa sổ mới / ẩn danh | Cần Edge hoặc Chrome ở phía trước; mở bằng chính trình duyệt đang dùng. |
 | Mở website, tìm kiếm | Chạy từ mọi cửa sổ. Nếu không có Edge hoặc Chrome đang mở, dùng trình duyệt mặc định. |
 | Mở ứng dụng, chụp màn hình | Chạy từ mọi cửa sổ. |
 
@@ -66,6 +68,20 @@ Chỉ chạy khi cửa sổ PowerPoint đang ở phía trước.
 | Slide trước | `slide trước`, `trang trước`, `quay lại slide`, `lùi slide`, `previous slide` | Không nên chỉ nói "quay lại"; xem mục "Từ mơ hồ" bên dưới. |
 | Bắt đầu trình chiếu | `bắt đầu trình chiếu`, `trình chiếu`, `chiếu slide`, `start show` | Bắt đầu từ slide đầu tiên. |
 | Dừng trình chiếu | `dừng trình chiếu`, `kết thúc trình chiếu`, `thoát trình chiếu`, `đóng trình chiếu`, `end show` | Trở về chế độ chỉnh sửa. |
+| Tạo bài trình chiếu trắng | `tạo bài trình chiếu mới`, `tạo file PowerPoint mới`, `tạo bản trình bày mới`, `blank presentation` | Ở Home chọn Blank presentation; ở màn hình chỉnh sửa dùng Ctrl+N. Tài liệu mới chưa được lưu. |
+
+### Tạo tài liệu Word và Excel
+
+| Chức năng | Cách nói | Ghi chú |
+|---|---|---|
+| Word: tài liệu trắng | `tạo tài liệu Word mới`, `tạo file Word mới`, `tạo tài liệu mới`, `blank document` | Cần Word ở phía trước. Home chọn Blank document; màn hình chỉnh sửa dùng Ctrl+N. |
+| Excel: bảng tính trắng | `tạo bảng tính mới`, `tạo file Excel mới`, `tạo bảng tính Excel mới`, `blank workbook` | Cần Excel ở phía trước. Home chọn Blank workbook; màn hình chỉnh sửa dùng Ctrl+N. |
+
+Có thể nói chung **"tạo file mới"**, **"tạo tệp mới"**, **"file mới"** hoặc **"tạo file trắng"**;
+VoicePilot chọn Word/Excel/PowerPoint theo cửa sổ đang dùng. Tài liệu mới chưa có tên và
+chưa được ghi xuống đĩa; nội dung tài liệu đang mở được giữ nguyên. Lệnh cần ứng dụng Office
+desktop đang mở; không tự chọn ứng dụng khi đang ở cửa sổ khác. Lệnh này không tạo slide mới
+trong bài hiện tại. Có thể đổi cách gọi ở Prompt mặc định hoặc dùng hành động trong Lệnh custom.
 
 ## 2. Trình duyệt (Edge và Chrome)
 
@@ -75,8 +91,10 @@ Chỉ chạy khi cửa sổ PowerPoint đang ở phía trước.
 | Tìm kiếm | `tìm thời tiết hôm nay`, `tìm kiếm giá vàng`, `google giá vàng`, `tra cứu lịch thi học kỳ`, `giá vàng hôm nay bao nhiêu`, `thời tiết Hà Nội hôm nay`, `Python là gì` | Chạy từ mọi cửa sổ. Câu tìm kiếm giữ nguyên như bạn nói. Chỉ nói "tìm" sẽ được hỏi lại nội dung. |
 | Tab tiếp | `tab tiếp theo`, `tab sau`, `chuyển tab`, `chuyển tab tiếp theo`, `chuyển sang tab tiếp theo`, `next tab` | Cần Edge hoặc Chrome ở phía trước. |
 | Tab trước | `tab trước`, `quay lại tab`, `chuyển về tab trước`, `lùi tab`, `previous tab` | Cần Edge hoặc Chrome ở phía trước. |
-| Tab mới | `tab mới`, `mở tab mới`, `thêm tab`, `tab trống` | Cần Edge hoặc Chrome ở phía trước. |
+| Tab mới | `tab mới`, `mở tab mới`, `tạo tab mới`, `thêm tab`, `tab trống` | Cần Edge hoặc Chrome ở phía trước. |
 | Đóng tab | `đóng tab`, `đóng tab này`, `tắt tab`, `close tab` | Cần Edge hoặc Chrome ở phía trước. Đóng tab đang hoạt động. |
+| Cửa sổ mới | `mở cửa sổ mới`, `tạo cửa sổ mới`, `cửa sổ mới`, `mở cửa sổ trình duyệt mới`, `new window` | Cần Edge hoặc Chrome ở phía trước; Ctrl+N. |
+| Cửa sổ ẩn danh | `mở cửa sổ ẩn danh`, `tạo cửa sổ ẩn danh`, `mở ẩn danh`, `mở cửa sổ riêng tư`, `mở inprivate`, `incognito` | Cần Edge hoặc Chrome ở phía trước; Ctrl+Shift+N mở InPrivate ở Edge hoặc Incognito ở Chrome. |
 
 Cũng có thể nói câu hỏi trực tiếp. Các mẫu tìm kiếm tự nhiên gồm: "… bao nhiêu",
 "… bao nhiêu tiền", "… là gì", "… là ai", "… ở đâu", "… khi nào", "… như thế nào",
@@ -93,6 +111,7 @@ câu hỏi chỉ được chèn thành văn bản.
 |---|---|---|
 | Mở ứng dụng | `mở word`, `mở excel`, `mở powerpoint`, `khởi động notepad`, `chạy máy tính`, `mở ứng dụng Word` | Chạy từ mọi cửa sổ. Tên ứng dụng phải có trong danh sách bên dưới. Chỉ nói "mở" sẽ được hỏi lại. |
 | Chụp màn hình | `chụp màn hình`, `chụp ảnh màn hình`, `chụp màn` | Chạy từ mọi cửa sổ. Ảnh PNG được lưu vào `Pictures\VoicePilot`. |
+| Đóng cửa sổ | `đóng cửa sổ`, `đóng cửa sổ này`, `tắt cửa sổ`, `close window` | Gửi Alt+F4 đến cửa sổ đang dùng. Chặn Desktop và taskbar để tránh hộp tắt máy. Nếu có nội dung chưa lưu, ứng dụng vẫn hỏi lưu; bạn tự chọn. |
 | Bật tiết kiệm pin | `bật chế độ tiết kiệm pin`, `bật tiết kiệm pin`, `bật power saver` | Ghi nhớ power plan hiện tại rồi chuyển Windows sang **Power saver**. Bật lại khi đã bật giữ nguyên plan cũ. Nếu máy không hỗ trợ, app báo không khả dụng. |
 | Tắt tiết kiệm pin | `tắt chế độ tiết kiệm pin`, `tắt tiết kiệm pin`, `tắt power saver`, `khôi phục chế độ nguồn` | Khôi phục đúng power plan trước khi VoicePilot bật Power saver, kể cả sau khi mở lại app. Nếu bạn đã tự đổi sang plan khác, app giữ lựa chọn đó. |
 | Giảm độ sáng | `giảm độ sáng`, `giảm độ sáng màn hình` | Giảm 10 điểm phần trăm, giới hạn 0–100%; dành cho màn hình có hỗ trợ WMI, thường là màn hình laptop. |

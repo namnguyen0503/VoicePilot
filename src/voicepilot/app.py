@@ -97,6 +97,13 @@ _SELFTEST_SENTENCES: tuple[tuple[str, WindowContext | None, Intent], ...] = (
     ("pause", None, Intent.MEDIA_PAUSE),
     ("next", None, Intent.MEDIA_NEXT),
     ("previous", None, Intent.MEDIA_PREVIOUS),
+    ("tạo tài liệu Word mới", None, Intent.WORD_NEW_DOCUMENT),
+    ("tạo bảng tính mới", None, Intent.EXCEL_NEW_WORKBOOK),
+    ("tạo bài trình chiếu mới", None, Intent.PPT_NEW_PRESENTATION),
+    ("mở cửa sổ mới", None, Intent.BROWSER_NEW_WINDOW),
+    ("mở cửa sổ ẩn danh", None, Intent.BROWSER_PRIVATE_WINDOW),
+    ("đóng cửa sổ", None, Intent.WIN_CLOSE_WINDOW),
+    ("tạo tab mới", None, Intent.BROWSER_NEW_TAB),
 )
 
 Check = tuple[bool, str]

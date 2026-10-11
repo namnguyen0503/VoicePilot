@@ -224,3 +224,41 @@ Khởi động lại EXE dùng `PYINSTALLER_RESET_ENVIRONMENT=1` theo
 để child là instance độc lập. Fixture kiểm riêng source/frozen argv và giữ --debug.
 Native factory đã kiểm bản nguồn; selftest runtime của EXE là kiểm bundle/ASR/TTS/VAD,
 không thay thế kiểm thao tác từ micro hay benchmark giọng Nam.
+
+## Tạo tài liệu trắng và cửa sổ (2026-10-12)
+
+`python tools/verify_new_documents.py`: tạo trước code (50 fail, 1 pass), sau code 77 pass.
+Kiểm parser, ngữ cảnh Word/Excel/PowerPoint, custom/override, chính tả, focus/cancel/timeout,
+MSAA QueryInterface và giải phóng VARIANT. 20 lượt qua recorder/Controller/hybrid/parser/
+executor với Google/offline/hybrid/fallback dùng transcript và Windows fakes.
+
+`python tools/verify_new_documents_native.py`: ba Office ở editor/Home tạo đúng một tài
+liệu trắng, chưa lưu; fixture cũ giữ nội dung. Trình duyệt ở profile riêng tạo tab, window
+và private window đúng một; accessibility xác nhận InPrivate/Incognito, không chỉ đếm HWND.
+15 checks đạt (6 quan sát Office, 3 tổng kết Office, 6 browser); evidence:
+`build/new-documents-native-60e3e8e85b0046fbaf4ab37ad463919f/report.json`.
+Office chỉ đóng tài liệu do harness tạo, chỉ Quit instance vốn không có tài liệu;
+browser chỉ kết thúc PID sở hữu profile thử. Không thu micro hay đọc debug log.
+
+Home dùng [Microsoft Active Accessibility](https://learn.microsoft.com/en-us/windows/win32/api/oleacc/nf-oleacc-accessibleobjectfromwindow)
+và [AccessibleChildren](https://learn.microsoft.com/en-us/windows/win32/api/oleacc/nf-oleacc-accessiblechildren).
+Child dispatch phải được QueryInterface thành IAccessible trước khi đọc children;
+probe ban đầu sai interface gây access violation, đã có regression bằng fakes.
+Office tại máy dùng nhãn template tiếng Anh; bộ nhãn tiếng Việt chưa có native đối chứng.
+Phiên bản Office/ngôn ngữ khác và private mode bị chính sách doanh nghiệp chặn chưa được kiểm.
+Native có STT fixture; không thay thế kiểm độ chính xác nhận giọng Nam.
+
+## Đóng cửa sổ (2026-10-12)
+
+`python tools/verify_close_window.py`: trước code 36 fail, sau code 37 pass;
+kiểm parser/custom/prompt, chính tả, Desktop/taskbar/ancestor, lỗi probe,
+focus/cancel trước và sau probe, bốn đường STT và một tác động mỗi lượt.
+`python tools/verify_close_window_native.py` đạt ba checks: đóng Notepad đã lưu,
+Notepad chưa lưu còn mở với hộp hỏi lưu, năm HWND Desktop/taskbar thật đều bị chặn.
+Nhánh Desktop dùng key sender giả để tuyệt đối không phát Alt+F4 lên Desktop;
+hai lượt Notepad đi qua Controller/parser/executor với SendInput thật.
+Evidence: `build/close-window-native-f4e67ff991ee4248889b34b67dc1fb7e/report.json`.
+Nhận diện dùng [GetAncestor](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getancestor),
+[GetShellWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getshellwindow)
+và [GetDesktopWindow](https://learn.microsoft.com/en-us/windows/win32/api/winuser/nf-winuser-getdesktopwindow),
+không dựa vào tiêu đề hay chặn toàn bộ Explorer.

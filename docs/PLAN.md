@@ -189,7 +189,7 @@ Trước khi phát hành, demo đủ 15 chức năng; chọn 10 chức năng ổ
 - README chính bằng tiếng Anh; giao diện, hướng dẫn lệnh và kịch bản demo bằng tiếng Việt.
 - Bản phát hành dùng PyInstaller **onedir**, nén ZIP cùng model, tài liệu và thông tin source tương ứng. [Cách đóng gói](https://pyinstaller.org/en/stable/operating-mode.html).
 
-TODO sau v1: **Linux**, thao tác Word/Excel, tạo và sửa slide qua COM, giá vàng trực tiếp, Playwright/extension, nhiều lệnh trong một câu, từ khóa đánh thức và benchmark mô hình STT khác trên PC.
+TODO sau v1: **Linux**, thao tác Word/Excel ngoài tạo tài liệu trắng, tạo và sửa slide qua COM, giá vàng trực tiếp, Playwright/extension, nhiều lệnh trong một câu, từ khóa đánh thức và benchmark mô hình STT khác trên PC.
 
 
 ## 6. Lệnh tùy chỉnh (Nam bổ sung phạm vi ngày 2026-10-11)
@@ -216,7 +216,7 @@ TODO sau v1: **Linux**, thao tác Word/Excel, tạo và sửa slide qua COM, gi�
 - Hướng dẫn sử dụng trong cửa sổ riêng, có danh mục/tìm kiếm/phím tắt thực tế.
 - Chín hành động Windows mới: Power saver (Nam chốt chuyển power plan), độ sáng
   tăng/giảm 10 điểm phần trăm, âm lượng tăng/giảm, media Play/Pause/Next/Previous qua SMTC.
-- Các hành động mới cũng có trong trình tạo lệnh custom. Wi-Fi/Excel vẫn ngoài phạm vi.
+- Các hành động mới cũng có trong trình tạo lệnh custom. Wi-Fi vẫn ngoài phạm vi.
 
 ## Bổ sung theo yêu cầu Nam: prompt và khôi phục
 
@@ -230,3 +230,15 @@ TODO sau v1: **Linux**, thao tác Word/Excel, tạo và sửa slide qua COM, gi�
 - Factory reset xác nhận trong UI rồi đóng/mở lại app; xóa toàn bộ dữ liệu riêng
   của app, kể cả custom/log/clip/cache. Giữ binaries/models và tệp do app tạo ở ngoài
   thư mục dữ liệu (ảnh chụp/tài liệu). Khôi phục power plan cũ trước khi xóa trạng thái.
+
+## Bổ sung theo yêu cầu Nam ngày 2026-10-12: tạo tài liệu và cửa sổ
+
+- Word/Excel/PowerPoint tạo tài liệu trắng ở ứng dụng đang dùng. Home chọn đúng
+  Blank document/workbook/presentation qua accessibility; editor dùng Ctrl+N.
+  Không lưu xuống đĩa hoặc sửa nội dung tài liệu cũ. Câu chung "tạo file mới" chọn theo app.
+- Edge/Chrome giữ tab mới, bổ sung cửa sổ mới (Ctrl+N) và ẩn danh (Ctrl+Shift+N).
+- Đóng cửa sổ bằng Alt+F4; chặn Desktop/taskbar bằng HWND và lớp cửa sổ Win32.
+  Kiểm lại focus/hủy sau probe; hộp hỏi lưu của ứng dụng do người dùng quyết định.
+- Sáu hành động mới có trong custom và trình sửa prompt mặc định; Voice/Text dùng chung.
+- Harness trước code; kiểm fake pipeline qua bốn đường STT, focus/cancel/timeout,
+  và native trên tài liệu Office/profile trình duyệt dùng riêng cho kiểm chứng.

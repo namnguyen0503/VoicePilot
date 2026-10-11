@@ -39,6 +39,10 @@ def classify_process(process_name: str) -> tuple[AppKind, str | None]:
         return AppKind.NONE, None
     if name == _POWERPOINT_EXE:
         return AppKind.POWERPOINT, None
+    if name == "winword.exe":
+        return AppKind.WORD, None
+    if name == "excel.exe":
+        return AppKind.EXCEL, None
     if name in _BROWSER_EXES:
         return AppKind.BROWSER, _BROWSER_EXES[name]
     return AppKind.OTHER, None

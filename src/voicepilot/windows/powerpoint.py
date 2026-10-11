@@ -234,7 +234,10 @@ def previous_slide(app: Any, title: str, *, before_action: BeforeAction = _ungua
 
 
 def start_show(
-    app: Any, title: str, *, before_action: BeforeAction = _unguarded,
+    app: Any,
+    title: str,
+    *,
+    before_action: BeforeAction = _unguarded,
     before_followup: BeforeAction = _unguarded,
 ) -> ActionResult:
     """Start the slide show of the target presentation from its first slide."""
@@ -385,6 +388,8 @@ class PowerPointController:
         save_dir: Path | None = None,
         timeout_s: float = DEFAULT_TIMEOUT_S,
         context_provider: ContextProvider | None = None,
+        app_label: str = "PowerPoint",
+        code_prefix: str = "ppt",
     ) -> None:
         """Create the controller. Nothing is started until the first call.
 
@@ -395,7 +400,11 @@ class PowerPointController:
             save_dir: Folder for presentations that were never saved. Defaults to Documents\\VoicePilot.
             timeout_s: How long a public call waits for PowerPoint before reporting a timeout.
             context_provider: Rechecks the target after COM resolution and before mutation.
+            app_label: User-facing name when reusing the guarded worker for other Office actions.
+            code_prefix: Stable prefix for the worker's error codes.
         """
+        self._app_label = app_label
+        self._code_prefix = code_prefix
         self._app_source = app_source or _active_app
         self._apartment = apartment or _com_apartment
         self._save_dir = save_dir
@@ -409,30 +418,43 @@ class PowerPointController:
     def save(self, ctx: WindowContext, *, cancel: threading.Event | None = None) -> ActionResult:
         """Save the presentation of the target window."""
         return self._submit(
-            lambda app, guard, _: save_presentation(app, ctx.title, before_action=guard), ctx, cancel)
+            lambda app, guard, _: save_presentation(app, ctx.title, before_action=guard), ctx, cancel
+        )
 
     def save_as(
         self, ctx: WindowContext, filename: str, *, cancel: threading.Event | None = None
     ) -> ActionResult:
         """Save the presentation of the target window under a new name."""
         save_dir = self._default_save_dir()
-        return self._submit(lambda app, guard, _: save_as_presentation(
-            app, ctx.title, filename, save_dir, before_action=guard), ctx, cancel)
+        return self._submit(
+            lambda app, guard, _: save_as_presentation(
+                app, ctx.title, filename, save_dir, before_action=guard
+            ),
+            ctx,
+            cancel,
+        )
 
     def next_slide(self, ctx: WindowContext, *, cancel: threading.Event | None = None) -> ActionResult:
         """Go to the next slide."""
         return self._submit(
-            lambda app, guard, _: next_slide(app, ctx.title, before_action=guard), ctx, cancel)
+            lambda app, guard, _: next_slide(app, ctx.title, before_action=guard), ctx, cancel
+        )
 
     def previous_slide(self, ctx: WindowContext, *, cancel: threading.Event | None = None) -> ActionResult:
         """Go to the previous slide."""
         return self._submit(
-            lambda app, guard, _: previous_slide(app, ctx.title, before_action=guard), ctx, cancel)
+            lambda app, guard, _: previous_slide(app, ctx.title, before_action=guard), ctx, cancel
+        )
 
     def start_show(self, ctx: WindowContext, *, cancel: threading.Event | None = None) -> ActionResult:
         """Start the slide show from slide 1."""
-        return self._submit(lambda app, guard, followup: start_show(
-            app, ctx.title, before_action=guard, before_followup=followup), ctx, cancel)
+        return self._submit(
+            lambda app, guard, followup: start_show(
+                app, ctx.title, before_action=guard, before_followup=followup
+            ),
+            ctx,
+            cancel,
+        )
 
     def stop_show(self, ctx: WindowContext, *, cancel: threading.Event | None = None) -> ActionResult:
         """End the running slide show."""
@@ -467,12 +489,20 @@ class PowerPointController:
         request = _Request(future, job, ctx, time.monotonic() + self._timeout_s, threading.Event(), cancel)
         try:
             if cancel is not None and cancel.is_set():
-                return _result(ResultStatus.NEEDS_RETRY, "Đã hủy lệnh PowerPoint.", "ppt_cancelled")
+                return _result(
+                    ResultStatus.NEEDS_RETRY,
+                    f"Đã hủy lệnh {self._app_label}.",
+                    f"{self._code_prefix}_cancelled",
+                )
             self._ensure_worker(request)
             while True:
                 if cancel is not None and cancel.is_set():
                     future.cancel()
-                    return _result(ResultStatus.NEEDS_RETRY, "Đã hủy lệnh PowerPoint.", "ppt_cancelled")
+                    return _result(
+                        ResultStatus.NEEDS_RETRY,
+                        f"Đã hủy lệnh {self._app_label}.",
+                        f"{self._code_prefix}_cancelled",
+                    )
                 remaining = max(0, request.deadline - time.monotonic())
                 try:
                     return future.result(timeout=min(remaining, 0.05) if cancel is not None else remaining)
@@ -482,28 +512,40 @@ class PowerPointController:
         except concurrent.futures.TimeoutError:
             request.abandoned.set()
             future.cancel()  # Skip pending jobs; the event also stops a running job after COM returns.
-            log.error("PowerPoint did not answer within %.1f s", self._timeout_s)
-            return _result(ResultStatus.ERROR, "PowerPoint không phản hồi.", "ppt_timeout")
+            log.error("%s did not answer within %.1f s", self._app_label, self._timeout_s)
+            return _result(
+                ResultStatus.ERROR, f"{self._app_label} không phản hồi.", f"{self._code_prefix}_timeout"
+            )
         except concurrent.futures.CancelledError:
-            return _result(ResultStatus.NEEDS_RETRY, "Đã hủy lệnh PowerPoint.", "ppt_cancelled")
+            return _result(
+                ResultStatus.NEEDS_RETRY, f"Đã hủy lệnh {self._app_label}.", f"{self._code_prefix}_cancelled"
+            )
         except PowerPointUnavailable as exc:
             return _result(ResultStatus.NOT_AVAILABLE, exc.message_vi, exc.code)
         except Exception as exc:
-            log.error("PowerPoint command failed: %s", type(exc).__name__)
-            return _result(ResultStatus.ERROR, "Lỗi khi điều khiển PowerPoint.", "ppt_error")
+            log.error("%s command failed: %s", self._app_label, type(exc).__name__)
+            return _result(
+                ResultStatus.ERROR, f"Lỗi khi điều khiển {self._app_label}.", f"{self._code_prefix}_error"
+            )
 
     def _ensure_worker(self, request: _Request) -> None:
         with self._lock:
             if self._thread is not None and self._thread.is_alive():
                 if self._stopping.is_set():
-                    raise PowerPointUnavailable("PowerPoint đang dừng, hãy thử lại.", "ppt_shutting_down")
+                    raise PowerPointUnavailable(
+                        f"{self._app_label} đang dừng, hãy thử lại.", f"{self._code_prefix}_shutting_down"
+                    )
             else:
                 # Each apartment owns its queue and stop token. A stale sentinel cannot
                 # stop a later generation, and submissions cannot race past shutdown.
                 self._jobs = queue.Queue()
                 self._stopping = threading.Event()
-                self._thread = threading.Thread(target=self._work, args=(self._jobs, self._stopping),
-                                                name="voicepilot-powerpoint", daemon=True)
+                self._thread = threading.Thread(
+                    target=self._work,
+                    args=(self._jobs, self._stopping),
+                    name="voicepilot-" + self._app_label.casefold(),
+                    daemon=True,
+                )
                 self._thread.start()
             self._jobs.put(request)
 
@@ -519,10 +561,13 @@ class PowerPointController:
                     continue
                 if not future.set_running_or_notify_cancel():
                     continue
+
                 def guard(request: _Request = item) -> None:
                     self._check_request(request, stopping)
+
                 def followup(request: _Request = item) -> None:
                     self._check_request(request, stopping, check_target=False)
+
                 app = None
                 try:
                     guard()
@@ -536,9 +581,14 @@ class PowerPointController:
                 except Exception as exc:
                     # A transported traceback can retain COM wrappers in helper frames
                     # and release them on the caller's thread after this apartment closes.
-                    log.error("PowerPoint command failed: %s", type(exc).__name__)
-                    future.set_result(_result(ResultStatus.ERROR,
-                                              "Lỗi khi điều khiển PowerPoint.", "ppt_error"))
+                    log.error("%s command failed: %s", self._app_label, type(exc).__name__)
+                    future.set_result(
+                        _result(
+                            ResultStatus.ERROR,
+                            f"Lỗi khi điều khiển {self._app_label}.",
+                            f"{self._code_prefix}_error",
+                        )
+                    )
                 finally:
                     app = None  # Drop the last application reference before CoUninitialize.
 
@@ -550,17 +600,29 @@ class PowerPointController:
             try:
                 still_target = self._context.is_still_target(request.context)
             except Exception as exc:
-                log.error("PowerPoint target check failed: %s", type(exc).__name__)
+                log.error("%s target check failed: %s", self._app_label, type(exc).__name__)
                 still_target = False
             if not still_target:
-                raise _Abandoned(_result(ResultStatus.NEEDS_RETRY,
-                                         "Cửa sổ đích đã thay đổi, hãy thử lại.", "target_changed"))
+                raise _Abandoned(
+                    _result(
+                        ResultStatus.NEEDS_RETRY, "Cửa sổ đích đã thay đổi, hãy thử lại.", "target_changed"
+                    )
+                )
         # A slow context check must not permit an already expired action.
         self._check_alive(request, stopping)
 
-    @staticmethod
-    def _check_alive(request: _Request, stopping: threading.Event) -> None:
+    def _check_alive(self, request: _Request, stopping: threading.Event) -> None:
         if stopping.is_set() or (request.cancel is not None and request.cancel.is_set()):
-            raise _Abandoned(_result(ResultStatus.NEEDS_RETRY, "Đã hủy lệnh PowerPoint.", "ppt_cancelled"))
+            raise _Abandoned(
+                _result(
+                    ResultStatus.NEEDS_RETRY,
+                    f"Đã hủy lệnh {self._app_label}.",
+                    f"{self._code_prefix}_cancelled",
+                )
+            )
         if request.abandoned.is_set() or time.monotonic() >= request.deadline:
-            raise _Abandoned(_result(ResultStatus.ERROR, "PowerPoint không phản hồi.", "ppt_timeout"))
+            raise _Abandoned(
+                _result(
+                    ResultStatus.ERROR, f"{self._app_label} không phản hồi.", f"{self._code_prefix}_timeout"
+                )
+            )

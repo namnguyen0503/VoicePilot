@@ -65,6 +65,8 @@ class AppKind(Enum):
     """Category of the foreground application that the user is working in."""
 
     POWERPOINT = "powerpoint"
+    WORD = "word"
+    EXCEL = "excel"
     BROWSER = "browser"
     OTHER = "other"
     NONE = "none"
@@ -92,7 +94,7 @@ class WindowContext:
 
 
 class Intent(Enum):
-    """Every command function supported in v1. Values equal the names used in commands.toml."""
+    """Supported command functions. Values equal the names used in commands.toml."""
 
     PPT_SAVE = "PPT_SAVE"
     PPT_SAVE_AS = "PPT_SAVE_AS"
@@ -100,14 +102,20 @@ class Intent(Enum):
     PPT_PREV_SLIDE = "PPT_PREV_SLIDE"
     PPT_START_SHOW = "PPT_START_SHOW"
     PPT_STOP_SHOW = "PPT_STOP_SHOW"
+    PPT_NEW_PRESENTATION = "PPT_NEW_PRESENTATION"
+    WORD_NEW_DOCUMENT = "WORD_NEW_DOCUMENT"
+    EXCEL_NEW_WORKBOOK = "EXCEL_NEW_WORKBOOK"
     BROWSER_OPEN_SITE = "BROWSER_OPEN_SITE"
     BROWSER_SEARCH = "BROWSER_SEARCH"
     BROWSER_NEXT_TAB = "BROWSER_NEXT_TAB"
     BROWSER_PREV_TAB = "BROWSER_PREV_TAB"
     BROWSER_NEW_TAB = "BROWSER_NEW_TAB"
     BROWSER_CLOSE_TAB = "BROWSER_CLOSE_TAB"
+    BROWSER_NEW_WINDOW = "BROWSER_NEW_WINDOW"
+    BROWSER_PRIVATE_WINDOW = "BROWSER_PRIVATE_WINDOW"
     WIN_OPEN_APP = "WIN_OPEN_APP"
     WIN_SCREENSHOT = "WIN_SCREENSHOT"
+    WIN_CLOSE_WINDOW = "WIN_CLOSE_WINDOW"
     DICTATE_TEXT = "DICTATE_TEXT"
     WIN_HOTKEY = "WIN_HOTKEY"  # custom commands only, no bundled spoken pattern
     WIN_POWER_SAVER = "WIN_POWER_SAVER"
@@ -136,7 +144,12 @@ SYSTEM_INTENTS = frozenset({
     Intent.MEDIA_NEXT,
     Intent.MEDIA_PREVIOUS,
 })
-BUILTIN_INTENTS = frozenset(Intent) - {Intent.UNKNOWN, Intent.WIN_HOTKEY} - SYSTEM_INTENTS
+DOCUMENT_INTENTS = frozenset({
+    Intent.PPT_NEW_PRESENTATION, Intent.WORD_NEW_DOCUMENT, Intent.EXCEL_NEW_WORKBOOK,
+    Intent.BROWSER_NEW_WINDOW, Intent.BROWSER_PRIVATE_WINDOW,
+    Intent.WIN_CLOSE_WINDOW,
+})
+BUILTIN_INTENTS = frozenset(Intent) - {Intent.UNKNOWN, Intent.WIN_HOTKEY} - SYSTEM_INTENTS - DOCUMENT_INTENTS
 
 
 @dataclass(frozen=True)

@@ -19,16 +19,22 @@ ACTIONS = {
     "DICTATE_TEXT": ("Chèn văn bản", {"text": "Văn bản cần chèn"}),
     "WIN_HOTKEY": ("Nhấn tổ hợp phím", {"keys": "Phím (ví dụ ctrl+shift+s)"}),
     "WIN_SCREENSHOT": ("Chụp màn hình", {}),
+    "WIN_CLOSE_WINDOW": ("Đóng cửa sổ (chặn Desktop)", {}),
     "PPT_SAVE": ("PowerPoint: lưu", {}),
     "PPT_SAVE_AS": ("PowerPoint: lưu tên khác", {"filename": "Tên tệp"}),
     "PPT_NEXT_SLIDE": ("PowerPoint: slide tiếp", {}),
     "PPT_PREV_SLIDE": ("PowerPoint: slide trước", {}),
     "PPT_START_SHOW": ("PowerPoint: bắt đầu trình chiếu", {}),
     "PPT_STOP_SHOW": ("PowerPoint: dừng trình chiếu", {}),
+    "PPT_NEW_PRESENTATION": ("PowerPoint: tạo bài trình chiếu trắng", {}),
+    "WORD_NEW_DOCUMENT": ("Word: tạo tài liệu trắng", {}),
+    "EXCEL_NEW_WORKBOOK": ("Excel: tạo bảng tính trắng", {}),
     "BROWSER_NEXT_TAB": ("Trình duyệt: tab tiếp", {}),
     "BROWSER_PREV_TAB": ("Trình duyệt: tab trước", {}),
     "BROWSER_NEW_TAB": ("Trình duyệt: tab mới", {}),
     "BROWSER_CLOSE_TAB": ("Trình duyệt: đóng tab", {}),
+    "BROWSER_NEW_WINDOW": ("Trình duyệt: cửa sổ mới", {}),
+    "BROWSER_PRIVATE_WINDOW": ("Trình duyệt: cửa sổ ẩn danh", {}),
 }
 ACTIONS.update({
     "WIN_POWER_SAVER": ("Windows: tiết kiệm pin (Power saver)", {}),
@@ -45,6 +51,8 @@ ACTIONS.update({
 CONTEXTS = {
     "any": "Mọi ứng dụng",
     "powerpoint": "PowerPoint",
+    "word": "Word",
+    "excel": "Excel",
     "browser": "Edge/Chrome",
     "other": "Ứng dụng khác",
     "none": "Không có cửa sổ",
@@ -226,7 +234,9 @@ class CustomMatcher:
         hits = []
         for rule in self._patterns:
             item = rule.item
-            if item["context"] not in ("any", kind):
+            # Existing 'other' custom commands included Word/Excel before their categories were added.
+            compatible = item["context"] == "other" and kind in ("word", "excel")
+            if item["context"] not in ("any", kind) and not compatible:
                 continue
             if item["process"] and (ctx is None or ctx.process_name.casefold() != item["process"].casefold()):
                 continue

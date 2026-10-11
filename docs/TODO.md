@@ -130,7 +130,7 @@ Lần chính tả offline đầu nạp decoder riêng, tăng độ trễ và RAM
 - Hướng dẫn sử dụng trong cửa sổ riêng, có danh mục/tìm kiếm/phím tắt thực tế.
 - Chín hành động Windows mới: Power saver (Nam chốt chuyển power plan), độ sáng
   tăng/giảm 10 điểm phần trăm, âm lượng tăng/giảm, media Play/Pause/Next/Previous qua SMTC.
-- Các hành động mới cũng có trong trình tạo lệnh custom. Wi-Fi/Excel vẫn ngoài phạm vi.
+- Các hành động mới cũng có trong trình tạo lệnh custom. Wi-Fi vẫn ngoài phạm vi.
 
 ## Prompt mặc định, power plan và khôi phục (Nam yêu cầu)
 
@@ -140,3 +140,11 @@ Lần chính tả offline đầu nạp decoder riêng, tăng độ trễ và RAM
 - [x] Factory reset xác nhận riêng, xóa dữ liệu app sau khi đóng tiến trình cũ và mở lại.
 - [x] Harness trước code + regression cho lỗi tương phản phát hiện trên Windows thật.
 - [x] Native power plan round trip, factory hai tiến trình trên dữ liệu thử; giữ dữ liệu Nam.
+
+## Tạo tài liệu trắng và cửa sổ trình duyệt (2026-10-12)
+
+- [x] Word/Excel/PowerPoint: tạo đúng một tài liệu trắng tại Home và editor; tài liệu cũ được giữ.
+- [x] Câu chung "tạo file mới" chọn theo ứng dụng; bổ sung nhóm Word/Excel vào ngữ cảnh.
+- [x] Edge/Chrome: tab mới, cửa sổ mới, cửa sổ ẩn danh; xác minh nhãn private mode native.
+- [x] Tích hợp custom, prompt mặc định/hotwords, hướng dẫn; kiểm hủy/focus/timeout trước tác động.
+- [x] Đóng cửa sổ Alt+F4, chặn Desktop/taskbar; native Notepad đóng và hỏi lưu đúng.

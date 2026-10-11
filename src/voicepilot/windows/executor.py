@@ -27,8 +27,10 @@ from voicepilot.contracts import (
 )
 from voicepilot.windows import browser, desktop
 from voicepilot.windows import input as input_ops
+from voicepilot.windows.office import OFFICE_ACTIONS, OfficeController
 from voicepilot.windows.powerpoint import PowerPointController
 from voicepilot.windows.system_controls import SystemControls
+from voicepilot.windows.window_close import is_closable_window
 
 log = logging.getLogger(__name__)
 
@@ -83,6 +85,8 @@ class WindowsExecutor:
         powerpoint: PowerPointController | None = None,
         keys: KeySender | None = None,
         system_controls: SystemControls | None = None,
+        office: OfficeController | None = None,
+        close_window_probe: Callable[[int], bool] = is_closable_window,
     ) -> None:
         """Create the executor.
 
@@ -92,6 +96,7 @@ class WindowsExecutor:
             hide_overlay: Factory for a context manager that hides the overlay while a screenshot is taken.
             powerpoint: PowerPoint backend. Defaults to a PowerPointController that starts lazily.
             keys: Keystroke backend. Defaults to SendInput.
+            office: Blank document backend, with a dedicated guarded COM apartment.
         """
         self._system_controls = system_controls if system_controls is not None else SystemControls()
         self._config = config
@@ -101,6 +106,8 @@ class WindowsExecutor:
             powerpoint if powerpoint is not None else PowerPointController(context_provider=context_provider)
         )
         self._keys: KeySender = keys if keys is not None else _SendInputKeys()
+        self._close_window_probe = close_window_probe
+        self._office = office if office is not None else OfficeController(context_provider=context_provider)
         self._handlers: dict[Intent, Handler] = {
             Intent.PPT_SAVE: self._ppt_save,
             Intent.PPT_SAVE_AS: self._ppt_save_as,
@@ -114,12 +121,24 @@ class WindowsExecutor:
             Intent.BROWSER_PREV_TAB: self._browser_tab,
             Intent.BROWSER_NEW_TAB: self._browser_tab,
             Intent.BROWSER_CLOSE_TAB: self._browser_tab,
+            Intent.BROWSER_NEW_WINDOW: self._browser_tab,
+            Intent.BROWSER_PRIVATE_WINDOW: self._browser_tab,
             Intent.WIN_OPEN_APP: self._win_open_app,
             Intent.WIN_SCREENSHOT: self._win_screenshot,
+            Intent.WIN_CLOSE_WINDOW: self._close_window,
             Intent.DICTATE_TEXT: self._dictate_text,
             Intent.WIN_HOTKEY: self._hotkey,
         }
         self._handlers.update(dict.fromkeys(SYSTEM_INTENTS, self._system_action))
+        self._handlers.update(dict.fromkeys(OFFICE_ACTIONS, self._office_new))
+
+    def _office_new(self, command, ctx, cancel) -> ActionResult:
+        kind, exe, _ = OFFICE_ACTIONS[command.intent]
+        if ctx.app_kind is not kind or ctx.process_name.casefold() != exe:
+            return ActionResult(ResultStatus.NOT_AVAILABLE, "Hãy chuyển sang đúng cửa sổ Office rồi thử lại.",
+                                "no_office_window")
+        return self._guarded(ctx, lambda: self._office.new_blank(ctx, self._keys, cancel=cancel),
+                             strict=True, cancel=cancel)
 
     def _system_action(self, command, ctx, cancel) -> ActionResult:
         return self._guarded(ctx, lambda: self._system_controls.execute(command.intent, cancel),
@@ -147,8 +166,9 @@ class WindowsExecutor:
             return ActionResult(ResultStatus.ERROR, _GENERIC_ERROR_MESSAGE, "exception")
 
     def shutdown(self) -> None:
-        """Stop the PowerPoint worker thread."""
+        """Stop the PowerPoint and blank document worker threads."""
         self._powerpoint.shutdown()
+        self._office.shutdown()
 
     def _guarded(
         self,
@@ -271,6 +291,25 @@ class WindowsExecutor:
             return ActionResult(ResultStatus.OK, "Đã chụp màn hình.", None, {"path": str(path)})
 
         return self._guarded(ctx, capture, strict=False, cancel=cancel)
+
+    def _close_window(
+        self, command: Command, ctx: WindowContext, cancel: threading.Event | None
+    ) -> ActionResult:
+        def check_and_close() -> ActionResult:
+            if not self._close_window_probe(ctx.hwnd):
+                return ActionResult(
+                    ResultStatus.NOT_AVAILABLE,
+                    "Không đóng cửa sổ khi đang ở Desktop hoặc taskbar.", "desktop_close_blocked",
+                )
+
+            def send() -> ActionResult:
+                self._keys.send_hotkey("alt", "f4")
+                return ActionResult(ResultStatus.OK, "Đã gửi lệnh đóng cửa sổ.")
+
+            # The native probe may outlive a focus change or cancellation.
+            return self._guarded(ctx, send, strict=True, cancel=cancel)
+
+        return self._guarded(ctx, check_and_close, strict=True, cancel=cancel)
 
     def _hotkey(self, command: Command, ctx: WindowContext, cancel: threading.Event | None) -> ActionResult:
         from voicepilot.custom_commands import hotkey_keys

@@ -26,6 +26,8 @@ _TAB_INTENTS = frozenset(
         Intent.BROWSER_PREV_TAB,
         Intent.BROWSER_NEW_TAB,
         Intent.BROWSER_CLOSE_TAB,
+        Intent.BROWSER_NEW_WINDOW,
+        Intent.BROWSER_PRIVATE_WINDOW,
     }
 )
 
@@ -38,6 +40,12 @@ def is_valid_candidate(command: Command, context: WindowContext | None, known_si
     """
     if not command.is_executable:
         return False
+    from voicepilot.windows.office import OFFICE_ACTIONS
+
+    if command.intent in OFFICE_ACTIONS:
+        expected_kind, exe, _ = OFFICE_ACTIONS[command.intent]
+        return (context is not None and context.app_kind is expected_kind
+                and context.process_name.casefold() == exe)
     kind = context.app_kind if context is not None else AppKind.NONE
     if command.intent in _POWERPOINT_INTENTS and kind is not AppKind.POWERPOINT:
         return False
@@ -49,6 +57,7 @@ def is_valid_candidate(command: Command, context: WindowContext | None, known_si
         and command.params.get("url") not in known_sites
     ):
         return False
-    if command.intent in (Intent.WIN_HOTKEY, Intent.DICTATE_TEXT) and kind is AppKind.NONE:
+    if (command.intent in (Intent.WIN_HOTKEY, Intent.WIN_CLOSE_WINDOW, Intent.DICTATE_TEXT)
+            and kind is AppKind.NONE):
         return False
     return True

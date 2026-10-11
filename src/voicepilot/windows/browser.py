@@ -23,12 +23,16 @@ TAB_HOTKEYS: dict[Intent, tuple[str, ...]] = {
     Intent.BROWSER_PREV_TAB: ("ctrl", "shift", "tab"),
     Intent.BROWSER_NEW_TAB: ("ctrl", "t"),
     Intent.BROWSER_CLOSE_TAB: ("ctrl", "w"),
+    Intent.BROWSER_NEW_WINDOW: ("ctrl", "n"),
+    Intent.BROWSER_PRIVATE_WINDOW: ("ctrl", "shift", "n"),
 }
 TAB_MESSAGES: dict[Intent, str] = {
     Intent.BROWSER_NEXT_TAB: "Đã chuyển tab tiếp",
     Intent.BROWSER_PREV_TAB: "Đã chuyển tab trước",
     Intent.BROWSER_NEW_TAB: "Đã mở tab mới",
     Intent.BROWSER_CLOSE_TAB: "Đã đóng tab",
+    Intent.BROWSER_NEW_WINDOW: "Đã mở cửa sổ mới",
+    Intent.BROWSER_PRIVATE_WINDOW: "Đã mở cửa sổ ẩn danh",
 }
 
 _ALLOWED_SCHEMES = frozenset({"http", "https"})

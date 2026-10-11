@@ -78,6 +78,8 @@ CONTEXT_KINDS = {
     "powerpoint": AppKind.POWERPOINT,
     "browser": AppKind.BROWSER,
     "other": AppKind.OTHER,
+    "word": AppKind.WORD,
+    "excel": AppKind.EXCEL,
     "none": AppKind.NONE,
 }
 REQUIRED_COLUMNS = ("file", "expected_intent", "expected_params_json", "context")
