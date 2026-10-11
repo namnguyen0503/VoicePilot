@@ -58,7 +58,7 @@ Chi tiết nguồn và giấy phép: `THIRD_PARTY_NOTICES.md`.
 
 - Harness được tạo/chạy trước khi sửa app. Đủ 15 intent có kiểm tra tác động parser → executor
   với fakes; test chứng minh harness phát hiện executor lỗi và giữ trạng thái fail/blocked.
-- Pytest mới nhất 1496 pass, 2 skip; ruff sạch. Pytest dùng basetemp mới và tắt cache để tránh ACL/cache
+- Pytest mới nhất 1512 pass, 2 skip; ruff sạch. Pytest dùng basetemp mới và tắt cache để tránh ACL/cache
   cũ ở máy Nam. Không xóa thư mục test cũ bị lỗi quyền.
   Bản copy có đường dẫn dài: 1145 pass, 3 skip; thêm một fixture thư mục 150 ký tự tự bỏ qua
   vì tmp_path đã quá dài. Hai skip mặc định Windows kiểm đường dẫn cấu hình của OS khác.

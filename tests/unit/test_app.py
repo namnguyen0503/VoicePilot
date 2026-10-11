@@ -175,6 +175,7 @@ def test_runtime_selftest_guards_native_load_errors(config_home, models_home, mo
 def test_speech_runtime_observes_command_and_unbiased_dictation(monkeypatch):
     import types
 
+    import voicepilot.audio.neural_vad as neural_vad
     import voicepilot.tts.piper as piper
     from voicepilot.contracts import Transcript
 
@@ -199,7 +200,7 @@ def test_speech_runtime_observes_command_and_unbiased_dictation(monkeypatch):
     class FakeVoice:
         def generate(self, text, **kwargs):
             calls.append("synthesize")
-            return types.SimpleNamespace(samples=[0.1] * 160, sample_rate=16000)
+            return types.SimpleNamespace(samples=[0.1] * 4800, sample_rate=16000)
 
     def load_voice(path):
         calls.append("load_tts")
@@ -207,6 +208,14 @@ def test_speech_runtime_observes_command_and_unbiased_dictation(monkeypatch):
 
     monkeypatch.setattr(gipformer_module, "GipformerStt", FakeAsr)
     monkeypatch.setattr(piper, "_load_sherpa_voice", load_voice)
+    class FakeVad:
+        def __init__(self, path):
+            pass
+        def reset(self):
+            pass
+        def __call__(self, frame):
+            return any(frame)
+    monkeypatch.setattr(neural_vad, "SileroSpeechDetector", FakeVad)
     checks = bootstrap._check_speech_runtime()
     assert all(ok for ok, _ in checks)
     assert calls == ["load_asr", "load_tts", "synthesize", "synthesize", "unbiased"]

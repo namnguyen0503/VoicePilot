@@ -42,6 +42,7 @@ from typing import IO, Any
 HF_BASE_URL = "https://huggingface.co"
 SOURCE_HF = "huggingface"
 SOURCE_RELEASE = "github-release"
+SOURCE_RAW = "github-raw"
 RELEASE_URL_PREFIX = "https://github.com/"
 EXTRACT_TAR_BZ2 = "tar.bz2"
 TODO_MARKER = "TODO"
@@ -86,6 +87,7 @@ class FileSpec:
 
     name: str
     sha256: str | None
+    url: str = ""
 
 
 @dataclasses.dataclass(frozen=True)
@@ -134,7 +136,19 @@ def _parse_model(entry: dict[str, Any]) -> ModelSpec:
         return _parse_huggingface(entry, model_id, dest, raw_files)
     if source == SOURCE_RELEASE:
         return _parse_release(entry, model_id, dest, raw_files)
-    raise ManifestError(f"{model_id}: source must be {SOURCE_HF!r} or {SOURCE_RELEASE!r}, not {source!r}")
+    if source == SOURCE_RAW:
+        files = []
+        for item in raw_files:
+            if not isinstance(item, dict):
+                raise ManifestError(f"{model_id}: each raw file must be a table")
+            name = _require_str(item, "name")
+            _check_relative(name, f"{model_id}: file name", allow_empty=False)
+            url = _require_str(item, "url")
+            if not url.startswith("https://raw.githubusercontent.com/"):
+                raise ManifestError(f"{model_id}: expected an HTTPS GitHub raw URL")
+            files.append(FileSpec(name=name, sha256=None, url=url))
+        return ModelSpec(id=model_id, dest=dest, files=tuple(files), source=source)
+    raise ManifestError(f"{model_id}: unsupported source {source!r}")
 
 
 def _parse_huggingface(entry: dict[str, Any], model_id: str, dest: str, raw_files: list[Any]) -> ModelSpec:
@@ -451,6 +465,20 @@ def run(
     """Fetch every missing or mismatched file, or install each archive. Returns an exit code."""
     failures = 0
     for model in models:
+        if model.source == SOURCE_RAW:
+            print(f"== {model.id} ({model.source})", file=out)
+            for spec in model.files:
+                target = models_dir / model.dest / spec.name
+                if not force and target.is_file() and target.stat().st_size:
+                    print(f"[skip] {spec.name}", file=out)
+                    continue
+                try:
+                    download_raw_file(spec.url, target, opener=opener)
+                    print(f"[ok  ] {spec.name}", file=out)
+                except DownloadError as exc:
+                    failures += 1
+                    print(f"[fail] {exc}", file=err)
+            continue
         if model.source == SOURCE_RELEASE:
             print(f"== {model.id} ({model.source})", file=out)
             if not install_archive(model, models_dir, force=force, out=out, err=err, opener=opener):
@@ -483,6 +511,26 @@ def run(
         print(f"{failures} file(s) failed", file=err)
         return EXIT_FAILED
     return EXIT_OK
+
+
+def download_raw_file(url: str, target: Path, *, opener=urllib.request.urlopen) -> None:
+    """Install a versioned raw file atomically, keeping the previous file on failure."""
+    target.parent.mkdir(parents=True, exist_ok=True)
+    partial = target.with_name(target.name + "." + uuid.uuid4().hex + ".part")
+    try:
+        size = 0
+        with opener(url, timeout=TIMEOUT_S) as response, partial.open("wb") as output:
+            expected_size = response.headers.get("Content-Length")
+            while block := response.read(CHUNK_SIZE):
+                size += len(block)
+                output.write(block)
+            if not size or (expected_size is not None and size != int(expected_size)):
+                raise DownloadError("Empty or incomplete raw model download")
+        os.replace(partial, target)
+    except (OSError, ValueError, DownloadError) as exc:
+        raise DownloadError(f"cannot download {target.name}: {type(exc).__name__}") from exc
+    finally:
+        partial.unlink(missing_ok=True)
 
 
 def default_models_dir() -> Path:

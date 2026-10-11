@@ -6,7 +6,7 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
 ## 1. Trạng thái hiện tại
 
 - Đủ 15 chức năng trong PLAN; Nam chốt hoàn thiện v1, để Wi-Fi và Excel ngoài phạm vi lần này.
-- **1496 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
+- **1512 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
   khi sửa app, rồi chạy lại sau sửa. Đủ 15 luồng parser → executor với backend giả lập đều đạt.
 - Harness thêm 60 lượt recorder → Controller → hybrid → parser → executor cho 15 chức năng
   qua bốn đường STT. Đã tái hiện/sửa hai lỗi chọn câu slide trong browser và câu tab trong PowerPoint;
@@ -113,6 +113,24 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
   trong build/input-native-final-dc7a327dc24d48818c90ad7add38a5a3; hệ thống ở build/system-native-final.json; harness và giới hạn ở docs/VERIFICATION.vi.md.
 
 ## 2. Những gì đã làm trong phiên 2026-10-09/10 (theo commit)
+
+Cập nhật tự dừng ngày 2026-10-11: Nam báo nền ồn làm không dừng. Harness mới tạo trước
+code tái hiện 31/80 lỗi; mở rộng đối chứng 96 checks: cũ 49, mới 86 đạt. Recorder nay dùng
+Silero VAD v6.0 offline qua sherpa-onnx (một CPU thread, model khoảng 2,3 MB); reset trạng thái
+giữa lượt, giữ nguyên PCM cho STT, giữ điều kiện VAD tắt/hủy/đổi mode. Sau khoảng nghỉ, cần
+90 ms tiếng nói được xác nhận mới reset bộ đếm, để nhiễu ngắn không kéo dài lượt mãi.
+Model/giấy phép được thêm vào manifest/downloader/bundle, không làm checksum theo yêu cầu Nam.
+WebRTC là fallback nếu thiếu/không nạp được model. Selftest runtime kiểm VAD cùng ASR/TTS.
+
+Không còn lượt đã nhận tiếng nói bị giữ mở trong bộ thử; 16/16 noise-only không tạo clip.
+Median/p95 endpoint 951/1350 ms; max 1467 ms. Hai checks trượt mục tiêu 1,4 s và tám checks
+SNR 0 dB mất đầu/bỏ sót giọng; không coi các điều kiện này đạt. TV/tiếng người khác chưa
+được tách người nói. Chi tiết ở docs/VERIFICATION.vi.md và build/noisy-endpoint-release.
+Nam cho thu micro thật 20 s trong nền ồn: build/live-endpoint-1 giữ WAV/báo cáo riêng tư.
+Silero tự dừng các lượt hoàn chỉnh; offline đọc được hai câu mở YouTube/chụp màn hình.
+WebRTC nhận tiếng bíp đầu bản thu là lượt nói, Silero bỏ qua. Lượt cuối bị giới hạn bởi
+20 s thu thử, chưa dùng để kết luận điểm dừng. Lỗi cue tone có regression với fakes.
+Đây chưa phải benchmark 30 câu đã gán nhãn.
 
 | Commit | Nội dung |
 |---|---|

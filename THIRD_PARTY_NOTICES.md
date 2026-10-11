@@ -42,6 +42,15 @@ Note on GPL components: espeak-ng (GPL-3.0) is compiled into the sherpa-onnx-cor
 
 ## 3. Speech models (downloaded by `tools/download_models.py`, bundled in the ZIP)
 
+### 3.0 Voice activity detection: Silero VAD v6.0, ONNX
+
+- Files: `models/vad/silero-v6/silero_vad.onnx` and upstream `LICENSE`.
+- Source: https://github.com/snakers4/silero-vad/releases/tag/v6.0 ; model at
+  https://github.com/snakers4/silero-vad/blob/v6.0/src/silero_vad/data/silero_vad.onnx .
+- MIT License, copyright (c) 2020-present Silero Team. The full upstream notice is
+  retained beside the model. Runs through the existing sherpa-onnx ONNX Runtime;
+  no PyTorch or second ONNX Runtime is bundled.
+
 ### 3.1 Speech recognition: Gipformer 1.5 68M, INT8 ONNX
 
 - Files: `encoder.int8.onnx`, `decoder.int8.onnx`, `joiner.int8.onnx`, `tokens.txt`.

@@ -737,6 +737,8 @@ def _check_speech_runtime() -> list[Check]:
     import numpy as np
 
     from voicepilot.audio.capture import convert_to_16k
+    from voicepilot.audio.neural_vad import MODEL_RELATIVE_PATH, SileroSpeechDetector
+    from voicepilot.audio.vad import FRAME_SAMPLES, Decision, Endpointer
     from voicepilot.contracts import AudioClip
     from voicepilot.intent.parser import RuleParser
     from voicepilot.paths import models_dir
@@ -753,6 +755,7 @@ def _check_speech_runtime() -> list[Check]:
     )
     backend.warmup()
     voice = _load_sherpa_voice(base.joinpath(*PIPER_MODEL_FILE))
+    detector = SileroSpeechDetector(base / MODEL_RELATIVE_PATH)
     checks: list[Check] = [(True, "runtime: ASR and TTS models loaded in one process")]
     parser = RuleParser(config.website_aliases, config.app_aliases)
     for index, (text, dictation) in enumerate(
@@ -766,6 +769,18 @@ def _check_speech_runtime() -> list[Check]:
             checks.append((False, "runtime: TTS returned no valid PCM"))
             continue
         samples = convert_to_16k(np.frombuffer(_to_pcm(audio.samples), dtype="<i2"), audio.sample_rate)
+        detector.reset()
+        endpoint = Endpointer(silence_end_ms=800, max_duration_ms=15000,
+                              no_speech_timeout_ms=5000, is_speech=detector,
+                              resume_speech_frames=3)
+        padded = np.concatenate((samples, np.zeros(32000, dtype=np.int16)))
+        decision = Decision.CONTINUE
+        for offset in range(0, len(padded) - FRAME_SAMPLES + 1, FRAME_SAMPLES):
+            decision = endpoint.feed(padded[offset:offset + FRAME_SAMPLES].astype("<i2").tobytes())
+            if decision is not Decision.CONTINUE:
+                break
+        checks.append((decision is Decision.END_SILENCE,
+                       "runtime: neural VAD detected synthetic speech and its endpoint"))
         decoder = backend.without_hotwords() if dictation else backend
         result = decoder.transcribe(AudioClip(samples.tobytes(), index))
         if dictation:

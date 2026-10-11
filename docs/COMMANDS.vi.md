@@ -8,6 +8,10 @@ VoicePilot nghe lệnh bằng tiếng Việt và thực hiện trên PowerPoint,
 - Trong **Cài đặt**, bật **Tự dừng khi ngừng nói**. Mặc định dừng sau 800 ms im lặng;
   có thể tăng khoảng này khi đọc chính tả và hay nghỉ giữa câu. Tắt tùy chọn để kết thúc
   bằng phím nghe lần nữa hoặc hết thời lượng. Không nói trong 5 giây thì tự hủy lượt nghe.
+- Bộ phát hiện tiếng nói Silero chạy offline giúp tự dừng trong tiếng quạt, nhiễu nền
+  và tiếng gõ phím. Khoảng chờ tính từ lúc bộ phát hiện xác nhận hết tiếng nói nên thực tế
+  có thể dài hơn 800 ms. Tiếng TV/người khác nói vẫn có thể được nhận là tiếng nói;
+  khi tiếng ồn lấn át giọng, hãy đưa micro gần miệng hoặc nhấn phím nghe để kết thúc sớm.
 - Nhấn **Ctrl + Alt + D** để chuyển giữa **Ra lệnh** và **Đọc chính tả**.
 - Mỗi lần chỉ nói **một câu, một lệnh**. Các từ lịch sự ở đầu hoặc cuối câu sẽ bị bỏ qua:
   - Ở đầu câu: "làm ơn", "giúp tôi", "giúp mình", "giùm", "giùm tôi", "giùm mình", "cho tôi", "cho mình", "hãy", "ơi".

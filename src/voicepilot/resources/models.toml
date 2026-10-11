@@ -3,9 +3,9 @@
 #
 # Schema: one [[model]] table per model.
 #   id        (required) model identifier.
-#   kind      (required) "asr" or "tts".
+#   kind      (required) "asr", "tts" or "vad".
 #   engine    (required) "sherpa-onnx" (every model runs on sherpa-onnx).
-#   source    (required) "huggingface" or "github-release".
+#   source    (required) "huggingface", "github-release" or "github-raw".
 #   dest      (required) directory RELATIVE TO THE models/ FOLDER, e.g. "asr/gipformer1.5-int8"
 #             -> models/asr/gipformer1.5-int8/. Matches paths.models_dir() / <dest>.
 #   homepage  (optional) upstream project page.
@@ -22,6 +22,8 @@
 #   no TODO) and extract = "tar.bz2". The archive's single top-level folder is dropped, so name
 #   is the path inside dest after extraction (e.g. "espeak-ng-data/phontab"). Files take no sha256:
 #   archive_sha256 covers them.
+# source = "github-raw": each file has name and a versioned HTTPS raw GitHub URL;
+#   files are downloaded atomically without checksum verification.
 #
 # ASR role keys (encoder, decoder, joiner, tokens) sit next to the model's other keys.
 # stt/gipformer.py reads these names; do not rename them.
@@ -80,4 +82,19 @@ files = [
   { name = "vi_VN-vais1000-medium.onnx" },
   { name = "tokens.txt" },
   { name = "espeak-ng-data/phontab" },
+]
+
+# Standalone versioned upstream files; downloaded atomically without checksum work.
+[[model]]
+id = "silero-vad-v6"
+kind = "vad"
+engine = "sherpa-onnx"
+source = "github-raw"
+dest = "vad/silero-v6"
+homepage = "https://github.com/snakers4/silero-vad/releases/tag/v6.0"
+license = "MIT"
+license_url = "https://github.com/snakers4/silero-vad/blob/v6.0/LICENSE"
+files = [
+  { name = "silero_vad.onnx", url = "https://raw.githubusercontent.com/snakers4/silero-vad/v6.0/src/silero_vad/data/silero_vad.onnx" },
+  { name = "LICENSE", url = "https://raw.githubusercontent.com/snakers4/silero-vad/v6.0/LICENSE" },
 ]

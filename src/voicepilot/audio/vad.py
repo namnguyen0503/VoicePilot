@@ -62,14 +62,19 @@ class Endpointer:
         no_speech_timeout_ms: int,
         is_speech: SpeechPredicate | None = None,
         noise_margin_db: float | None = None,
+        resume_speech_frames: int = 1,
     ) -> None:
         """Create an endpointer.
 
         noise_margin_db, when set, additionally requires a frame to be that many dB louder than the
         running noise floor to count as speech. A hot or noisy microphone makes webrtcvad report
         speech on every frame, which would never end the utterance.
+        resume_speech_frames confirms renewed speech after a gap, preventing isolated
+        noise votes from repeatedly resetting the silence timer.
         """
         self._margin_db = noise_margin_db
+        self._resume_speech_frames = max(1, resume_speech_frames)
+        self._resume_run = 0
         self._calibration: list[tuple[float, bool]] = []
         self._floor_db = 0.0
         self._silence_end_ms = silence_end_ms
@@ -166,8 +171,20 @@ class Endpointer:
         else:
             self._frames.append(frame)
 
-        self._trailing_ms = 0 if speech else self._trailing_ms + FRAME_MS
-        if self._trailing_ms >= self._silence_end_ms:
+        if speech and self._trailing_ms:
+            self._resume_run += 1
+            if self._resume_run >= self._resume_speech_frames:
+                self._trailing_ms = 0
+                self._resume_run = 0
+            else:
+                self._trailing_ms += FRAME_MS
+        else:
+            self._resume_run = 0
+            self._trailing_ms = 0 if speech else self._trailing_ms + FRAME_MS
+        # Wait for a possible resumed word to be confirmed before ending; isolated
+        # noise votes cannot repeatedly restart the full silence interval.
+        confirming = 0 < self._resume_run < self._resume_speech_frames
+        if self._trailing_ms >= self._silence_end_ms and not confirming:
             return Decision.END_SILENCE
         if self._total_ms >= self._max_duration_ms:
             return Decision.END_MAX_DURATION

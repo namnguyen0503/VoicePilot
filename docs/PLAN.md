@@ -33,7 +33,7 @@ Mặc định:
 
 ## 2. Thiết kế triển khai
 
-**Nền tảng:** Python 3.12 x64 trong `.venv`, PySide6 Widgets qua `PySide6-Essentials`, SoundDevice, WebRTC VAD, SpeechRecognition, sherpa-onnx, Piper, pywin32 và mss. Khóa dependency trong `requirements.lock`.
+**Nền tảng:** Python 3.12 x64 trong `.venv`, PySide6 Widgets qua `PySide6-Essentials`, SoundDevice, Silero VAD (WebRTC dự phòng), SpeechRecognition, sherpa-onnx, Piper, pywin32 và mss. Khóa dependency trong `requirements.lock`.
 
 ### Audio và STT
 

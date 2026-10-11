@@ -174,3 +174,31 @@ trong đó 7 checks custom; không dùng hoặc đóng tài liệu/profile riên
 - Lỗi native mới có regression: WMI dispatch/ExecMethod/thiếu output, level driver,
   readback chậm, apartment STA/MTA, QObject/Qt khi thoát, vị trí composer ngoài màn hình.
   Chạy đầy đủ pytest với mã thoát tiến trình 0; dòng “passed” chưa đủ nếu Python crash sau đó.
+
+## Tự dừng trong môi trường ồn
+
+`python tools/verify_noisy_endpoint.py --speech-dir <thu-muc-PCM-synthetic>
+--output build/<ten-moi>` chạy Recorder thật, gồm resample 48 kHz, với PCM tiếng Việt
+được giữ từ `tools/verify_endpoint.py`. Không dùng micro, STT, playback hay thao tác desktop.
+Harness tạo trước code, giữ PCM nhiễu và báo cáo trước/sau trong thư mục riêng.
+
+96 checks: bốn câu, hai chế độ/rate, tiếng quạt/broadband ở SNR 6/0 dB, tiếng ồn tăng
+sau câu nói, tiếng máy dao động, gõ phím, nói ngay, giọng nhỏ, nghỉ 300 ms và chỉ có nhiễu.
+Điều kiện chặt: không mất đầu câu quá 100 ms, endpoint trong 1,4 s sau cuối tiếng nói;
+chỉ có nhiễu phải timeout ở khoảng 5 s mà không tạo clip.
+
+Đối chứng 2026-10-11: bản WebRTC/RMS cũ đạt 49/96; Silero v6 đạt 86/96.
+Tất cả lượt đã nhận tiếng nói đều tự kết thúc, 16/16 lượt chỉ có nhiễu không tạo clip.
+Median/p95 thời gian endpoint là 951/1350 ms; tối đa 1467 ms trên các lượt đã nhận tiếng nói.
+10 checks chưa đạt: hai lượt nhiễu tăng mạnh chậm hơn mục tiêu 1,4 s; tám lượt tiếng quạt
+ở SNR 0 dB bỏ sót tiếng nói hoặc mất đầu câu. Đây là giới hạn đã đo, không đánh dấu pass.
+Nguồn báo cáo: `build/noisy-endpoint-baseline-expanded` và `build/noisy-endpoint-release`.
+Âm thanh tổng hợp không thay benchmark giọng Nam/micro thật. TV/người khác nói chưa
+được tách người nói; không khẳng định chống được mọi tiếng ồn.
+
+Nam cho thu 20 s từ Realtek ngày 2026-10-11: `build/live-endpoint-1/microphone.wav` và
+`report.json` giữ cục bộ, không commit. `tools/record_endpoint_probe.py` thu khi người dùng
+đã đồng ý và có tiếng bíp; `--reuse <wav>` chỉ đối chứng lại. Silero kết thúc bằng silence
+ở các lượt hoàn chỉnh; offline đọc được mở YouTube và chụp màn hình. Tiếng bíp đầu clip
+bị WebRTC nhận là lượt nói, Silero bỏ qua. Lượt cuối còn đang nói khi hết 20 s không có
+nhãn kết thúc; không đánh dấu lỗi/đạt endpoint cho lượt này. Đây chưa phải benchmark WER.

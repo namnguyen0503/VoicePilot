@@ -36,7 +36,7 @@ A floating overlay (about 520 px, dark theme, draggable) shows the mode, the tar
 
 ```mermaid
 flowchart LR
-    H["Hotkey<br/>Ctrl+Alt+Space"] --> A["Audio capture<br/>sounddevice + WebRTC VAD"]
+    H["Hotkey<br/>Ctrl+Alt+Space"] --> A["Audio capture<br/>sounddevice + Silero VAD"]
     A --> S{"STT hybrid"}
     S -->|"first, 2 s budget"| G["Google vi-VN"]
     S -->|"fallback or parallel"| O["Gipformer 1.5 INT8<br/>sherpa-onnx, CPU"]
@@ -58,7 +58,8 @@ Key design points:
 ## Tech stack
 
 - **Language and UI:** Python 3.12, PySide6 (Qt 6) Widgets, custom stylesheet.
-- **Audio:** sounddevice (PortAudio), WebRTC VAD endpointing, numpy resampling to 16 kHz mono.
+- **Audio:** sounddevice (PortAudio), offline Silero v6 VAD through sherpa-onnx, WebRTC fallback,
+  numpy resampling to 16 kHz mono. Brief noise votes do not restart the full silence timer.
 - **Speech recognition:** SpeechRecognition (Google web endpoint) and sherpa-onnx for Gipformer 1.5 68M INT8.
 - **Text to speech:** Piper voice `vi_VN-vais1000-medium` run by sherpa-onnx (VITS), with espeak-ng phonemization. sherpa-onnx ships the only onnxruntime in the process, so there is no separate `onnxruntime` or `piper-tts` package.
 - **Windows integration:** pywin32 (COM for PowerPoint, `SendInput` for keystrokes), ctypes for window inspection and `ShellExecute`, `mss` for screenshots.

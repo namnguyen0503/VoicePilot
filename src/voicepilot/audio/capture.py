@@ -13,6 +13,7 @@ from typing import Any, Protocol
 
 import numpy as np
 
+from voicepilot.audio.neural_vad import load_speech_detector
 from voicepilot.audio.vad import (
     FRAME_SAMPLES,
     SAMPLE_RATE,
@@ -31,7 +32,6 @@ _CUTOFF_FRACTION = 0.9  # passband edge as a fraction of the lower Nyquist frequ
 _POLL_S = 0.05  # how often record() re-checks stop and cancel events
 _STALL_S = 2.0  # no audio for this long means the device stopped delivering
 _LEVEL_INTERVAL_S = 0.05
-_NOISE_MARGIN_DB = 8.0  # speech must be this much louder than the background (real VAD only)
 
 
 class InputStreamLike(Protocol):
@@ -210,7 +210,7 @@ class Recorder:
             stream_factory: Test seam. Called as factory(samplerate=, device=, callback=)
                 and must return an object with start(), stop() and close().
             input_rate: Device sample rate. Queried from sounddevice when None.
-            is_speech: Speech predicate for 30 ms frames. Defaults to webrtcvad.
+            is_speech: Speech predicate for 30 ms frames. Defaults to bundled Silero.
         """
         self._config = config
         self._on_level = on_level
@@ -218,6 +218,8 @@ class Recorder:
         self._stream_factory = stream_factory or _sounddevice_stream
         self._input_rate = input_rate
         self._is_speech = is_speech
+        self._detector: SpeechPredicate | None = None
+        self._noise_margin_db: float | None = None
 
     def record(
         self,
@@ -243,13 +245,23 @@ class Recorder:
         rate = self._input_rate if self._input_rate is not None else _device_samplerate(self._device)
         chunks: queue.SimpleQueue[np.ndarray] = queue.SimpleQueue()
         use_vad = self._config.vad_enabled
+        predicate = self._is_speech
+        margin = None
+        if use_vad and predicate is None:
+            if self._detector is None:
+                self._detector, self._noise_margin_db = load_speech_detector()
+            predicate, margin = self._detector, self._noise_margin_db
+            reset = getattr(predicate, "reset", None)
+            if reset is not None:
+                reset()
         endpointer = Endpointer(
             silence_end_ms=self._config.silence_end_ms,
             max_duration_ms=max_s * 1000,
             no_speech_timeout_ms=round(self._config.no_speech_timeout_s * 1000),
             # VAD off: every frame counts as speech, so the hotkey (stop) or max duration ends the clip.
-            is_speech=self._is_speech if use_vad else _always_speech,
-            noise_margin_db=_NOISE_MARGIN_DB if use_vad and self._is_speech is None else None,
+            is_speech=predicate if use_vad else _always_speech,
+            noise_margin_db=margin,
+            resume_speech_frames=3 if use_vad and self._is_speech is None and margin is None else 1,
         )
         source = _FrameSource(rate)
         stream = self._open(rate, chunks.put)
