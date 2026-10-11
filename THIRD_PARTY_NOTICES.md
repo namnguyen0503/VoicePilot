@@ -25,6 +25,7 @@ The versions below are pinned in `requirements.lock`. The list was compiled on 2
 | tomli-w | 1.2.0 | MIT | https://github.com/hukkin/tomli-w |
 | cffi (sounddevice dependency) | 2.1.1 | MIT-0 (MIT No Attribution), verified in the installed wheel and versioned LICENSE | https://raw.githubusercontent.com/python-cffi/cffi/v2.1.1/LICENSE |
 | pycparser (cffi dependency) | 3.1 | BSD-3-Clause, verified in the installed wheel's LICENSE and metadata | https://github.com/eliben/pycparser |
+| PyWinRT runtime and Windows.Media.Control / Foundation / Foundation.Collections / Media / Storage.Streams projections | 3.2.1 | MIT | https://github.com/pywinrt/pywinrt |
 | typing-extensions | 4.16.0 | Python Software Foundation License 2.0 | https://github.com/python/typing_extensions |
 
 Note on GPL components: espeak-ng (GPL-3.0) is compiled into the sherpa-onnx-core native library, and its data files (`espeak-ng-data`) ship in the voice archive below. Because of this VoicePilot as a whole is GPL-3.0-or-later. The Piper voice itself is a model file, not a linked library. The SpeechRecognition FLAC binary is GPL-2.0; it is shipped as a separate program that the application runs, not linked into it.

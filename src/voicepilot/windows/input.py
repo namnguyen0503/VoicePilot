@@ -88,6 +88,8 @@ _EXTENDED_KEYS = frozenset(
 )
 
 _NAMED_KEYS: dict[str, int] = {
+    "volumeup": 0xAF,
+    "volumedown": 0xAE,
     "ctrl": VK_CONTROL,
     "control": VK_CONTROL,
     "alt": VK_MENU,

@@ -205,3 +205,15 @@ TODO sau v1: **Linux**, thao tác Word/Excel, tạo và sửa slide qua COM, gi�
   vào lượt tiếp theo; lượt đang nghe giữ snapshot cũ. Một lượt thực hiện một hành động.
 - Harness acceptance được tạo/chạy trước code; kiểm tra CRUD, lưu/nạp, nhập/xuất,
   16 hành động qua bốn đường STT, focus/cancel và tác động native trên fixture riêng.
+
+
+## Bổ sung theo yêu cầu Nam ngày 2026-10-11
+
+- Hai tab Voice/Text; Enter/nút gửi dùng cùng pipeline, tắt thu âm trong Text.
+- Đổi Ra lệnh/Chính tả khi đang ghi giữ PCM, dùng chế độ mới cho cả lượt;
+  khi đã nhận dạng/thực thi thì hủy lượt cũ.
+- Cài đặt tab khi mở lại: Voice mặc định, nhớ lựa chọn cuối hoặc luôn mở Text.
+- Hướng dẫn sử dụng trong cửa sổ riêng, có danh mục/tìm kiếm/phím tắt thực tế.
+- Chín hành động Windows mới: Power saver (Nam chốt chuyển power plan), độ sáng
+  tăng/giảm 10 điểm phần trăm, âm lượng tăng/giảm, media Play/Pause/Next/Previous qua SMTC.
+- Các hành động mới cũng có trong trình tạo lệnh custom. Wi-Fi/Excel vẫn ngoài phạm vi.

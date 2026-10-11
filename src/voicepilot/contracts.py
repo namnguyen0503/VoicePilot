@@ -110,11 +110,31 @@ class Intent(Enum):
     WIN_SCREENSHOT = "WIN_SCREENSHOT"
     DICTATE_TEXT = "DICTATE_TEXT"
     WIN_HOTKEY = "WIN_HOTKEY"  # custom commands only, no bundled spoken pattern
+    WIN_POWER_SAVER = "WIN_POWER_SAVER"
+    WIN_BRIGHTNESS_DOWN = "WIN_BRIGHTNESS_DOWN"
+    WIN_BRIGHTNESS_UP = "WIN_BRIGHTNESS_UP"
+    WIN_VOLUME_DOWN = "WIN_VOLUME_DOWN"
+    WIN_VOLUME_UP = "WIN_VOLUME_UP"
+    MEDIA_PLAY = "MEDIA_PLAY"
+    MEDIA_PAUSE = "MEDIA_PAUSE"
+    MEDIA_NEXT = "MEDIA_NEXT"
+    MEDIA_PREVIOUS = "MEDIA_PREVIOUS"
     UNKNOWN = "UNKNOWN"
 
 
 # The original fifteen v1 features; user-only actions are tested separately.
-BUILTIN_INTENTS = frozenset(Intent) - {Intent.UNKNOWN, Intent.WIN_HOTKEY}
+SYSTEM_INTENTS = frozenset({
+    Intent.WIN_POWER_SAVER,
+    Intent.WIN_BRIGHTNESS_DOWN,
+    Intent.WIN_BRIGHTNESS_UP,
+    Intent.WIN_VOLUME_DOWN,
+    Intent.WIN_VOLUME_UP,
+    Intent.MEDIA_PLAY,
+    Intent.MEDIA_PAUSE,
+    Intent.MEDIA_NEXT,
+    Intent.MEDIA_PREVIOUS,
+})
+BUILTIN_INTENTS = frozenset(Intent) - {Intent.UNKNOWN, Intent.WIN_HOTKEY} - SYSTEM_INTENTS
 
 
 @dataclass(frozen=True)

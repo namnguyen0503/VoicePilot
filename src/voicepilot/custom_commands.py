@@ -30,6 +30,17 @@ ACTIONS = {
     "BROWSER_NEW_TAB": ("Trình duyệt: tab mới", {}),
     "BROWSER_CLOSE_TAB": ("Trình duyệt: đóng tab", {}),
 }
+ACTIONS.update({
+    "WIN_POWER_SAVER": ("Windows: tiết kiệm pin (Power saver)", {}),
+    "WIN_BRIGHTNESS_DOWN": ("Windows: giảm độ sáng", {}),
+    "WIN_BRIGHTNESS_UP": ("Windows: tăng độ sáng", {}),
+    "WIN_VOLUME_DOWN": ("Windows: giảm âm lượng", {}),
+    "WIN_VOLUME_UP": ("Windows: tăng âm lượng", {}),
+    "MEDIA_PLAY": ("Media: phát / tiếp tục", {}),
+    "MEDIA_PAUSE": ("Media: tạm dừng", {}),
+    "MEDIA_NEXT": ("Media: bài tiếp theo", {}),
+    "MEDIA_PREVIOUS": ("Media: bài trước", {}),
+})
 CONTEXTS = {
     "any": "Mọi ứng dụng",
     "powerpoint": "PowerPoint",

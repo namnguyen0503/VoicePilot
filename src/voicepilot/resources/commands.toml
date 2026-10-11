@@ -302,3 +302,48 @@ example = "Chụp màn hình"
 [[intent]]
 name = "DICTATE_TEXT"
 example = "Nói nội dung cần chèn vào con trỏ"
+
+[[intent]]
+name = "WIN_POWER_SAVER"
+patterns = ["bật chế độ tiết kiệm pin", "bật tiết kiệm pin", "tiết kiệm pin", "bật power saver"]
+example = "bật chế độ tiết kiệm pin"
+
+[[intent]]
+name = "WIN_BRIGHTNESS_DOWN"
+patterns = ["giảm độ sáng", "giảm độ sáng màn hình", "giảm sáng", "tối màn hình hơn"]
+example = "giảm độ sáng"
+
+[[intent]]
+name = "WIN_BRIGHTNESS_UP"
+patterns = ["tăng độ sáng", "tăng độ sáng màn hình", "tăng sáng", "sáng màn hình hơn"]
+example = "tăng độ sáng"
+
+[[intent]]
+name = "WIN_VOLUME_DOWN"
+patterns = ["giảm âm lượng", "giảm volume", "giảm tiếng", "nhỏ tiếng hơn", "volume down"]
+example = "giảm âm lượng"
+
+[[intent]]
+name = "WIN_VOLUME_UP"
+patterns = ["tăng âm lượng", "tăng volume", "tăng tiếng", "to tiếng hơn", "volume up"]
+example = "tăng âm lượng"
+
+[[intent]]
+name = "MEDIA_PLAY"
+patterns = ["play", "phát nhạc", "tiếp tục phát nhạc", "bật nhạc"]
+example = "play"
+
+[[intent]]
+name = "MEDIA_PAUSE"
+patterns = ["pause", "tạm dừng nhạc", "dừng nhạc", "tạm dừng phát nhạc"]
+example = "pause"
+
+[[intent]]
+name = "MEDIA_NEXT"
+patterns = ["bài tiếp theo", "bài kế tiếp", "next", "next bài", "next track", "chuyển bài tiếp", "bài tiếp"]
+example = "bài tiếp theo"
+
+[[intent]]
+name = "MEDIA_PREVIOUS"
+patterns = ["bài trước", "bài trước đó", "previous", "previous bài", "previous track", "quay lại bài trước"]
+example = "bài trước"

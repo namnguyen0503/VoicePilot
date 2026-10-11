@@ -238,7 +238,9 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
             return Mock(Presentations=collection)
         ppt = PowerPointController(app_source=source, apartment=contextlib.nullcontext,
                                    context_provider=provider, timeout_s=2)
-    executor = WindowsExecutor(config, provider, powerpoint=ppt, keys=keys)
+    system = Mock()
+    system.execute.return_value = ActionResult(ResultStatus.OK, "Đã thực hiện.")
+    executor = WindowsExecutor(config, provider, powerpoint=ppt, keys=keys, system_controls=system)
     controller = Controller(config, recorder, transcriber, parser, executor, speaker, provider)
     results, transcripts = [], []
     controller.result_ready.connect(results.append)
@@ -295,6 +297,9 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
                 launch.assert_called_once_with(params["app"])
             elif intent is Intent.WIN_SCREENSHOT:
                 screenshot.assert_called_once_with(ctx, hide_overlay=None)
+            elif (intent.value.startswith(("MEDIA_", "WIN_BRIGHTNESS_", "WIN_VOLUME_"))
+                  or intent.value == "WIN_POWER_SAVER"):
+                system.execute.assert_called_once_with(intent, cancel_token)
             elif intent is Intent.WIN_HOTKEY:
                 keys.send_hotkey.assert_called_once_with(*params["keys"].split("+"))
             else:
@@ -305,7 +310,8 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
                     require(selected_modes == [Mode.DICTATION], "Dictation decoder was not selected")
             if intent is not Intent.DICTATE_TEXT or custom_commands:
                 speaker.speak.assert_called_once_with(results[0].message_vi)
-            effects = sum(mock.call_count for mock in (launch, screenshot, url, keys.send_hotkey,
+            effects = sum(mock.call_count for mock in (system.execute, launch, screenshot, url,
+                          keys.send_hotkey,
                           keys.type_unicode, *(getattr(ppt, name) for name in PPT_METHODS.values())))
             require(effects == 1, "Turn executed more than one effect")
             require(provider.capture.call_count == 1, "Target was not captured once at turn start")

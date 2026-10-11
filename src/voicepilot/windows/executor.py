@@ -15,6 +15,7 @@ from typing import Any, Protocol
 
 from voicepilot.config import AppConfig
 from voicepilot.contracts import (
+    SYSTEM_INTENTS,
     ActionResult,
     AppKind,
     Command,
@@ -27,6 +28,7 @@ from voicepilot.contracts import (
 from voicepilot.windows import browser, desktop
 from voicepilot.windows import input as input_ops
 from voicepilot.windows.powerpoint import PowerPointController
+from voicepilot.windows.system_controls import SystemControls
 
 log = logging.getLogger(__name__)
 
@@ -80,6 +82,7 @@ class WindowsExecutor:
         *,
         powerpoint: PowerPointController | None = None,
         keys: KeySender | None = None,
+        system_controls: SystemControls | None = None,
     ) -> None:
         """Create the executor.
 
@@ -90,6 +93,7 @@ class WindowsExecutor:
             powerpoint: PowerPoint backend. Defaults to a PowerPointController that starts lazily.
             keys: Keystroke backend. Defaults to SendInput.
         """
+        self._system_controls = system_controls if system_controls is not None else SystemControls()
         self._config = config
         self._context = context_provider
         self._hide_overlay = hide_overlay
@@ -115,6 +119,11 @@ class WindowsExecutor:
             Intent.DICTATE_TEXT: self._dictate_text,
             Intent.WIN_HOTKEY: self._hotkey,
         }
+        self._handlers.update(dict.fromkeys(SYSTEM_INTENTS, self._system_action))
+
+    def _system_action(self, command, ctx, cancel) -> ActionResult:
+        return self._guarded(ctx, lambda: self._system_controls.execute(command.intent, cancel),
+                             strict=False, cancel=cancel)
 
     def execute(
         self, command: Command, context: WindowContext, *, cancel: threading.Event | None = None
