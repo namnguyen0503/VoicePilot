@@ -70,6 +70,15 @@ class UserManualWindow(QDialog):
         self._pages = [("Bắt đầu", parts[0])] + [
             (parts[i], "## " + parts[i] + parts[i + 1]) for i in range(1, len(parts), 2)
         ]
+        from voicepilot.builtin_commands import command_table
+        from voicepilot.custom_commands import ACTIONS
+
+        active = "## Prompt hiện tại\n\nCác cách gọi đang có hiệu lực sau lần Lưu gần nhất.\n\n"
+        for row in command_table(config.builtin_patterns)["intent"]:
+            if row.get("patterns"):
+                active += "### " + ACTIONS[row["name"]][0] + "\n\n"
+                active += "\n".join("- " + pattern for pattern in row["patterns"]) + "\n\n"
+        self._pages.append(("Prompt hiện tại", active))
         self._sections.clear()
         self._sections.addItems([title for title, _ in self._pages])
         self._sections.setCurrentRow(0)

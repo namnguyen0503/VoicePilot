@@ -15,6 +15,8 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QLabel,
     QLineEdit,
+    QMessageBox,
+    QPushButton,
     QSpinBox,
     QTabWidget,
     QVBoxLayout,
@@ -23,6 +25,7 @@ from PySide6.QtWidgets import (
 
 from voicepilot.config import AppConfig, save_config
 from voicepilot.contracts import SttBackendMode
+from voicepilot.ui.builtin_commands import BuiltinCommandsWidget
 from voicepilot.ui.custom_commands import CustomCommandsWidget
 
 log = logging.getLogger(__name__)
@@ -83,6 +86,7 @@ class SettingsDialog(QDialog):
     """Edit the user-facing settings. Save writes config.toml and emits settings_changed."""
 
     settings_changed = Signal(object)  # AppConfig
+    factory_reset_requested = Signal()
 
     def __init__(self, config: AppConfig, parent: QWidget | None = None) -> None:
         """Build the form from config. Values not shown here are kept as they are."""
@@ -155,9 +159,35 @@ class SettingsDialog(QDialog):
         general.setObjectName("settingsGeneral")
         general.setLayout(form)
         self._custom = CustomCommandsWidget(config.custom_commands, config=config)
+        self._builtin = BuiltinCommandsWidget(config.builtin_patterns)
         tabs = QTabWidget()
         tabs.addTab(general, "Chung")
+        tabs.addTab(self._builtin, "Prompt mặc định")
         tabs.addTab(self._custom, "Lệnh tùy chỉnh")
+        restore = QWidget()
+        restore.setObjectName("settingsRestore")
+        restore_layout = QVBoxLayout(restore)
+        for kind, title, description in (
+            ("prompts", "Khôi phục bộ prompt mặc định",
+             "Hoàn tác cách gọi của các lệnh có sẵn. Giữ nguyên custom và cài đặt khác."),
+            ("settings", "Khôi phục toàn bộ setting",
+             "Đưa mọi cài đặt và prompt có sẵn về mặc định. Giữ nguyên mọi lệnh custom."),
+            ("factory", "Factory reset",
+             "Xóa cấu hình, mọi lệnh custom, log, bản thu debug, lịch sử và cache của app. "
+             "App khởi động lại với cài đặt gốc. Giữ bản cài đặt, model và ảnh chụp của bạn."),
+        ):
+            button = QPushButton(title)
+            button.setObjectName("restore_" + kind)
+            caption = QLabel(description)
+            caption.setWordWrap(True)
+            if kind == "factory":
+                button.clicked.connect(self._confirm_factory_reset)
+            else:
+                button.clicked.connect(lambda _checked=False, k=kind: self.restore_draft(k))
+            restore_layout.addWidget(button)
+            restore_layout.addWidget(caption)
+        restore_layout.addStretch()
+        tabs.addTab(restore, "Khôi phục")
         layout.addWidget(tabs)
         self.resize(860, 680)
         layout.addWidget(self._error)
@@ -185,7 +215,47 @@ class SettingsDialog(QDialog):
             silence_end_ms=self._silence_spin.value(),
             gipformer_threads=self._threads_spin.value(),
             custom_commands=self._custom.commands(),
+            builtin_patterns=self._builtin.overrides(),
         )
+
+    def restore_draft(self, kind: str):
+        """Stage reversible resets until Save, preserving custom editor contents."""
+        from voicepilot.restore import restored_config
+
+        if kind == "prompts":
+            self._builtin.reset_all()
+        elif kind == "settings":
+            try:
+                custom = self._custom.commands()
+            except ValueError as exc:
+                self._error.setText(str(exc))
+                return
+            self._config = restored_config(replace(self._config, custom_commands=custom), kind)
+            config = self._config
+            self._listen_edit.setText(config.hotkey_listen)
+            self._mode_edit.setText(config.hotkey_mode)
+            self._stt_combo.setCurrentIndex(self._stt_combo.findData(config.stt_mode))
+            self._input_policy_combo.setCurrentIndex(self._input_policy_combo.findData(config.input_policy))
+            self._tts_check.setChecked(config.tts_enabled)
+            self._vad_check.setChecked(config.vad_enabled)
+            self._silence_spin.setValue(config.silence_end_ms)
+            self._threads_spin.setValue(config.gipformer_threads)
+            self._custom._config = config
+            self._builtin.reset_all()
+        else:
+            raise ValueError("Unknown draft reset")
+        self._error.setText("Đã khôi phục bản nháp. Nhấn Lưu để áp dụng, Hủy để giữ cấu hình cũ.")
+
+    def _confirm_factory_reset(self):
+        answer = QMessageBox.warning(
+            self, "Factory reset VoicePilot",
+            "Xóa toàn bộ cài đặt, prompt tùy chỉnh, log, bản thu debug và cache của VoicePilot? "
+            "Thao tác không thể hoàn tác. App sẽ khởi động lại với cài đặt gốc.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if answer == QMessageBox.StandardButton.Yes:
+            self.factory_reset_requested.emit()
 
     def accept(self) -> None:
         """Validate, save to config.toml, emit settings_changed and close."""

@@ -85,6 +85,23 @@ def rig(qtbot):
     controller.shutdown()
 
 
+def test_builtin_edit_during_recording_only_changes_next_turn(rig, qtbot):
+    c, recorder, transcriber, executor, _, results = rig
+    transcriber.text = "chụp màn hình"
+    c.toggle_listen()
+    assert recorder.entered.wait(1)
+    config = replace(AppConfig(), builtin_patterns={"WIN_SCREENSHOT": ["ghi ảnh màn hình"]})
+    c.apply_settings(config, recorder, transcriber,
+                     parser=RuleParser({}, {}, builtin_patterns=config.builtin_patterns))
+    recorder.release.set()
+    qtbot.waitUntil(lambda: len(results) == 1, timeout=3000)
+    assert executor.execute.call_args.args[0].intent is Intent.WIN_SCREENSHOT
+    transcriber.text = "ghi ảnh màn hình"
+    c.toggle_listen()
+    qtbot.waitUntil(lambda: len(results) == 2, timeout=3000)
+    assert executor.execute.call_args.args[0].intent is Intent.WIN_SCREENSHOT
+
+
 @pytest.mark.parametrize("initial", [Mode.COMMAND, Mode.DICTATION])
 def test_input_switch_during_capture_keeps_audio_and_uses_latest_mode(rig, qtbot, initial):
     c, r, t, e, _, results = rig

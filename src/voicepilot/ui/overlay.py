@@ -242,6 +242,14 @@ class Overlay(QWidget):
         elif not self._turn_active:
             self.hide()
 
+    def set_position(self, position: tuple[int, int] | None) -> None:
+        """Apply a restored position without showing or activating the overlay."""
+        self._position = position
+        self._placed = False
+        if self.isVisible():
+            self.move(self._initial_position())
+            self._placed = True
+
     def show_bar(self) -> None:
         """Show the bar without activating it. The first show places it near the bottom of the screen."""
         if self._input_channel != "voice":

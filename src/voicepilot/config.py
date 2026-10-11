@@ -63,6 +63,7 @@ class AppConfig:
     website_aliases: dict[str, str] = field(default_factory=dict)
     app_aliases: dict[str, str] = field(default_factory=dict)
     custom_commands: list[dict[str, Any]] = field(default_factory=list)
+    builtin_patterns: dict[str, list[str]] = field(default_factory=dict)
 
 
 def config_dir() -> Path:
@@ -150,7 +151,7 @@ def _from_table(data: Mapping[str, Any]) -> AppConfig:
     """
     kwargs: dict[str, Any] = {}
     for f in fields(AppConfig):
-        if f.name in {*_ALIAS_TABLES.values(), "custom_commands"} or f.name not in data:
+        if f.name in {*_ALIAS_TABLES.values(), "custom_commands", "builtin_patterns"} or f.name not in data:
             continue
         try:
             kwargs[f.name] = _checked_value(f.name, data[f.name])
@@ -164,6 +165,16 @@ def _from_table(data: Mapping[str, Any]) -> AppConfig:
     from voicepilot.custom_commands import load_commands
 
     kwargs["custom_commands"] = load_commands(data.get("custom_commands", []))
+    from voicepilot.builtin_commands import validate_overrides
+
+    kwargs["builtin_patterns"] = {}
+    raw = data.get("builtin_patterns", {})
+    if isinstance(raw, dict):
+        for name, patterns in raw.items():
+            try:
+                kwargs["builtin_patterns"].update(validate_overrides({name: patterns}))
+            except ValueError:
+                log.warning("Invalid built-in patterns; using shipped patterns")
     return AppConfig(**kwargs)
 
 
@@ -239,3 +250,8 @@ def _to_table(cfg: AppConfig) -> dict[str, Any]:
 def opening_input_channel(config: AppConfig) -> str:
     """Choose the input tab when the interaction panel is opened again."""
     return config.last_input_channel if config.input_policy == "remember" else config.input_policy
+
+
+def default_config() -> AppConfig:
+    """Load bundled defaults without consulting the user's configuration."""
+    return _from_table(_load_defaults_table())

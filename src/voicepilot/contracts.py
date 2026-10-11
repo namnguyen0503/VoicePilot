@@ -111,6 +111,7 @@ class Intent(Enum):
     DICTATE_TEXT = "DICTATE_TEXT"
     WIN_HOTKEY = "WIN_HOTKEY"  # custom commands only, no bundled spoken pattern
     WIN_POWER_SAVER = "WIN_POWER_SAVER"
+    WIN_POWER_RESTORE = "WIN_POWER_RESTORE"
     WIN_BRIGHTNESS_DOWN = "WIN_BRIGHTNESS_DOWN"
     WIN_BRIGHTNESS_UP = "WIN_BRIGHTNESS_UP"
     WIN_VOLUME_DOWN = "WIN_VOLUME_DOWN"
@@ -125,6 +126,7 @@ class Intent(Enum):
 # The original fifteen v1 features; user-only actions are tested separately.
 SYSTEM_INTENTS = frozenset({
     Intent.WIN_POWER_SAVER,
+    Intent.WIN_POWER_RESTORE,
     Intent.WIN_BRIGHTNESS_DOWN,
     Intent.WIN_BRIGHTNESS_UP,
     Intent.WIN_VOLUME_DOWN,

@@ -131,3 +131,12 @@ Lần chính tả offline đầu nạp decoder riêng, tăng độ trễ và RAM
 - Chín hành động Windows mới: Power saver (Nam chốt chuyển power plan), độ sáng
   tăng/giảm 10 điểm phần trăm, âm lượng tăng/giảm, media Play/Pause/Next/Previous qua SMTC.
 - Các hành động mới cũng có trong trình tạo lệnh custom. Wi-Fi/Excel vẫn ngoài phạm vi.
+
+## Prompt mặc định, power plan và khôi phục (Nam yêu cầu)
+
+- [x] Bật/tắt Power saver, khôi phục đúng plan cũ qua lần mở app; không ghi đè khi bật lặp.
+- [x] Sửa cách gọi lệnh có sẵn ở Cài đặt, cập nhật parser/hotwords từ lượt tiếp theo.
+- [x] Khôi phục prompt và khôi phục toàn bộ setting đều giữ custom, gồm bản sửa đang nhập.
+- [x] Factory reset xác nhận riêng, xóa dữ liệu app sau khi đóng tiến trình cũ và mở lại.
+- [x] Harness trước code + regression cho lỗi tương phản phát hiện trên Windows thật.
+- [x] Native power plan round trip, factory hai tiến trình trên dữ liệu thử; giữ dữ liệu Nam.

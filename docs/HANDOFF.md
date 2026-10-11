@@ -6,7 +6,7 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
 ## 1. Trạng thái hiện tại
 
 - Đủ 15 chức năng trong PLAN; Nam chốt hoàn thiện v1, để Wi-Fi và Excel ngoài phạm vi lần này.
-- **1512 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
+- **1558 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
   khi sửa app, rồi chạy lại sau sửa. Đủ 15 luồng parser → executor với backend giả lập đều đạt.
 - Harness thêm 60 lượt recorder → Controller → hybrid → parser → executor cho 15 chức năng
   qua bốn đường STT. Đã tái hiện/sửa hai lỗi chọn câu slide trong browser và câu tab trong PowerPoint;
@@ -113,6 +113,29 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
   trong build/input-native-final-dc7a327dc24d48818c90ad7add38a5a3; hệ thống ở build/system-native-final.json; harness và giới hạn ở docs/VERIFICATION.vi.md.
 
 ## 2. Những gì đã làm trong phiên 2026-10-09/10 (theo commit)
+
+Bổ sung theo yêu cầu Nam: `tắt tiết kiệm pin` khôi phục power plan trước khi app bật
+Power saver. Lưu trạng thái riêng `power-state.json` trước tác động; bật lặp không
+ghi đè, tắt sau mở lại app vẫn khôi phục, lỗi khôi phục giữ dữ liệu. Nếu người dùng
+tự đổi plan khác thì giữ lựa chọn đó. Power saver bật từ phiên cũ/bên ngoài mà chưa
+lưu plan trước đó báo thiếu dữ liệu, không đoán Balanced hay plan khác.
+
+Cài đặt có tab **Prompt mặc định** để sửa cách gọi mọi lệnh có sẵn; parser/hotwords
+cùng nhận override ở lượt kế tiếp, custom vẫn ưu tiên. Hướng dẫn trong app có mục
+Prompt hiện tại. Tab **Khôi phục** có ba mức: prompt (giữ custom/setting khác), toàn
+bộ setting (giữ custom), factory (xóa mọi dữ liệu riêng của app, gồm custom/log/clip/
+cache). Hai mức đầu là bản nháp chờ Lưu; giữ cả custom đang sửa. Factory xác nhận
+riêng, hủy lượt, đóng app và chờ tiến trình cũ thoát trước xóa/mở log, rồi mở lại với
+cài đặt gốc. Khôi phục power plan đã lưu trước khi xóa trạng thái; không xóa binaries,
+models hay Pictures/VoicePilot. Chặn reset nhầm thư mục dùng chung/cài đặt/liên kết.
+
+Harness `tools/verify_restore_features.py` tạo trước code: 23 fail trước triển khai,
+36 pass sau. `tools/verify_restore_native.py` kiểm PowrProf thật, bật lặp/khôi phục
+qua manager mới, factory trên dữ liệu thử với đóng/mở hai tiến trình và Qt Windows.
+Đã tái hiện nhãn đen trên nền tối ở hai tab mới; regression fail trước sửa, đạt sau.
+Bằng chứng native: `build/restore-native-8817bc03308d406cadd06d3e7b7e77bd`.
+TTS bật lại được khi app khởi đầu tắt TTS; reset history limit/overlay position cũng
+có kiểm chứng. Dữ liệu đang dùng của Nam không bị reset trong harness.
 
 Cập nhật tự dừng ngày 2026-10-11: Nam báo nền ồn làm không dừng. Harness mới tạo trước
 code tái hiện 31/80 lỗi; mở rộng đối chứng 96 checks: cũ 49, mới 86 đạt. Recorder nay dùng

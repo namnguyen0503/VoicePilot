@@ -93,7 +93,8 @@ câu hỏi chỉ được chèn thành văn bản.
 |---|---|---|
 | Mở ứng dụng | `mở word`, `mở excel`, `mở powerpoint`, `khởi động notepad`, `chạy máy tính`, `mở ứng dụng Word` | Chạy từ mọi cửa sổ. Tên ứng dụng phải có trong danh sách bên dưới. Chỉ nói "mở" sẽ được hỏi lại. |
 | Chụp màn hình | `chụp màn hình`, `chụp ảnh màn hình`, `chụp màn` | Chạy từ mọi cửa sổ. Ảnh PNG được lưu vào `Pictures\VoicePilot`. |
-| Tiết kiệm pin | `bật chế độ tiết kiệm pin`, `bật tiết kiệm pin`, `bật power saver` | Chuyển power plan Windows sang **Power saver**. Đây là lựa chọn power plan; có thể đổi lại trong Power Options. Nếu máy không hỗ trợ, app báo không khả dụng. |
+| Bật tiết kiệm pin | `bật chế độ tiết kiệm pin`, `bật tiết kiệm pin`, `bật power saver` | Ghi nhớ power plan hiện tại rồi chuyển Windows sang **Power saver**. Bật lại khi đã bật giữ nguyên plan cũ. Nếu máy không hỗ trợ, app báo không khả dụng. |
+| Tắt tiết kiệm pin | `tắt chế độ tiết kiệm pin`, `tắt tiết kiệm pin`, `tắt power saver`, `khôi phục chế độ nguồn` | Khôi phục đúng power plan trước khi VoicePilot bật Power saver, kể cả sau khi mở lại app. Nếu bạn đã tự đổi sang plan khác, app giữ lựa chọn đó. |
 | Giảm độ sáng | `giảm độ sáng`, `giảm độ sáng màn hình` | Giảm 10 điểm phần trăm, giới hạn 0–100%; dành cho màn hình có hỗ trợ WMI, thường là màn hình laptop. |
 | Tăng độ sáng | `tăng độ sáng`, `tăng độ sáng màn hình` | Tăng 10 điểm phần trăm; giá trị thực tế có thể được driver làm tròn. |
 | Giảm âm lượng | `giảm âm lượng`, `giảm volume` | Giảm âm lượng Windows một nấc. |
@@ -106,6 +107,10 @@ câu hỏi chỉ được chèn thành văn bản.
 Các thao tác nhạc dùng API phiên media Windows (SMTC). Cần app phát nhạc đăng ký
 với Windows và hỗ trợ thao tác tương ứng; nếu không có phiên hoặc app từ chối,
 VoicePilot báo rõ. Có thể dùng các hành động này trong **Lệnh tùy chỉnh**.
+
+Power saver là power plan Windows. App lưu plan cũ trước khi đổi và chỉ xóa thông tin
+đó sau khi khôi phục thành công. Nếu Power saver đã bật từ bên ngoài hoặc phiên app cũ
+chưa lưu plan trước đó, app không đoán plan cũ: hãy chọn lại trong Power Options.
 
 ## 4. Đọc chính tả
 
@@ -220,3 +225,33 @@ Nhấn **Lưu** để dùng các thay đổi, **Hủy** để bỏ thay đổi. 
 
 Bộ ví dụ nhập được: `docs/custom-commands.example.json`. Harness:
 `python tools/verify_custom_commands.py`; thêm `--windows` để kiểm fixture native.
+
+## Chỉnh sửa prompt mặc định
+
+Mở **Cài đặt → Prompt mặc định**, chọn lệnh ở bên trái và sửa các cách gọi, mỗi dòng
+một cách. Danh sách bạn nhập thay thế cách gọi có sẵn của riêng lệnh đó. Hành động
+và điều kiện ứng dụng vẫn giữ nguyên. Lệnh cần nội dung phải có ít nhất một mẫu nhận
+tham số được hướng dẫn, ví dụ `hỏi web {query}` cho tìm kiếm hoặc `cất bài {filename}`
+cho lưu thành. Không đổi tên tham số trong ngoặc. Chế độ chính tả vẫn chỉ chèn chữ.
+
+**Khôi phục prompt của lệnh này** hoàn tác riêng lệnh đang chọn. Nhấn **Lưu** để áp
+dụng; **Hủy** bỏ bản nháp. Prompt đã lưu có hiệu lực từ lượt tiếp theo, gồm hotwords
+nhận dạng offline. Hướng dẫn trong app có mục **Prompt hiện tại** để xem cách gọi
+đang có hiệu lực. Custom vẫn được ưu tiên trước các lệnh có sẵn.
+
+## Khôi phục
+
+Mở **Cài đặt → Khôi phục**:
+
+| Tùy chọn | Phạm vi | Lệnh custom |
+|---|---|---|
+| Khôi phục bộ prompt mặc định | Hoàn tác chỉnh sửa cách gọi của mọi lệnh có sẵn. Cài đặt khác giữ nguyên. | Giữ nguyên. |
+| Khôi phục toàn bộ setting | Cài đặt, phím tắt, vị trí thanh nổi, bí danh app/web và prompt có sẵn về mặc định. | Giữ nguyên. |
+| Factory reset | Xóa toàn bộ dữ liệu trong thư mục dữ liệu riêng của VoicePilot: cấu hình, prompt/custom, lịch sử, log, bản thu debug, cache và báo cáo kiểm chứng. Khởi động lại với cài đặt gốc. | Xóa toàn bộ. |
+
+Hai lựa chọn đầu chỉ sửa bản nháp: nhấn **Lưu** để áp dụng, **Hủy** để bỏ. Factory reset
+có hộp xác nhận riêng và thực hiện ngay khi xác nhận; không thể hoàn tác. Nếu app đã
+bật Power saver và còn lưu plan cũ, factory reset khôi phục plan đó trước khi xóa dữ
+liệu. Bản cài đặt, model, tệp tài liệu và ảnh trong `Pictures\VoicePilot` được giữ.
+Phím tắt gốc sau khôi phục setting/factory reset là **Ctrl + Alt + Space** và
+**Ctrl + Alt + D**; bạn có thể sửa lại ở tab Chung.

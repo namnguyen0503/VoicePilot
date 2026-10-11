@@ -8,10 +8,14 @@ from __future__ import annotations
 
 import asyncio
 import ctypes
+import json
+import os
+import tempfile
 import threading
 import time
 import uuid
 from collections.abc import Callable
+from pathlib import Path
 
 from voicepilot.contracts import ActionResult, Intent, ResultStatus
 
@@ -168,33 +172,131 @@ class _Guid(ctypes.Structure):
     ]
 
 
+class NativePowerPlans:
+    """Read and activate a power scheme through the public PowrProf API."""
+
+    def __init__(self):
+        self._api = ctypes.WinDLL("powrprof", use_last_error=True)
+        self._api.PowerSetActiveScheme.argtypes = [ctypes.c_void_p, ctypes.POINTER(_Guid)]
+        self._api.PowerSetActiveScheme.restype = ctypes.c_uint32
+        self._api.PowerGetActiveScheme.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.POINTER(_Guid))]
+        self._api.PowerGetActiveScheme.restype = ctypes.c_uint32
+
+    def get_active(self) -> str:
+        active = ctypes.POINTER(_Guid)()
+        error = self._api.PowerGetActiveScheme(None, ctypes.byref(active))
+        if error:
+            raise OSError(error, "PowerGetActiveScheme failed")
+        try:
+            return str(uuid.UUID(bytes_le=ctypes.string_at(active, 16)))
+        finally:
+            kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+            kernel.LocalFree.argtypes = [ctypes.c_void_p]
+            kernel.LocalFree.restype = ctypes.c_void_p
+            kernel.LocalFree(active)
+
+    def set_active(self, value: str) -> None:
+        guid = _Guid.from_buffer_copy(uuid.UUID(value).bytes_le)
+        error = self._api.PowerSetActiveScheme(None, ctypes.byref(guid))
+        if error:
+            raise OSError(error, "PowerSetActiveScheme failed")
+
+
+_POWER_LOCK = threading.RLock()
+
+
+class PowerPlanManager:
+    """Persist the previous scheme before activating Power saver; restore across restarts."""
+
+    def __init__(self, *, api=None, state_path: Path | None = None):
+        from voicepilot.config import config_dir
+
+        self._api = api
+        self._state_path = state_path if state_path is not None else config_dir() / "power-state.json"
+
+    def _backend(self):
+        if self._api is None:
+            self._api = NativePowerPlans()
+        return self._api
+
+    def _previous(self) -> str | None:
+        if not self._state_path.exists():
+            return None
+        raw = json.loads(self._state_path.read_text(encoding="utf-8"))
+        previous = str(uuid.UUID(raw["previous"]))
+        if previous == POWER_SAVER_GUID:
+            raise ValueError("Previous plan must differ from Power saver")
+        return previous
+
+    def _save_previous(self, previous: str):
+        self._state_path.parent.mkdir(parents=True, exist_ok=True)
+        temporary = None
+        try:
+            with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False,
+                                             dir=self._state_path.parent, suffix=".tmp") as file:
+                temporary = Path(file.name)
+                json.dump({"previous": previous}, file)
+                file.flush()
+                os.fsync(file.fileno())
+            os.replace(temporary, self._state_path)
+        finally:
+            if temporary is not None:
+                temporary.unlink(missing_ok=True)
+
+    def enable(self, cancel=None) -> ActionResult:
+        with _POWER_LOCK:
+            try:
+                if result := cancelled(cancel):
+                    return result
+                api = self._backend()
+                current = api.get_active()
+                if current == POWER_SAVER_GUID:
+                    return ActionResult(ResultStatus.OK, "Power saver đang bật.")
+                self._save_previous(current)
+                if result := cancelled(cancel):
+                    return result
+                api.set_active(POWER_SAVER_GUID)
+                if api.get_active() != POWER_SAVER_GUID:
+                    return ActionResult(ResultStatus.ERROR, "Không xác nhận được Power saver.",
+                                        "power_verify_failed")
+                return ActionResult(ResultStatus.OK, "Đã bật Power saver.")
+            except (OSError, ValueError, KeyError, TypeError):
+                return ActionResult(ResultStatus.NOT_AVAILABLE,
+                                    "Không bật được Power saver; chưa mất cấu hình nguồn trước đó.",
+                                    "power_saver_unavailable")
+
+    def restore(self, cancel=None) -> ActionResult:
+        with _POWER_LOCK:
+            try:
+                if result := cancelled(cancel):
+                    return result
+                previous = self._previous()
+                api = self._backend()
+                current = api.get_active()
+                if current != POWER_SAVER_GUID:
+                    self._state_path.unlink(missing_ok=True)
+                    return ActionResult(ResultStatus.OK, "Power saver đã tắt.")
+                if previous is None:
+                    return ActionResult(ResultStatus.NOT_AVAILABLE,
+                                        "Chưa có power plan cũ để khôi phục. Hãy chọn trong Power Options.",
+                                        "power_previous_missing")
+                if result := cancelled(cancel):
+                    return result
+                api.set_active(previous)
+                if api.get_active() != previous:
+                    return ActionResult(ResultStatus.ERROR, "Chưa khôi phục được power plan cũ.",
+                                        "power_verify_failed")
+                self._state_path.unlink(missing_ok=True)
+                return ActionResult(ResultStatus.OK, "Đã tắt Power saver và khôi phục power plan cũ.")
+            except (OSError, ValueError, KeyError, TypeError):
+                return ActionResult(ResultStatus.ERROR,
+                                    "Không khôi phục được power plan; thông tin cũ vẫn được giữ.",
+                                    "power_restore_failed")
+
+
 def power_saver(cancel=None) -> ActionResult:
-    """Activate and verify the standard Power saver plan through PowrProf."""
-    api = ctypes.WinDLL("powrprof", use_last_error=True)
-    api.PowerSetActiveScheme.argtypes = [ctypes.c_void_p, ctypes.POINTER(_Guid)]
-    api.PowerSetActiveScheme.restype = ctypes.c_uint32
-    api.PowerGetActiveScheme.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.POINTER(_Guid))]
-    api.PowerGetActiveScheme.restype = ctypes.c_uint32
-    guid = _Guid.from_buffer_copy(uuid.UUID(POWER_SAVER_GUID).bytes_le)
-    if result := cancelled(cancel):
-        return result
-    if api.PowerSetActiveScheme(None, ctypes.byref(guid)) != 0:
-        return ActionResult(
-            ResultStatus.NOT_AVAILABLE, "Không bật được Power saver trên máy này.", "power_saver_unavailable"
-        )
-    active = ctypes.POINTER(_Guid)()
-    if api.PowerGetActiveScheme(None, ctypes.byref(active)) != 0:
-        return ActionResult(ResultStatus.ERROR, "Không xác nhận được Power saver.", "power_verify_failed")
-    try:
-        matches = ctypes.string_at(active, 16) == uuid.UUID(POWER_SAVER_GUID).bytes_le
-    finally:
-        kernel = ctypes.WinDLL("kernel32", use_last_error=True)
-        kernel.LocalFree.argtypes = [ctypes.c_void_p]
-        kernel.LocalFree.restype = ctypes.c_void_p
-        kernel.LocalFree(active)
-    if not matches:
-        return ActionResult(ResultStatus.ERROR, "Không bật được Power saver.", "power_verify_failed")
-    return ActionResult(ResultStatus.OK, "Đã bật Power saver.")
+    """Compatibility entry point for activating Power saver."""
+    return PowerPlanManager().enable(cancel)
 
 
 def init_media_apartment() -> None:
@@ -217,6 +319,8 @@ class SystemControls:
             return result
         if intent is Intent.WIN_POWER_SAVER:
             return power_saver(cancel)
+        if intent is Intent.WIN_POWER_RESTORE:
+            return PowerPlanManager().restore(cancel)
         if intent in {Intent.WIN_BRIGHTNESS_UP, Intent.WIN_BRIGHTNESS_DOWN}:
             return adjust_brightness(10 if intent is Intent.WIN_BRIGHTNESS_UP else -10, cancel=cancel)
         if intent in {Intent.WIN_VOLUME_UP, Intent.WIN_VOLUME_DOWN}:

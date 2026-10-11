@@ -32,6 +32,7 @@ ACTIONS = {
 }
 ACTIONS.update({
     "WIN_POWER_SAVER": ("Windows: tiết kiệm pin (Power saver)", {}),
+    "WIN_POWER_RESTORE": ("Windows: tắt tiết kiệm pin (khôi phục power plan)", {}),
     "WIN_BRIGHTNESS_DOWN": ("Windows: giảm độ sáng", {}),
     "WIN_BRIGHTNESS_UP": ("Windows: tăng độ sáng", {}),
     "WIN_VOLUME_DOWN": ("Windows: giảm âm lượng", {}),

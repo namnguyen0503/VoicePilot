@@ -287,6 +287,7 @@ class CustomCommandsWidget(QWidget):
                 self._config.website_aliases if self._config else {},
                 self._config.app_aliases if self._config else {},
                 custom_commands=items,
+                builtin_patterns=self._config.builtin_patterns if self._config else {},
             ).parse(self._try_text.text(), ctx, Mode.COMMAND)
             name = next((item["name"] for item in items if item["id"] == command.custom_id), "Lệnh có sẵn")
             if command.is_executable:

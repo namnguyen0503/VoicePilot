@@ -202,3 +202,25 @@ Nam cho thu 20 s từ Realtek ngày 2026-10-11: `build/live-endpoint-1/microphon
 ở các lượt hoàn chỉnh; offline đọc được mở YouTube và chụp màn hình. Tiếng bíp đầu clip
 bị WebRTC nhận là lượt nói, Silero bỏ qua. Lượt cuối còn đang nói khi hết 20 s không có
 nhãn kết thúc; không đánh dấu lỗi/đạt endpoint cho lượt này. Đây chưa phải benchmark WER.
+
+## Prompt và khôi phục
+
+Chạy `python tools/verify_restore_features.py`: pytest acceptance được viết/chạy trước
+implementation (23 fail), sau triển khai 36 checks đạt. Toàn bộ fixture nằm trong
+`build/restore-harness-*`, không đọc/xóa dữ liệu đang dùng. Kiểm persistence, parser,
+hotwords, snapshot lượt, giữ custom qua hai mức reset, custom đang sửa chỉ lưu khi
+nhấn Lưu, factory confirmation, lỗi power/state, path guard và privacy.
+
+`python tools/verify_restore_native.py` cần Windows. PowrProf bật Power saver lặp,
+manager mới tắt/khôi phục, cuối probe trả về plan lúc bắt đầu. App nguồn thật chạy
+trong thư mục dữ liệu riêng có custom và fixture private; signal factory đóng app,
+child chờ parent thoát, xóa dữ liệu rồi mở lại với config gốc. Kiểm log/fixture cũ bị
+xóa, default hotkeys/custom/overrides và process exit code. Không phát lệnh/thu micro.
+Qt Windows chụp hai tab mới; chữ đen trên nền tối đã tái hiện và có regression trước
+sửa. Bằng chứng sau sửa: `build/restore-native-8817bc03308d406cadd06d3e7b7e77bd`.
+
+Khởi động lại EXE dùng `PYINSTALLER_RESET_ENVIRONMENT=1` theo
+[hướng dẫn PyInstaller](https://pyinstaller.org/en/stable/common-issues-and-pitfalls.html#using-sys-executable-to-spawn-subprocesses-that-outlive-the-application-process-implementing-application-restart),
+để child là instance độc lập. Fixture kiểm riêng source/frozen argv và giữ --debug.
+Native factory đã kiểm bản nguồn; selftest runtime của EXE là kiểm bundle/ASR/TTS/VAD,
+không thay thế kiểm thao tác từ micro hay benchmark giọng Nam.

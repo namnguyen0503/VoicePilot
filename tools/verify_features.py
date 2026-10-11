@@ -28,6 +28,7 @@ from unittest.mock import Mock, patch
 
 from voicepilot.config import load_config
 from voicepilot.contracts import (
+    SYSTEM_INTENTS,
     ActionResult,
     AppKind,
     Intent,
@@ -298,7 +299,7 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
             elif intent is Intent.WIN_SCREENSHOT:
                 screenshot.assert_called_once_with(ctx, hide_overlay=None)
             elif (intent.value.startswith(("MEDIA_", "WIN_BRIGHTNESS_", "WIN_VOLUME_"))
-                  or intent.value == "WIN_POWER_SAVER"):
+                  or intent in SYSTEM_INTENTS):
                 system.execute.assert_called_once_with(intent, cancel_token)
             elif intent is Intent.WIN_HOTKEY:
                 keys.send_hotkey.assert_called_once_with(*params["keys"].split("+"))

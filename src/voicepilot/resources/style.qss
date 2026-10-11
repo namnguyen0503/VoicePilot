@@ -135,6 +135,8 @@ QToolTip {
 
 
 QWidget#customCommands,
+QWidget#builtinCommands,
+QWidget#settingsRestore,
 QWidget#customCommandForm,
 QWidget#settingsGeneral {
     background-color: #0f172a;
@@ -142,11 +144,14 @@ QWidget#settingsGeneral {
 }
 
 QWidget#customCommands QLabel,
+QWidget#builtinCommands QLabel,
+QWidget#settingsRestore QLabel,
 QWidget#settingsGeneral QLabel {
     color: #f9fafb;
 }
 
-QWidget#customCommands QLabel#settingsError {
+QWidget#customCommands QLabel#settingsError,
+QWidget#builtinCommands QLabel#settingsError {
     color: #f87171;
 }
 

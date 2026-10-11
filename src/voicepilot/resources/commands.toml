@@ -309,6 +309,11 @@ patterns = ["bật chế độ tiết kiệm pin", "bật tiết kiệm pin", "t
 example = "bật chế độ tiết kiệm pin"
 
 [[intent]]
+name = "WIN_POWER_RESTORE"
+patterns = ["tắt chế độ tiết kiệm pin", "tắt tiết kiệm pin", "tắt power saver", "khôi phục chế độ nguồn"]
+example = "tắt tiết kiệm pin"
+
+[[intent]]
 name = "WIN_BRIGHTNESS_DOWN"
 patterns = ["giảm độ sáng", "giảm độ sáng màn hình", "giảm sáng", "tối màn hình hơn"]
 example = "giảm độ sáng"

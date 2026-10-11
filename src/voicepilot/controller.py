@@ -444,6 +444,8 @@ class Controller(QObject):
         self._pending = None
         previous = self._transcriber
         self._config = pending.config
+        if self._history.maxlen != pending.config.history_size:
+            self._history = collections.deque(self._history, maxlen=pending.config.history_size)
         self._recorder = pending.recorder
         self._transcriber = pending.transcriber
         if pending.parser is not None:

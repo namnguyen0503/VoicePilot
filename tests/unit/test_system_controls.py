@@ -12,6 +12,7 @@ from voicepilot.intent.parser import RuleParser
 
 PHRASES = {
     "bật chế độ tiết kiệm pin": "WIN_POWER_SAVER",
+    "tắt tiết kiệm pin": "WIN_POWER_RESTORE",
     "giảm độ sáng": "WIN_BRIGHTNESS_DOWN",
     "tăng độ sáng": "WIN_BRIGHTNESS_UP",
     "giảm âm lượng": "WIN_VOLUME_DOWN",

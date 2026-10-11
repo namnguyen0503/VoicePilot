@@ -217,3 +217,16 @@ TODO sau v1: **Linux**, thao tác Word/Excel, tạo và sửa slide qua COM, gi�
 - Chín hành động Windows mới: Power saver (Nam chốt chuyển power plan), độ sáng
   tăng/giảm 10 điểm phần trăm, âm lượng tăng/giảm, media Play/Pause/Next/Previous qua SMTC.
 - Các hành động mới cũng có trong trình tạo lệnh custom. Wi-Fi/Excel vẫn ngoài phạm vi.
+
+## Bổ sung theo yêu cầu Nam: prompt và khôi phục
+
+- Power saver có bật/tắt; bật lưu power plan trước đó, tắt khôi phục đúng plan cũ.
+  Trạng thái lưu qua lần mở app; bật lặp không ghi đè, giữ lựa chọn nếu người dùng
+  đã tự đổi plan. Không đoán plan cũ nếu chưa có dữ liệu.
+- Cài đặt cho sửa cách gọi của tất cả lệnh có sẵn; cùng parser/hotwords, có hiệu lực
+  từ lượt tiếp theo. Hành động/tham số/ngữ cảnh thực thi giữ hợp đồng hiện có.
+- Khôi phục bộ prompt mặc định giữ custom và các setting khác.
+- Khôi phục toàn bộ setting đưa cấu hình/prompt có sẵn về gốc, giữ toàn bộ custom.
+- Factory reset xác nhận trong UI rồi đóng/mở lại app; xóa toàn bộ dữ liệu riêng
+  của app, kể cả custom/log/clip/cache. Giữ binaries/models và tệp do app tạo ở ngoài
+  thư mục dữ liệu (ảnh chụp/tài liệu). Khôi phục power plan cũ trước khi xóa trạng thái.

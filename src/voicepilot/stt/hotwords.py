@@ -22,7 +22,8 @@ _OPEN_PREFIX = "mở "
 
 
 def command_phrases(
-    app_aliases: Mapping[str, str], website_aliases: Mapping[str, str], custom_commands: Iterable[dict] = ()
+    app_aliases: Mapping[str, str], website_aliases: Mapping[str, str], custom_commands: Iterable[dict] = (),
+    builtin_patterns: dict[str, list[str]] | None = None,
 ) -> list[str]:
     """Return the sorted, normalized phrases the recognizer should favour.
 
@@ -37,7 +38,13 @@ def command_phrases(
         if item.get("enabled", True)
         for pattern in item.get("patterns", [])
     ]
-    for pattern in [*_command_patterns(), *custom_patterns]:
+    if builtin_patterns:
+        from voicepilot.builtin_commands import command_table
+
+        patterns = [p for row in command_table(builtin_patterns)["intent"] for p in row.get("patterns", [])]
+    else:
+        patterns = _command_patterns()
+    for pattern in [*patterns, *custom_patterns]:
         if _PLACEHOLDER_START not in pattern:
             _add(phrases, pattern)
             continue

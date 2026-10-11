@@ -18,6 +18,8 @@ import argparse
 import contextlib
 import getpass
 import logging
+import os
+import subprocess
 import sys
 import threading
 import tomllib
@@ -86,6 +88,7 @@ _SELFTEST_SENTENCES: tuple[tuple[str, WindowContext | None, Intent], ...] = (
     ("giá vàng hôm nay bao nhiêu", None, Intent.BROWSER_SEARCH),
     ("mở youtube", None, Intent.BROWSER_OPEN_SITE),
     ("bật tiết kiệm pin", None, Intent.WIN_POWER_SAVER),
+    ("tắt tiết kiệm pin", None, Intent.WIN_POWER_RESTORE),
     ("giảm độ sáng", None, Intent.WIN_BRIGHTNESS_DOWN),
     ("tăng độ sáng", None, Intent.WIN_BRIGHTNESS_UP),
     ("giảm âm lượng", None, Intent.WIN_VOLUME_DOWN),
@@ -246,7 +249,8 @@ def _audio_components(
         try:
             from voicepilot.stt.hotwords import command_phrases
 
-            hotwords = command_phrases(config.app_aliases, config.website_aliases, config.custom_commands)
+            hotwords = command_phrases(config.app_aliases, config.website_aliases,
+                                       config.custom_commands, config.builtin_patterns)
         except Exception as exc:
             log.warning("hotword biasing disabled: %s", type(exc).__name__)
             hotwords = []
@@ -289,7 +293,8 @@ def _make_parser(config: AppConfig) -> Any:
         except Exception as exc:
             log.warning("installed app search disabled: %s", type(exc).__name__)
     return RuleParser(
-        config.website_aliases, config.app_aliases, app_finder=finder, custom_commands=config.custom_commands
+        config.website_aliases, config.app_aliases, app_finder=finder, custom_commands=config.custom_commands,
+        builtin_patterns=config.builtin_patterns,
     )
 
 
@@ -297,7 +302,9 @@ def _make_speaker(config: AppConfig) -> Any:
     from voicepilot.paths import models_dir
     from voicepilot.tts.piper import PiperSpeaker
 
-    return PiperSpeaker(models_dir().joinpath(*PIPER_MODEL_FILE), enabled=config.tts_enabled)
+    # The controller gates speech by the current setting, allowing settings restore
+    # to enable TTS even if the app started with it disabled.
+    return PiperSpeaker(models_dir().joinpath(*PIPER_MODEL_FILE), enabled=True)
 
 
 def _windows_components(config: AppConfig, overlay: Overlay) -> tuple[ContextProvider, Executor]:
@@ -543,9 +550,23 @@ class VoicePilot(QObject):
         if self._settings_dialog is None:
             dialog = SettingsDialog(self._config)
             dialog.settings_changed.connect(self._apply_settings)
+            dialog.factory_reset_requested.connect(self._factory_reset)
             dialog.finished.connect(lambda _code, d=dialog: self._on_settings_closed(d))
             self._settings_dialog = dialog
         show_settings_dialog(self._settings_dialog)
+
+    def _factory_reset(self) -> None:
+        from voicepilot.restore import request_factory_reset
+
+        try:
+            request_factory_reset()
+        except (OSError, ValueError) as exc:
+            if self._settings_dialog is not None:
+                self._settings_dialog._error.setText("Không chuẩn bị được factory reset: " + str(exc))
+            return
+        self._restart_requested = True
+        self._controller.cancel()
+        QApplication.instance().quit()
 
     def _on_settings_closed(self, dialog: SettingsDialog) -> None:
         if self._settings_dialog is dialog:
@@ -562,17 +583,23 @@ class VoicePilot(QObject):
             if (
                 config.gipformer_threads == self._config.gipformer_threads
                 and config.custom_commands == self._config.custom_commands
+                and config.builtin_patterns == self._config.builtin_patterns
                 and config.app_aliases == self._config.app_aliases
                 and config.website_aliases == self._config.website_aliases
             )
             else None
         )
+        position_changed = config.overlay_pos != self._config.overlay_pos
         self._config = config
+        if position_changed:
+            self._overlay.set_position(config.overlay_pos)
         recorder, transcriber, self._gipformer = _audio_components(config, self._level_relay.push, reuse)
         self._controller.apply_settings(config, recorder, transcriber, parser=_make_parser(config))
         self._stop_hotkeys()
         self._hotkeys = self._register_hotkeys(config)
         self._tray.set_hotkeys(config.hotkey_listen, config.hotkey_mode)
+        if self._manual is not None:
+            self._manual.set_config(config)
 
     def _on_overlay_moved(self, x: int, y: int) -> None:
         self._config = replace(self._config, overlay_pos=(x, y))
@@ -594,6 +621,7 @@ def _app_version() -> str:
 
 def _build_arg_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog=APP_NAME, description="Vietnamese voice assistant for Windows.")
+    parser.add_argument("--wait-for-exit", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--version", action="store_true", help="print the version and exit")
     parser.add_argument(
         "--selftest",
@@ -825,6 +853,50 @@ def run_selftest(import_names: Sequence[str] | None = None, *, runtime: bool = F
     return 0 if passed and written else 1
 
 
+def _wait_for_previous_process(pid: int) -> None:
+    """Relaunch only after the former app releases workers and open Windows files."""
+    if sys.platform != "win32":
+        raise OSError("Factory restart requires Windows")
+    import ctypes
+    from ctypes import wintypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel.OpenProcess.restype = wintypes.HANDLE
+    kernel.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+    kernel.WaitForSingleObject.restype = wintypes.DWORD
+    kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel.CloseHandle.restype = wintypes.BOOL
+    handle = kernel.OpenProcess(0x100000, False, pid)
+    if not handle:
+        if ctypes.get_last_error() == 87:
+            return
+        raise OSError("Cannot wait for the previous app")
+    try:
+        if kernel.WaitForSingleObject(handle, 60000) != 0:
+            raise OSError("Previous app has not shut down; factory reset postponed")
+    finally:
+        kernel.CloseHandle(handle)
+
+
+def _restart_command(debug: bool) -> list[str]:
+    command = [sys.executable]
+    if not getattr(sys, "frozen", False):
+        command += ["-m", "voicepilot"]
+    if debug:
+        command.append("--debug")
+    return [*command, "--wait-for-exit", str(os.getpid())]
+
+
+def _restart_application(debug: bool) -> None:
+    """Start an independent PyInstaller instance rather than a worker of the old app."""
+    subprocess.Popen(
+        _restart_command(debug),
+        env={**os.environ, "PYINSTALLER_RESET_ENVIRONMENT": "1"},
+        creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
+    )
+
+
 def main(argv: list[str] | None = None) -> int:
     """Run VoicePilot, or answer --version or --selftest without a window, and return the exit code.
 
@@ -838,7 +910,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.selftest or args.selftest_runtime:
         return run_selftest(runtime=args.selftest_runtime)
 
-    setup_logging(debug=args.debug)
+    if args.wait_for_exit is not None:
+        try:
+            _wait_for_previous_process(args.wait_for_exit)
+        except OSError as exc:
+            _emit([str(exc)])
+            return 1
+
     existing = QApplication.instance()
     qt_app = existing if isinstance(existing, QApplication) else QApplication([APP_NAME])
     qt_app.setApplicationName(APP_NAME)
@@ -849,6 +927,16 @@ def main(argv: list[str] | None = None) -> int:
         log.info("another instance is already running")
         QMessageBox.information(None, APP_NAME, "VoicePilot đang chạy.")
         return 0
+
+    from voicepilot.restore import complete_factory_reset
+
+    try:
+        complete_factory_reset()
+    except (OSError, ValueError) as exc:
+        QMessageBox.critical(None, APP_NAME, "Chưa hoàn tất factory reset: " + str(exc))
+        server.close()
+        return 1
+    setup_logging(debug=args.debug)
 
     config = load_config()
     qt_app.setStyleSheet(_load_style())
@@ -867,5 +955,14 @@ def main(argv: list[str] | None = None) -> int:
     )
     app.start()
     code = qt_app.exec()
+    restart = getattr(app, "_restart_requested", False)
     app.shutdown()
+    server.close()
+    if restart:
+        try:
+            _restart_application(args.debug)
+        except OSError:
+            QMessageBox.critical(None, APP_NAME,
+                                 "Không mở lại được VoicePilot. Hãy mở app để hoàn tất factory reset.")
+            return 1
     return code

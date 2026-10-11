@@ -184,6 +184,7 @@ class RuleParser:
         commands_path: Path | None = None,
         app_finder: Callable[[str], str | None] | None = None,
         custom_commands: list[dict] | None = None,
+        builtin_patterns: dict[str, list[str]] | None = None,
     ) -> None:
         """Load and validate the command table, then compile every pattern once.
 
@@ -195,7 +196,16 @@ class RuleParser:
                 context, uses a bad placeholder, or omits a command intent.
         """
         source = str(commands_path) if commands_path is not None else COMMANDS_RESOURCE
-        entries, self._dictation_example = _load_entries(_read_commands(commands_path), source)
+        table = _read_commands(commands_path)
+        if builtin_patterns:
+            if commands_path is not None:
+                raise ValueError("Built-in overrides require the bundled command table")
+            import tomli_w
+
+            from voicepilot.builtin_commands import command_table
+
+            table = tomli_w.dumps(command_table(builtin_patterns))
+        entries, self._dictation_example = _load_entries(table, source)
         self._sites = _AliasTable(website_aliases)
         self._apps = _AliasTable(app_aliases)
         self._app_finder = app_finder

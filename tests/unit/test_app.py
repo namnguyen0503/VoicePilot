@@ -428,6 +428,24 @@ def test_custom_command_change_rebuilds_hotword_model_and_parser(make_app, engin
     assert app._controller._config.custom_commands == [custom]
 
 
+def test_builtin_prompt_change_rebuilds_decoder_and_settings_reset_restores_position(make_app, engines):
+    app = make_app(AppConfig(overlay_pos=(20, 30), history_size=40))
+    app._apply_settings(replace(AppConfig(), builtin_patterns={"WIN_SCREENSHOT": ["ghi ảnh màn hình"]}))
+    assert len(engines.gipformers) == 2
+    assert app._controller._config.builtin_patterns == {"WIN_SCREENSHOT": ["ghi ảnh màn hình"]}
+    assert app._controller._history.maxlen == 20
+    assert app._overlay._position is None
+
+
+def test_tts_can_be_enabled_after_starting_with_disabled_setting(monkeypatch):
+    from voicepilot.tts import piper
+
+    factory = Mock()
+    monkeypatch.setattr(piper, "PiperSpeaker", factory)
+    bootstrap._make_speaker(AppConfig(tts_enabled=False))
+    assert factory.call_args.kwargs["enabled"] is True
+
+
 def test_settings_reveals_native_window_when_startup_hidden_disagrees_with_qt(make_app, monkeypatch):
     import ctypes
     from unittest.mock import Mock
