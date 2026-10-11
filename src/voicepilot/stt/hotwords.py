@@ -21,7 +21,9 @@ _MIN_LITERAL_WORDS = 2
 _OPEN_PREFIX = "mở "
 
 
-def command_phrases(app_aliases: Mapping[str, str], website_aliases: Mapping[str, str]) -> list[str]:
+def command_phrases(
+    app_aliases: Mapping[str, str], website_aliases: Mapping[str, str], custom_commands: Iterable[dict] = ()
+) -> list[str]:
     """Return the sorted, normalized phrases the recognizer should favour.
 
     A pattern without a placeholder is kept whole. A pattern with one keeps only the literal
@@ -29,7 +31,13 @@ def command_phrases(app_aliases: Mapping[str, str], website_aliases: Mapping[str
     "mở {target}" contributes nothing. Each app and website alias adds "mở <key>" and "<key>".
     """
     phrases: set[str] = set()
-    for pattern in _command_patterns():
+    custom_patterns = [
+        pattern
+        for item in custom_commands
+        if item.get("enabled", True)
+        for pattern in item.get("patterns", [])
+    ]
+    for pattern in [*_command_patterns(), *custom_patterns]:
         if _PLACEHOLDER_START not in pattern:
             _add(phrases, pattern)
             continue

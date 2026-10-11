@@ -66,6 +66,8 @@ QLabel#settingsError {
 }
 
 QLineEdit,
+QPlainTextEdit,
+QListWidget,
 QComboBox,
 QSpinBox {
     background-color: #111827;
@@ -129,4 +131,36 @@ QToolTip {
     background-color: #111827;
     color: #f9fafb;
     border: 1px solid #374151;
+}
+
+
+QWidget#customCommands,
+QWidget#customCommandForm,
+QWidget#settingsGeneral {
+    background-color: #0f172a;
+    color: #f9fafb;
+}
+
+QWidget#customCommands QLabel,
+QWidget#settingsGeneral QLabel {
+    color: #f9fafb;
+}
+
+QWidget#customCommands QLabel#settingsError {
+    color: #f87171;
+}
+
+QTabWidget::pane {
+    border: 1px solid #374151;
+    background-color: #0f172a;
+}
+
+QTabBar::tab {
+    background-color: #1f2937;
+    color: #f9fafb;
+    padding: 8px 14px;
+}
+
+QTabBar::tab:selected {
+    background-color: #1e3a8a;
 }

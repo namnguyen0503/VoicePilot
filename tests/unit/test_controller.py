@@ -738,3 +738,23 @@ def test_bare_domain_site_is_a_weak_match_so_an_alias_from_the_other_backend_win
 
     assert rig.transcriber.valid == [valid]
     assert [call.params["url"] for call in rig.executor.calls] == [url]
+
+
+
+def test_parser_update_waits_for_next_turn_and_old_turn_keeps_snapshot(build_rig, qtbot):
+    rig = build_rig()
+    rig.recorder.wait_for_stop = True
+    rig.controller.toggle_listen()
+    qtbot.waitUntil(rig.recorder.started.is_set, timeout=5000)
+    from unittest.mock import Mock
+    parser = Mock()
+    parser.parse.return_value = Command(Intent.BROWSER_SEARCH, "slide tiếp", params={"query": "custom"})
+    rig.controller.apply_settings(AppConfig(), rig.recorder, rig.transcriber, parser=parser)
+    rig.controller.toggle_listen()
+    wait_for_idle(qtbot, rig)
+    assert rig.executor.calls[0].intent is Intent.PPT_NEXT_SLIDE
+    parser.parse.assert_not_called()
+    rig.recorder.wait_for_stop = False
+    rig.controller.toggle_listen()
+    wait_for_idle(qtbot, rig, count=2)
+    assert rig.executor.calls[1].intent is Intent.BROWSER_SEARCH

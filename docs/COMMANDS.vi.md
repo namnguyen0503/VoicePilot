@@ -136,3 +136,45 @@ Nếu VoicePilot không hiểu, thanh nổi sẽ hiện **"Thử nói: …"** k�
 - Kiểm tra cửa sổ đang ở phía trước: lệnh PowerPoint cần PowerPoint, lệnh tab cần Edge hoặc Chrome.
 - Với lệnh cần nội dung (tìm kiếm, lưu thành, mở ứng dụng), nói kèm nội dung, ví dụ "tìm giá vàng" thay vì chỉ "tìm".
 - Nếu tên website hoặc ứng dụng không được nhận, thêm tên đó vào `config.toml` như mô tả ở trên.
+
+
+## Lệnh tùy chỉnh
+
+Mở tray **Cài đặt → Lệnh tùy chỉnh → Thêm**. Nhập tên, cách gọi (mỗi dòng một cách),
+chọn hành động và điền các trường hiện ra. Nhấn **Áp dụng lệnh vào danh sách**, rồi
+**Lưu** ở Cài đặt. Bạn cũng có thể nhấn Lưu trực tiếp để lưu bản sửa đang nhập.
+Không cần sửa code hay nhập API key.
+
+| Cách gọi tự đặt | Hành động | Nội dung cấu hình |
+|---|---|---|
+| `hỏi google về {noidung}` hoặc `tra giá {noidung}` | Tìm Google | `{noidung}` |
+| `xem vàng` | Tìm Google | `giá vàng hôm nay` |
+| `tìm video {noidung}` | Mở website | `https://www.youtube.com/results?search_query={noidung}` |
+| `mở trình soạn thảo` | Mở ứng dụng | `notepad.exe` hoặc chọn tệp `.exe` bằng nút Chọn ứng dụng |
+| `chọn hết` | Nhấn tổ hợp phím | `ctrl+a` |
+| `ký tên` | Chèn văn bản | Chữ ký, có thể nhập nhiều dòng và emoji |
+| `cất bài {ten}` | PowerPoint: lưu tên khác | `{ten}` |
+
+Tên tham số dùng chữ không dấu, số, `_`; bắt đầu bằng chữ. Trong mẫu gọi, đặt khoảng
+trắng quanh `{thamso}`; tối đa 3 tham số khác nhau, có từ phân cách. Mọi cách gọi phải
+cung cấp đủ tham số mà hành động sử dụng. Tối đa 20 cách gọi/lệnh và 200 lệnh.
+Tên tệp/query/văn bản giữ tiếng Việt, chữ hoa và dấu câu. URL tự mã hóa tham số;
+phần host phải cố định. Đường dẫn app và phím không được nhận từ lời nói.
+
+**Ngữ cảnh** giới hạn nhóm cửa sổ; **Chỉ trong ứng dụng** nhận tên như `notepad.exe`
+hoặc `winword.exe`. Các hành động PowerPoint/tab vẫn cần đúng ứng dụng như lệnh v1.
+Tổ hợp phím và chèn văn bản cần cửa sổ đích; đổi focus hoặc hủy lượt sẽ chặn tác động.
+
+**Kiểm tra câu nói** cho xem lệnh/tham số, không chạy thao tác; chọn ngữ cảnh và tên
+exe giả định khi thử. Custom được ưu tiên trước lệnh có sẵn; mẫu có phần chữ cố định
+cụ thể nhất thắng, rồi ưu tiên giới hạn ứng dụng/ngữ cảnh. Hai lệnh ngang nhau báo
+xung đột. Dùng tên/mẫu khác hoặc tắt một lệnh. Nhân bản tạo bản sao đang tắt để sửa.
+Trong Đọc chính tả, mọi cách gọi custom vẫn được chèn thành chữ.
+
+**Nhập/Xuất** dùng JSON UTF-8 version 1. Nhập thêm vào danh sách, bỏ qua mục y hệt;
+ID trùng nhưng khác nội dung được cấp ID mới. Tệp sai không thay thế danh sách hiện có.
+Nhấn **Lưu** để dùng các thay đổi, **Hủy** để bỏ thay đổi. Cấu hình được giữ trong
+`%LOCALAPPDATA%\VoicePilot\config.toml`, mục `[[custom_commands]]`.
+
+Bộ ví dụ nhập được: `docs/custom-commands.example.json`. Harness:
+`python tools/verify_custom_commands.py`; thêm `--windows` để kiểm fixture native.

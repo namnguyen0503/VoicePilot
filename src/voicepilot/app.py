@@ -234,7 +234,7 @@ def _audio_components(
         try:
             from voicepilot.stt.hotwords import command_phrases
 
-            hotwords = command_phrases(config.app_aliases, config.website_aliases)
+            hotwords = command_phrases(config.app_aliases, config.website_aliases, config.custom_commands)
         except Exception as exc:
             log.warning("hotword biasing disabled: %s", type(exc).__name__)
             hotwords = []
@@ -276,7 +276,9 @@ def _make_parser(config: AppConfig) -> Any:
             finder = _installed_apps().find
         except Exception as exc:
             log.warning("installed app search disabled: %s", type(exc).__name__)
-    return RuleParser(config.website_aliases, config.app_aliases, app_finder=finder)
+    return RuleParser(
+        config.website_aliases, config.app_aliases, app_finder=finder, custom_commands=config.custom_commands
+    )
 
 
 def _make_speaker(config: AppConfig) -> Any:
@@ -429,10 +431,19 @@ class VoicePilot(QObject):
 
         The controller closes the replaced transcriber when it swaps the new one in.
         """
-        reuse = self._gipformer if config.gipformer_threads == self._config.gipformer_threads else None
+        reuse = (
+            self._gipformer
+            if (
+                config.gipformer_threads == self._config.gipformer_threads
+                and config.custom_commands == self._config.custom_commands
+                and config.app_aliases == self._config.app_aliases
+                and config.website_aliases == self._config.website_aliases
+            )
+            else None
+        )
         self._config = config
         recorder, transcriber, self._gipformer = _audio_components(config, self._level_relay.push, reuse)
-        self._controller.apply_settings(config, recorder, transcriber)
+        self._controller.apply_settings(config, recorder, transcriber, parser=_make_parser(config))
         self._stop_hotkeys()
         self._hotkeys = self._register_hotkeys(config)
         self._tray.set_hotkeys(config.hotkey_listen, config.hotkey_mode)
@@ -511,6 +522,13 @@ def _check_rules() -> list[Check]:
         command = parser.parse(text, context, Mode.COMMAND)
         ok = command.is_executable and command.intent is expected
         results.append((ok, f'rules: "{text}" -> {command.intent.value}, executable={command.is_executable}'))
+    custom = dict(id="selftest", name="Selftest", enabled=True,
+                  patterns=["hỏi google về {topic}"], intent="BROWSER_SEARCH",
+                  params={"query": "{topic}"}, context="any", process="")
+    custom_parser = RuleParser(config.website_aliases, config.app_aliases, custom_commands=[custom])
+    command = custom_parser.parse("hỏi google về Giá vàng", None, Mode.COMMAND)
+    results.append((command.custom_id == "selftest" and command.params == {"query": "Giá vàng"},
+                    "rules: custom template preserves the captured query"))
     return results
 
 
@@ -575,16 +593,21 @@ def _check_speech_runtime() -> list[Check]:
 
     config = load_config()
     base = models_dir()
-    backend = GipformerStt(base.joinpath(*GIPFORMER_MODEL_DIR), num_threads=config.gipformer_threads,
-                          hotwords=command_phrases(config.app_aliases, config.website_aliases))
+    backend = GipformerStt(
+        base.joinpath(*GIPFORMER_MODEL_DIR),
+        num_threads=config.gipformer_threads,
+        hotwords=command_phrases(config.app_aliases, config.website_aliases),
+    )
     backend.warmup()
     voice = _load_sherpa_voice(base.joinpath(*PIPER_MODEL_FILE))
     checks: list[Check] = [(True, "runtime: ASR and TTS models loaded in one process")]
     parser = RuleParser(config.website_aliases, config.app_aliases)
-    for index, (text, dictation) in enumerate((
-        ("Chụp màn hình.", False),
-        ("Xin chào, tôi đang kiểm thử chức năng đọc chính tả.", True),
-    )):
+    for index, (text, dictation) in enumerate(
+        (
+            ("Chụp màn hình.", False),
+            ("Xin chào, tôi đang kiểm thử chức năng đọc chính tả.", True),
+        )
+    ):
         audio = voice.generate(text, sid=0, speed=1.0)
         if not len(audio.samples) or audio.sample_rate <= 0:
             checks.append((False, "runtime: TTS returned no valid PCM"))
@@ -596,8 +619,12 @@ def _check_speech_runtime() -> list[Check]:
             checks.append((bool(result.text.strip()), "runtime: unbiased dictation returned text"))
         else:
             command = parser.parse(result.text, None, Mode.COMMAND)
-            checks.append((command.intent is Intent.WIN_SCREENSHOT,
-                           "runtime: synthetic TTS -> ASR -> screenshot intent"))
+            checks.append(
+                (
+                    command.intent is Intent.WIN_SCREENSHOT,
+                    "runtime: synthetic TTS -> ASR -> screenshot intent",
+                )
+            )
     return checks
 
 

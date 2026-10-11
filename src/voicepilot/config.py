@@ -60,6 +60,7 @@ class AppConfig:
     overlay_pos: tuple[int, int] | None = None
     website_aliases: dict[str, str] = field(default_factory=dict)
     app_aliases: dict[str, str] = field(default_factory=dict)
+    custom_commands: list[dict[str, Any]] = field(default_factory=list)
 
 
 def config_dir() -> Path:
@@ -147,7 +148,7 @@ def _from_table(data: Mapping[str, Any]) -> AppConfig:
     """
     kwargs: dict[str, Any] = {}
     for f in fields(AppConfig):
-        if f.name in _ALIAS_TABLES.values() or f.name not in data:
+        if f.name in {*_ALIAS_TABLES.values(), "custom_commands"} or f.name not in data:
             continue
         try:
             kwargs[f.name] = _checked_value(f.name, data[f.name])
@@ -158,6 +159,9 @@ def _from_table(data: Mapping[str, Any]) -> AppConfig:
         if not isinstance(entries, Mapping):
             continue
         kwargs[attr] = _alias_entries(table, entries)
+    from voicepilot.custom_commands import load_commands
+
+    kwargs["custom_commands"] = load_commands(data.get("custom_commands", []))
     return AppConfig(**kwargs)
 
 

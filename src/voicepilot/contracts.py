@@ -109,7 +109,12 @@ class Intent(Enum):
     WIN_OPEN_APP = "WIN_OPEN_APP"
     WIN_SCREENSHOT = "WIN_SCREENSHOT"
     DICTATE_TEXT = "DICTATE_TEXT"
+    WIN_HOTKEY = "WIN_HOTKEY"  # custom commands only, no bundled spoken pattern
     UNKNOWN = "UNKNOWN"
+
+
+# The original fifteen v1 features; user-only actions are tested separately.
+BUILTIN_INTENTS = frozenset(Intent) - {Intent.UNKNOWN, Intent.WIN_HOTKEY}
 
 
 @dataclass(frozen=True)
@@ -122,6 +127,7 @@ class Command:
         params: Extracted parameters such as file name or search query (keyword-only).
         missing: Names of required parameters that were not found (keyword-only).
         example: Phrase to suggest saying again when the command is unknown or incomplete.
+        custom_id: Trusted parser metadata for a user-defined command, otherwise None.
     """
 
     intent: Intent
@@ -129,6 +135,7 @@ class Command:
     params: dict[str, str] = field(default_factory=dict, kw_only=True)
     missing: tuple[str, ...] = field(default=(), kw_only=True)
     example: str | None = field(default=None, kw_only=True)
+    custom_id: str | None = field(default=None, kw_only=True)
 
     @property
     def is_executable(self) -> bool:

@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from voicepilot.contracts import Intent
+from voicepilot.contracts import BUILTIN_INTENTS, Intent
 
 spec = importlib.util.spec_from_file_location(
     "verify_features", Path(__file__).resolve().parents[2] / "tools" / "verify_features.py"
@@ -20,7 +20,7 @@ spec.loader.exec_module(harness)
 
 def test_all_feature_contracts_have_observable_checks():
     checks = harness.contract_suite()
-    expected = {intent.value for intent in Intent if intent is not Intent.UNKNOWN}
+    expected = {intent.value for intent in BUILTIN_INTENTS}
     assert {check.name for check in checks} == expected
     assert all(check.status == "pass" for check in checks)
 
@@ -38,7 +38,7 @@ def test_executor_failure_is_not_reported_as_success(monkeypatch):
 def test_all_fifteen_features_through_controller_and_each_stt_mode(qapp):
     checks = harness.pipeline_suite()
     expected = {f"{mode}:{intent.value}" for mode in ("google", "offline", "hybrid", "fallback")
-                for intent in Intent if intent is not Intent.UNKNOWN}
+                for intent in BUILTIN_INTENTS}
     assert expected <= {check.name for check in checks}
     assert len(checks) == 64
     assert all(check.status == "pass" for check in checks), [c for c in checks if c.status != "pass"]
@@ -117,7 +117,7 @@ def test_locked_windows_desktop_blocks_native_checks(process_name):
     assert reason is not None
     checks = harness.blocked_native_checks(reason)
     assert all(check.status == "blocked" for check in checks)
-    assert {intent.value for intent in Intent if intent is not Intent.UNKNOWN} <= {c.name for c in checks}
+    assert {intent.value for intent in BUILTIN_INTENTS} <= {c.name for c in checks}
 
 
 def test_existing_report_directory_is_not_overwritten(tmp_path):

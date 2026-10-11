@@ -183,6 +183,7 @@ class RuleParser:
         app_aliases: dict[str, str],
         commands_path: Path | None = None,
         app_finder: Callable[[str], str | None] | None = None,
+        custom_commands: list[dict] | None = None,
     ) -> None:
         """Load and validate the command table, then compile every pattern once.
 
@@ -198,6 +199,9 @@ class RuleParser:
         self._sites = _AliasTable(website_aliases)
         self._apps = _AliasTable(app_aliases)
         self._app_finder = app_finder
+        from voicepilot.custom_commands import CustomMatcher
+
+        self._custom = CustomMatcher(custom_commands or [])
         self._plain = _build_view(entries, folded=False)
         self._folded = _build_view(entries, folded=True)
 
@@ -207,10 +211,19 @@ class RuleParser:
             return self._dictation(text)
         kind = context.app_kind.value if context is not None else "none"
         base = normalize(text)
+        custom = self._custom.match(
+            text,
+            _strip_fillers(base, self._plain.leading, self._plain.polite_trailing),
+            _strip_fillers(fold(base), self._folded.leading, self._folded.polite_trailing),
+            context,
+        )
+        if custom is not None:
+            return custom
         hits = _choose_hits(_match(self._plain, base), _match(self._folded, base))
         if not hits:
-            hits = _choose_hits(_match(self._plain, base, questions=True),
-                                _match(self._folded, base, questions=True))
+            hits = _choose_hits(
+                _match(self._plain, base, questions=True), _match(self._folded, base, questions=True)
+            )
         if not hits:
             return self._unknown(text)
         return self._decide(text, hits, kind)
@@ -396,7 +409,9 @@ def _load_entries(text: str, source: str) -> tuple[list[_Entry], str]:
             raise ValueError(f"{source}: {intent.value} has no patterns")
         entries.append(_Entry(intent, tuple(patterns), contexts, params, example))
 
-    required = {intent for intent in Intent if intent not in (Intent.UNKNOWN, DICTATION_INTENT)}
+    required = {
+        intent for intent in Intent if intent not in (Intent.UNKNOWN, DICTATION_INTENT, Intent.WIN_HOTKEY)
+    }
     absent = sorted(intent.value for intent in required - seen)
     if absent:
         raise ValueError(f"{source}: missing command intents: {absent}")

@@ -15,12 +15,14 @@ from PySide6.QtWidgets import (
     QLabel,
     QLineEdit,
     QSpinBox,
+    QTabWidget,
     QVBoxLayout,
     QWidget,
 )
 
 from voicepilot.config import AppConfig, save_config
 from voicepilot.contracts import SttBackendMode
+from voicepilot.ui.custom_commands import CustomCommandsWidget
 
 log = logging.getLogger(__name__)
 
@@ -109,7 +111,15 @@ class SettingsDialog(QDialog):
         buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
-        layout.addLayout(form)
+        general = QWidget()
+        general.setObjectName("settingsGeneral")
+        general.setLayout(form)
+        self._custom = CustomCommandsWidget(config.custom_commands, config=config)
+        tabs = QTabWidget()
+        tabs.addTab(general, "Chung")
+        tabs.addTab(self._custom, "Lệnh tùy chỉnh")
+        layout.addWidget(tabs)
+        self.resize(860, 680)
         layout.addWidget(self._error)
         layout.addWidget(buttons)
 
@@ -133,6 +143,7 @@ class SettingsDialog(QDialog):
             vad_enabled=self._vad_check.isChecked(),
             silence_end_ms=self._silence_spin.value(),
             gipformer_threads=self._threads_spin.value(),
+            custom_commands=self._custom.commands(),
         )
 
     def accept(self) -> None:

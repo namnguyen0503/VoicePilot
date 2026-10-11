@@ -1,0 +1,61 @@
+{
+  "version": 1,
+  "commands": [
+    {
+      "id": "gold",
+      "name": "Xem giá vàng",
+      "enabled": true,
+      "patterns": [
+        "xem vàng"
+      ],
+      "intent": "BROWSER_SEARCH",
+      "params": {
+        "query": "giá vàng hôm nay"
+      },
+      "context": "any",
+      "process": ""
+    },
+    {
+      "id": "ask",
+      "name": "Hỏi Google",
+      "enabled": true,
+      "patterns": [
+        "hỏi google về {noidung}"
+      ],
+      "intent": "BROWSER_SEARCH",
+      "params": {
+        "query": "{noidung}"
+      },
+      "context": "any",
+      "process": ""
+    },
+    {
+      "id": "select",
+      "name": "Chọn hết",
+      "enabled": true,
+      "patterns": [
+        "chọn hết"
+      ],
+      "intent": "WIN_HOTKEY",
+      "params": {
+        "keys": "ctrl+a"
+      },
+      "context": "any",
+      "process": ""
+    },
+    {
+      "id": "signature",
+      "name": "Ký tên",
+      "enabled": true,
+      "patterns": [
+        "ký tên"
+      ],
+      "intent": "DICTATE_TEXT",
+      "params": {
+        "text": "Nam\nVoicePilot 👋"
+      },
+      "context": "any",
+      "process": ""
+    }
+  ]
+}

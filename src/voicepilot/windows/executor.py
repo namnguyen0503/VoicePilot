@@ -93,8 +93,9 @@ class WindowsExecutor:
         self._config = config
         self._context = context_provider
         self._hide_overlay = hide_overlay
-        self._powerpoint = (powerpoint if powerpoint is not None
-                            else PowerPointController(context_provider=context_provider))
+        self._powerpoint = (
+            powerpoint if powerpoint is not None else PowerPointController(context_provider=context_provider)
+        )
         self._keys: KeySender = keys if keys is not None else _SendInputKeys()
         self._handlers: dict[Intent, Handler] = {
             Intent.PPT_SAVE: self._ppt_save,
@@ -112,6 +113,7 @@ class WindowsExecutor:
             Intent.WIN_OPEN_APP: self._win_open_app,
             Intent.WIN_SCREENSHOT: self._win_screenshot,
             Intent.DICTATE_TEXT: self._dictate_text,
+            Intent.WIN_HOTKEY: self._hotkey,
         }
 
     def execute(
@@ -124,7 +126,13 @@ class WindowsExecutor:
         if not command.is_executable:
             return _not_executable(command)
         try:
-            return self._handlers[command.intent](command, context, cancel)
+
+            def action() -> ActionResult:
+                return self._handlers[command.intent](command, context, cancel)
+
+            if command.custom_id is not None:
+                return self._guarded(context, action, strict=False, cancel=cancel)
+            return action()
         except Exception as exc:
             log.error("Command %s failed: %s", command.intent.value, type(exc).__name__)
             return ActionResult(ResultStatus.ERROR, _GENERIC_ERROR_MESSAGE, "exception")
@@ -134,7 +142,11 @@ class WindowsExecutor:
         self._powerpoint.shutdown()
 
     def _guarded(
-        self, ctx: WindowContext, action: Callable[[], ActionResult], *, strict: bool,
+        self,
+        ctx: WindowContext,
+        action: Callable[[], ActionResult],
+        *,
+        strict: bool,
         cancel: threading.Event | None,
     ) -> ActionResult:
         """Run action only if the captured window is still the foreground window.
@@ -197,8 +209,9 @@ class WindowsExecutor:
         if url is None:
             return ActionResult(ResultStatus.INVALID_PARAM, "Địa chỉ website không hợp lệ.", "invalid_url")
         label = command.params.get("site", "").strip() or url
-        return self._guarded(ctx, lambda: self._launch(url, ctx, f"Đang mở {label}."),
-                             strict=False, cancel=cancel)
+        return self._guarded(
+            ctx, lambda: self._launch(url, ctx, f"Đang mở {label}."), strict=False, cancel=cancel
+        )
 
     def _browser_search(
         self, command: Command, ctx: WindowContext, cancel: threading.Event | None
@@ -207,8 +220,9 @@ class WindowsExecutor:
         if not query:
             return ActionResult(ResultStatus.INVALID_PARAM, "Thiếu nội dung tìm kiếm.", "missing_query")
         url = browser.build_search_url(query)
-        return self._guarded(ctx, lambda: self._launch(url, ctx, "Đang tìm trên Google."),
-                             strict=False, cancel=cancel)
+        return self._guarded(
+            ctx, lambda: self._launch(url, ctx, "Đang tìm trên Google."), strict=False, cancel=cancel
+        )
 
     def _browser_tab(
         self, command: Command, ctx: WindowContext, cancel: threading.Event | None
@@ -248,6 +262,20 @@ class WindowsExecutor:
             return ActionResult(ResultStatus.OK, "Đã chụp màn hình.", None, {"path": str(path)})
 
         return self._guarded(ctx, capture, strict=False, cancel=cancel)
+
+    def _hotkey(self, command: Command, ctx: WindowContext, cancel: threading.Event | None) -> ActionResult:
+        from voicepilot.custom_commands import hotkey_keys
+
+        try:
+            keys = hotkey_keys(command.params.get("keys", ""))
+        except ValueError:
+            return ActionResult(ResultStatus.INVALID_PARAM, "Tổ hợp phím không hợp lệ.", "invalid_keys")
+
+        def send() -> ActionResult:
+            self._keys.send_hotkey(*keys)
+            return ActionResult(ResultStatus.OK, "Đã nhấn phím.")
+
+        return self._guarded(ctx, send, strict=True, cancel=cancel)
 
     def _dictate_text(
         self, command: Command, ctx: WindowContext, cancel: threading.Event | None

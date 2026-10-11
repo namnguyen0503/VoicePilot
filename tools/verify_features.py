@@ -166,7 +166,7 @@ def contract_suite() -> list[Check]:
 
 
 def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
-                  changed_target=False, cancel_during_com=False):
+                  changed_target=False, cancel_during_com=False, custom_commands=None):
     """Exercise the real recorder/controller/hybrid/parser/executor with observable boundaries.
 
     PCM comes from a fake device callback. Recognizer text and Windows effects are controlled;
@@ -180,8 +180,10 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
     from voicepilot.stt.hybrid import HybridTranscriber
 
     app = QCoreApplication.instance() or QCoreApplication([])
-    config = replace(load_config(ROOT / "verification-unused-config.toml"), vad_enabled=True)
-    parser = RuleParser(config.website_aliases, config.app_aliases)
+    config = replace(load_config(ROOT / "verification-unused-config.toml"), vad_enabled=True,
+                     custom_commands=custom_commands or [])
+    parser = RuleParser(config.website_aliases, config.app_aliases,
+                        custom_commands=config.custom_commands)
     ctx = WindowContext(100, 200, "test.exe", "Synthetic target", kind,
                         "edge" if kind is AppKind.BROWSER else None)
     provider = Mock(capture=Mock(return_value=ctx), is_still_target=Mock(return_value=True))
@@ -245,7 +247,7 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
         with (patch.object(desktop, "open_app") as launch,
               patch.object(desktop, "screenshot", return_value=Path("synthetic.png")) as screenshot,
               patch.object(browser, "launch_url") as url):
-            if intent is Intent.DICTATE_TEXT:
+            if intent is Intent.DICTATE_TEXT and not custom_commands:
                 controller.toggle_mode()
             controller.toggle_listen()
             cancel_token = controller._turn.cancel_event
@@ -293,12 +295,15 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
                 launch.assert_called_once_with(params["app"])
             elif intent is Intent.WIN_SCREENSHOT:
                 screenshot.assert_called_once_with(ctx, hide_overlay=None)
+            elif intent is Intent.WIN_HOTKEY:
+                keys.send_hotkey.assert_called_once_with(*params["keys"].split("+"))
             else:
                 keys.type_unicode.assert_called_once_with(params["text"])
-                require(speaker.speak.call_count == 0, "Dictation spoke a command response")
-                if mode is not SttBackendMode.GOOGLE:
+                if not custom_commands:
+                    require(speaker.speak.call_count == 0, "Dictation spoke a command response")
+                if mode is not SttBackendMode.GOOGLE and not custom_commands:
                     require(selected_modes == [Mode.DICTATION], "Dictation decoder was not selected")
-            if intent is not Intent.DICTATE_TEXT:
+            if intent is not Intent.DICTATE_TEXT or custom_commands:
                 speaker.speak.assert_called_once_with(results[0].message_vi)
             effects = sum(mock.call_count for mock in (launch, screenshot, url, keys.send_hotkey,
                           keys.type_unicode, *(getattr(ppt, name) for name in PPT_METHODS.values())))
@@ -639,9 +644,11 @@ def activate(hwnd: int) -> WindowContext:
     return ctx
 
 
-def make_executor():
-    config = load_config(ROOT / "verification-unused-config.toml")
-    parser = RuleParser(config.website_aliases, config.app_aliases)
+def make_executor(*, custom_commands=None):
+    config = replace(load_config(ROOT / "verification-unused-config.toml"),
+                     custom_commands=custom_commands or [])
+    parser = RuleParser(config.website_aliases, config.app_aliases,
+                        custom_commands=config.custom_commands)
     return parser, WindowsExecutor(config, Win32ContextProvider())
 
 
@@ -1016,7 +1023,8 @@ def browser_fixture_server():
     return http.server.ThreadingHTTPServer(("127.0.0.1", 0), Pages)
 
 
-def browser_suite(folder: Path, name: str, runner: Runner | None = None) -> list[Check]:
+def browser_suite(folder: Path, name: str, runner: Runner | None = None,
+                  *, custom_commands=None) -> list[Check]:
     import urllib.request
     import winreg
 
@@ -1045,7 +1053,7 @@ def browser_suite(folder: Path, name: str, runner: Runner | None = None) -> list
                                 "--disable-features=msImplicitSignin", f"--remote-debugging-port={port}",
                                 address + "/first", address + "/second"])
     hwnd = 0
-    parser, executor = make_executor()
+    parser, executor = make_executor(custom_commands=custom_commands)
     def tabs():
         with urllib.request.urlopen(f"http://127.0.0.1:{port}/json/list", timeout=2) as response:
             return browser_page_tabs(json.load(response))
@@ -1120,6 +1128,25 @@ def browser_suite(folder: Path, name: str, runner: Runner | None = None) -> list
                 require(len(tabs()) == len(before) + 1, "Question must open exactly one search tab")
                 return "Natural question opens one Google tab with the full Vietnamese query"
             runner.check("natural_question_search", natural_question_search)
+            if custom_commands:
+                def custom_search():
+                    reset_tabs()
+                    before = {tab["id"] for tab in tabs()}
+                    execute(parser, executor, hwnd, "hỏi google về Giá vàng hôm nay")
+                    wait_for(lambda: new_browser_tab(before, tabs(),
+                                                     browser.build_search_url("Giá vàng hôm nay")))
+                    require(len(tabs()) == len(before) + 1, "Custom search must open exactly one tab")
+                    return "User template opens one Google tab with the captured Vietnamese query"
+                runner.check("custom_search", custom_search)
+                def custom_url():
+                    reset_tabs()
+                    before = {tab["id"] for tab in tabs()}
+                    execute(parser, executor, hwnd, "trang riêng Vàng và Bạc")
+                    wait_for(lambda: new_browser_tab(before, tabs(),
+                                                     "https://example.com/?q=V%C3%A0ng%20v%C3%A0%20B%E1%BA%A1c"))
+                    require(len(tabs()) == len(before) + 1, "Custom URL must open exactly one tab")
+                    return "Custom URL percent-encodes the captured path/query value"
+                runner.check("custom_url", custom_url)
             def dictate():
                 execute(parser, executor, hwnd, "mở " + address + "/dictation")
                 wait_for(lambda: any(t["url"] == address + "/dictation" for t in tabs()))

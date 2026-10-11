@@ -170,7 +170,7 @@ try {
     Copy-Item -LiteralPath $ModelsSrc -Destination (Join-Path -Path $AppDir -ChildPath 'models') -Recurse -Force
     $appDocs = Join-Path -Path $AppDir -ChildPath 'docs'
     New-Item -ItemType Directory -Force -Path $appDocs | Out-Null
-    foreach ($doc in @('docs\COMMANDS.vi.md', 'docs\DEMO.vi.md')) {
+    foreach ($doc in @('docs\COMMANDS.vi.md', 'docs\DEMO.vi.md', 'docs\custom-commands.example.json')) {
         Copy-Item -LiteralPath (Join-Path -Path $Root -ChildPath $doc) -Destination $appDocs -Force
     }
     foreach ($file in @('README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md')) {

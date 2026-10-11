@@ -11,7 +11,7 @@ from urllib.parse import urlsplit
 import pytest
 
 from voicepilot.config import load_config
-from voicepilot.contracts import AppKind, Intent, Mode, WindowContext
+from voicepilot.contracts import BUILTIN_INTENTS, AppKind, Intent, Mode, WindowContext
 from voicepilot.intent.parser import RuleParser
 
 COMMANDS_TOML = Path(__file__).resolve().parents[2] / "src" / "voicepilot" / "resources" / "commands.toml"
@@ -128,7 +128,7 @@ def test_documented_phrase_maps_to_intent(parser, text, kind, intent, params):
 def test_every_command_intent_is_reachable(parser):
     # PLAN.md "Hiểu lệnh": each v1 function must be reachable from speech
     reached = {parse(parser, text, kind).intent for text, kind, _, _ in DOC_PHRASES}
-    expected = {i for i in Intent if i not in (Intent.UNKNOWN, Intent.DICTATE_TEXT)}
+    expected = BUILTIN_INTENTS - {Intent.DICTATE_TEXT}
     assert expected <= reached, sorted(i.value for i in expected - reached)
 
 

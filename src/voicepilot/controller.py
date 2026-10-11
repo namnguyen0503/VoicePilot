@@ -143,6 +143,8 @@ class _Turn:
     recorder: Recorder
     transcriber: Transcriber
     started: float
+    parser: IntentParser | None = None
+    config: AppConfig | None = None
     stop_event: threading.Event = field(default_factory=threading.Event)
     cancel_event: threading.Event = field(default_factory=threading.Event)
     state: State = State.LISTENING
@@ -184,6 +186,7 @@ class _Components:
     config: AppConfig
     recorder: Recorder
     transcriber: Transcriber
+    parser: IntentParser | None = None
 
 
 class Controller(QObject):
@@ -329,7 +332,14 @@ class Controller(QObject):
         self._last_level_at = now
         self.level_changed.emit(min(1.0, max(0.0, float(level))))
 
-    def apply_settings(self, config: AppConfig, recorder: Recorder, transcriber: Transcriber) -> None:
+    def apply_settings(
+        self,
+        config: AppConfig,
+        recorder: Recorder,
+        transcriber: Transcriber,
+        *,
+        parser: IntentParser | None = None,
+    ) -> None:
         """Use new settings and components. Applied now when idle, else at the next turn start.
 
         A transcriber that is swapped out is closed at the swap. One that is superseded
@@ -339,7 +349,7 @@ class Controller(QObject):
             _close_quietly(transcriber)
             return
         superseded = self._pending.transcriber if self._pending is not None else None
-        self._pending = _Components(config, recorder, transcriber)
+        self._pending = _Components(config, recorder, transcriber, parser)
         if superseded is not None and superseded is not transcriber and superseded is not self._transcriber:
             _close_quietly(superseded)
         if self._turn is None:
@@ -379,6 +389,8 @@ class Controller(QObject):
             recorder=self._recorder,
             transcriber=self._transcriber,
             started=self._clock(),
+            parser=self._parser,
+            config=self._config,
         )
         self._turn = turn
         self.transcript_changed.emit("")
@@ -395,6 +407,8 @@ class Controller(QObject):
         self._config = pending.config
         self._recorder = pending.recorder
         self._transcriber = pending.transcriber
+        if pending.parser is not None:
+            self._parser = pending.parser
         if previous is not pending.transcriber:
             # A cancelled turn may still be inside the old transcriber; close() lets that call finish alone.
             _close_quietly(previous)
@@ -476,7 +490,7 @@ class Controller(QObject):
                 return self._outcome(turn, no_speech, heard)
             command = Command(Intent.DICTATE_TEXT, text, params={"text": text})
         else:
-            command = self._parse(text, turn.context)
+            command = self._parse(text, turn.context, turn.parser)
             debuglog.debug_log.info(
                 "turn id=%d heard=%r source=%s app=%s -> intent=%s params=%r missing=%r",
                 turn.turn_id,
@@ -561,17 +575,17 @@ class Controller(QObject):
         if turn.mode is Mode.DICTATION:
             return lambda transcript: bool(transcript.text.strip())
 
-        known_sites = frozenset(self._config.website_aliases.values())
+        known_sites = frozenset((turn.config or self._config).website_aliases.values())
 
         def is_valid(transcript: Transcript) -> bool:
-            command = self._parse(transcript.text, turn.context)
+            command = self._parse(transcript.text, turn.context, turn.parser)
             return is_valid_candidate(command, turn.context, known_sites)
 
         return is_valid
 
-    def _parse(self, text: str, ctx: WindowContext) -> Command:
+    def _parse(self, text: str, ctx: WindowContext, parser: IntentParser | None = None) -> Command:
         try:
-            return self._parser.parse(text, ctx, Mode.COMMAND)
+            return (parser or self._parser).parse(text, ctx, Mode.COMMAND)
         except Exception as exc:
             log.error("parser error=%s", type(exc).__name__)
             return Command(Intent.UNKNOWN, text)

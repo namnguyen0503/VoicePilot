@@ -190,3 +190,18 @@ Trước khi phát hành, demo đủ 15 chức năng; chọn 10 chức năng ổ
 - Bản phát hành dùng PyInstaller **onedir**, nén ZIP cùng model, tài liệu và thông tin source tương ứng. [Cách đóng gói](https://pyinstaller.org/en/stable/operating-mode.html).
 
 TODO sau v1: **Linux**, thao tác Word/Excel, tạo và sửa slide qua COM, giá vàng trực tiếp, Playwright/extension, nhiều lệnh trong một câu, từ khóa đánh thức và benchmark mô hình STT khác trên PC.
+
+
+## 6. Lệnh tùy chỉnh (Nam bổ sung phạm vi ngày 2026-10-11)
+
+- Cài đặt có tab Lệnh tùy chỉnh: thêm/sửa/xóa/nhân bản/bật-tắt, nhập/xuất JSON version 1.
+- Mỗi lệnh có tên, nhiều mẫu gọi, một hành động, tham số cố định hoặc lấy từ lời nói,
+  ngữ cảnh và tùy chọn tên exe đích. Hỗ trợ 15 hành động v1 và tổ hợp phím Windows.
+- Ví dụ: `hỏi google về {noidung}` → tìm Google với query `{noidung}`.
+  URL mã hóa phần tham số; đường dẫn app và tổ hợp phím phải được cấu hình cố định.
+- Custom được ưu tiên trước luật có sẵn, mẫu cụ thể nhất thắng; hòa giữa các lệnh khác
+  nhau báo xung đột, không chọn ngẫu nhiên. Chính tả vẫn chỉ chèn toàn bộ lời nói.
+- Kiểm tra câu nói chỉ xem intent/params, không thực thi. Lưu áp dụng parser/hotwords
+  vào lượt tiếp theo; lượt đang nghe giữ snapshot cũ. Một lượt thực hiện một hành động.
+- Harness acceptance được tạo/chạy trước code; kiểm tra CRUD, lưu/nạp, nhập/xuất,
+  16 hành động qua bốn đường STT, focus/cancel và tác động native trên fixture riêng.

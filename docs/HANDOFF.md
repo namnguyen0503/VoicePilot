@@ -6,7 +6,7 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
 ## 1. Trạng thái hiện tại
 
 - Đủ 15 chức năng trong PLAN; Nam chốt hoàn thiện v1, để Wi-Fi và Excel ngoài phạm vi lần này.
-- **1282 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
+- **1388 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
   khi sửa app, rồi chạy lại sau sửa. Đủ 15 luồng parser → executor với backend giả lập đều đạt.
 - Harness thêm 60 lượt recorder → Controller → hybrid → parser → executor cho 15 chức năng
   qua bốn đường STT. Đã tái hiện/sửa hai lỗi chọn câu slide trong browser và câu tab trong PowerPoint;
@@ -67,6 +67,20 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
   selftest của exe cũng kiểm câu báo lỗi. Báo cáo trong LocalAppData:
   `verification\natural-search-3e313a0a0a67439083f44d7dc5acd2d0\before` và `after`,
   `verification\search-question-03d1fd672a0640a9b8e67624c83bdd9b\edge` và `chrome`.
+
+- Nam yêu cầu thêm lệnh custom ngày 2026-10-11. Cài đặt có tab quản lý
+  thêm/sửa/xóa/nhân bản/bật-tắt, nhập/xuất JSON v1, thử câu nói không thực thi.
+  Nhiều mẫu gọi, tối đa 3 tham số động, 15 hành động v1 + WIN_HOTKEY;
+  giới hạn theo nhóm cửa sổ/tên exe. Custom ưu tiên trước built-in; hòa báo xung đột.
+  Chính tả không chạy custom. Đường dẫn app/phím cố định; URL mã hóa captures.
+  Parser/config được giữ theo lượt, cập nhật vào lượt tiếp theo; hotwords nạp lại khi cần.
+  Harness trước code báo thiếu module; sau triển khai có 64 lượt STT/Controller cho
+  16 hành động. Native 59 checks đạt (gồm 7 custom): Notepad chữ ký Unicode/Ctrl+A/
+  chính tả, search/URL template ở Edge và Chrome. UI checkbox khó đọc trên Windows
+  đã có regression tương phản trước sửa. Báo cáo:
+  `verification\custom-ff9df862356245b1947c3b819b15555f\report.md` trong LocalAppData.
+  Harness: `tools/verify_custom_commands.py`; bộ ví dụ: `docs/custom-commands.example.json`.
+  Đây là mẫu do người dùng tự tạo, chưa bổ sung LLM/NLU hay macro nhiều hành động.
 
 ## 2. Những gì đã làm trong phiên 2026-10-09/10 (theo commit)
 

@@ -143,3 +143,14 @@ Mỗi báo cáo giữ `synthetic-*.npy` (PCM tổng hợp, không phải giọng
 Đối chứng cùng dữ liệu bằng `--reuse <thư mục báo cáo> --label vad-replay`.
 Kết quả này không chứng minh chất lượng trên micro hoặc giọng Nam; tiếng nhỏ có thể bị VAD
 coi là im lặng sớm, cần tăng khoảng dừng trong Cài đặt nếu nói ngắt quãng.
+
+
+## Harness lệnh tùy chỉnh
+
+`python tools/verify_custom_commands.py` chạy acceptance test riêng với fakes/Qt,
+được tạo trước tính năng. Kiểm CRUD, import/export/persistence, ngữ cảnh/xung đột,
+16 hành động ở Google/offline/hybrid/fallback và tham số giữ Unicode.
+`--windows` dùng Notepad fixture và profile riêng Edge/Chrome; báo cáo trong
+LocalAppData/VoicePilot/verification/custom-*. Transcript vẫn là fixture;
+không tính thành demo/benchmark giọng nói. Báo cáo ngày 2026-10-11 có 59 checks đạt,
+trong đó 7 checks custom; không dùng hoặc đóng tài liệu/profile riêng của Nam.

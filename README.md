@@ -28,6 +28,8 @@ VoicePilot v1 supports 15 functions. Speak the phrases in Vietnamese; the full p
 | Windows | Screenshot | "chụp màn hình" |
 | Dictation | Insert speech as text | Press `Ctrl+Alt+D`, then speak |
 
+Custom commands can be created in **Settings → Lệnh tùy chỉnh** without editing code. Each command supports multiple spoken patterns, captured parameters such as `{topic}`, an application/context filter, and one of the 15 actions above or a keyboard shortcut. The editor includes enable/disable, duplicate, delete, JSON import/export and a dry-run preview. For example, `hỏi google về {topic}` can search for `{topic}`. Importable examples are in [`docs/custom-commands.example.json`](docs/custom-commands.example.json). Dictation always remains plain text.
+
 A floating overlay (about 520 px, dark theme, draggable) shows the mode, the target window, the input level, the status, and the recognized sentence. It never takes focus from the target application. A tray icon provides the overlay toggle, settings, the command list and quit.
 
 ## Architecture

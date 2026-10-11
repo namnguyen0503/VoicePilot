@@ -10,18 +10,27 @@ from collections.abc import Collection
 
 from voicepilot.contracts import AppKind, Command, Intent, WindowContext
 
-_POWERPOINT_INTENTS = frozenset({
-    Intent.PPT_SAVE, Intent.PPT_SAVE_AS, Intent.PPT_NEXT_SLIDE, Intent.PPT_PREV_SLIDE,
-    Intent.PPT_START_SHOW, Intent.PPT_STOP_SHOW,
-})
-_TAB_INTENTS = frozenset({
-    Intent.BROWSER_NEXT_TAB, Intent.BROWSER_PREV_TAB, Intent.BROWSER_NEW_TAB,
-    Intent.BROWSER_CLOSE_TAB,
-})
+_POWERPOINT_INTENTS = frozenset(
+    {
+        Intent.PPT_SAVE,
+        Intent.PPT_SAVE_AS,
+        Intent.PPT_NEXT_SLIDE,
+        Intent.PPT_PREV_SLIDE,
+        Intent.PPT_START_SHOW,
+        Intent.PPT_STOP_SHOW,
+    }
+)
+_TAB_INTENTS = frozenset(
+    {
+        Intent.BROWSER_NEXT_TAB,
+        Intent.BROWSER_PREV_TAB,
+        Intent.BROWSER_NEW_TAB,
+        Intent.BROWSER_CLOSE_TAB,
+    }
+)
 
 
-def is_valid_candidate(command: Command, context: WindowContext | None,
-                       known_sites: Collection[str]) -> bool:
+def is_valid_candidate(command: Command, context: WindowContext | None, known_sites: Collection[str]) -> bool:
     """Prefer complete commands that can run in this app over misheard alternatives.
 
     Window identity/focus is checked before execution, not during STT. Bare domains
@@ -34,6 +43,12 @@ def is_valid_candidate(command: Command, context: WindowContext | None,
         return False
     if command.intent in _TAB_INTENTS and kind is not AppKind.BROWSER:
         return False
-    if command.intent is Intent.BROWSER_OPEN_SITE and command.params.get("url") not in known_sites:
+    if (
+        command.intent is Intent.BROWSER_OPEN_SITE
+        and command.custom_id is None
+        and command.params.get("url") not in known_sites
+    ):
+        return False
+    if command.intent in (Intent.WIN_HOTKEY, Intent.DICTATE_TEXT) and kind is AppKind.NONE:
         return False
     return True

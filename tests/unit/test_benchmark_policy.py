@@ -12,7 +12,7 @@ import numpy as np
 import pytest
 
 from voicepilot.config import AppConfig, load_config
-from voicepilot.contracts import AppKind, Intent, Mode, Transcript, WindowContext
+from voicepilot.contracts import BUILTIN_INTENTS, AppKind, Intent, Mode, Transcript, WindowContext
 from voicepilot.intent.parser import RuleParser
 
 spec = importlib.util.spec_from_file_location(
@@ -106,7 +106,7 @@ def test_thirty_prompt_labels_cover_all_features_and_match_parser():
     with (root / "docs" / "benchmark-labels.csv").open(encoding="utf-8", newline="") as file:
         rows = list(csv.DictReader(file))
     assert len(rows) == 30
-    assert {row["expected_intent"] for row in rows} == {i.value for i in Intent if i is not Intent.UNKNOWN}
+    assert {row["expected_intent"] for row in rows} == {i.value for i in BUILTIN_INTENTS}
     for row in rows:
         intent = Intent(row["expected_intent"])
         context = WindowContext(0, 0, "", "", benchmark.CONTEXT_KINDS[row["context"]], None)

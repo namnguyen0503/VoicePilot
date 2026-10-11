@@ -439,7 +439,8 @@ def build_gipformer(args: argparse.Namespace) -> tuple[GipformerStt, float]:
     model_dir = Path(args.model_dir) if args.model_dir else paths.models_dir() / "asr" / DEFAULT_MODEL_SUBDIR
     config = load_config()
     backend = GipformerStt(model_dir, num_threads=args.threads,
-                          hotwords=command_phrases(config.app_aliases, config.website_aliases))
+                          hotwords=command_phrases(config.app_aliases, config.website_aliases,
+                                                   config.custom_commands))
     started = time.perf_counter()
     backend.warmup()
     return backend, (time.perf_counter() - started) * 1000
@@ -476,7 +477,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 2
 
     config = load_config()
-    parser = RuleParser(config.website_aliases, config.app_aliases)
+    parser = RuleParser(config.website_aliases, config.app_aliases,
+                        custom_commands=config.custom_commands)
     summaries = []
     gipformer: GipformerStt | None = None
     load_ms: float | None = None

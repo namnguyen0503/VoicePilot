@@ -387,3 +387,13 @@ def test_make_parser_reuses_one_installed_app_index(monkeypatch: pytest.MonkeyPa
     assert len(created) == 1
     assert command.intent is Intent.WIN_OPEN_APP
     assert command.params["app"] == "shell:AppsFolder\\Zalo"
+
+
+
+def test_custom_command_change_rebuilds_hotword_model_and_parser(make_app, engines):
+    app = make_app(AppConfig())
+    custom = dict(id="test", name="Search", patterns=["câu riêng"], intent="BROWSER_SEARCH",
+                  params={"query": "gold"}, enabled=True, context="any", process="")
+    app._apply_settings(replace(AppConfig(), custom_commands=[custom]))
+    assert len(engines.gipformers) == 2
+    assert app._controller._config.custom_commands == [custom]
