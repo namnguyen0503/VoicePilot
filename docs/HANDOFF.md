@@ -6,7 +6,7 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
 ## 1. Trạng thái hiện tại
 
 - Đủ 15 chức năng trong PLAN; Nam chốt hoàn thiện v1, để Wi-Fi và Excel ngoài phạm vi lần này.
-- **1200 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
+- **1206 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
   khi sửa app, rồi chạy lại sau sửa. Đủ 15 luồng parser → executor với backend giả lập đều đạt.
 - Harness thêm 60 lượt recorder → Controller → hybrid → parser → executor cho 15 chức năng
   qua bốn đường STT. Đã tái hiện/sửa hai lỗi chọn câu slide trong browser và câu tab trong PowerPoint;
@@ -46,6 +46,17 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
   và bỏ dialog đăng nhập Edge khỏi số tab. Mỗi lỗi có regression; profile thử tắt implicit signin/sync.
 - Tỉ lệ Qt 1,25/1,50 đạt focus/input/screenshot. Đây là ép tỉ lệ app bằng QT_SCALE_FACTOR,
   chưa thay cho đổi DPI toàn Windows hoặc thử nhiều màn hình.
+
+- Tự dừng/VAD: harness WebRTC thật + PCM tiếng Việt tổng hợp bắt lỗi nói ngay
+  "lưu"/"mở youtube" bị dùng làm noise floor. Calibration nay nhận biến thiên tiếng nói
+  và đếm lại onset trong pre-roll; giữ chặn nhiễu đều/click. Cài đặt có "Tự dừng khi ngừng nói".
+  24 tình huống cùng PCM đối chứng: bản cũ lỗi 4, bản sửa đạt 24; sáu bộ PCM bổ sung đạt.
+  Recorder lệnh 16 kHz và chính tả từ 48 kHz đều được kiểm, chưa thay cho micro/giọng Nam.
+  Một lượt sinh PCM trước đó lệch độ dài clip >100 ms ở chính tả 48 kHz; không còn PCM
+  để tái hiện. Harness nay giữ PCM tổng hợp và hỗ trợ --reuse; chưa kết luận biến thiên đó
+  là lỗi recorder. Giọng nhỏ/ngắt câu trên micro thật vẫn cần đối chứng.
+  Báo cáo đối chứng: `verification\vad-original-replay-ddbfd758a0794590aea87b14e8dc0cb6`
+  và `verification\vad-fixed-replay-68832d399a68498686e88fd14c4fa58c` trong LocalAppData.
 
 ## 2. Những gì đã làm trong phiên 2026-10-09/10 (theo commit)
 
@@ -104,7 +115,7 @@ Hotkey (windows/hotkeys.py) ──signal──▶ Controller (controller.py, mai
 
 ## 5. Cấu hình máy Nam (không nằm trong repo)
 
-`%LOCALAPPDATA%\VoicePilot\config.toml`: hotkey như trên, `vad_enabled = false`, `stt_mode` hybrid,
+`%LOCALAPPDATA%\VoicePilot\config.toml`: hotkey như trên, `vad_enabled = true` (đã bật theo yêu cầu tự dừng ngày 2026-10-11), `stt_mode` hybrid,
 và `[websites]` riêng `"cloud.vn"`, `"close.vn"` → `https://claude.ai` (cách Google nghe claude.ai của Nam).
 
 ## 6. Vấn đề còn mở

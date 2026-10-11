@@ -73,11 +73,17 @@ class SettingsDialog(QDialog):
         self._tts_check = QCheckBox("Đọc phản hồi bằng giọng nói")
         self._tts_check.setChecked(config.tts_enabled)
 
+        self._vad_check = QCheckBox("Tự dừng khi ngừng nói")
+        self._vad_check.setChecked(config.vad_enabled)
+        self._vad_check.setToolTip("Tắt: nhấn phím nghe lần nữa để kết thúc, hoặc chờ hết thời lượng.")
+
         self._silence_spin = QSpinBox()
         self._silence_spin.setRange(300, 3000)
         self._silence_spin.setSingleStep(100)
         self._silence_spin.setSuffix(" ms")
         self._silence_spin.setValue(config.silence_end_ms)
+        self._silence_spin.setEnabled(config.vad_enabled)
+        self._vad_check.toggled.connect(self._silence_spin.setEnabled)
 
         self._threads_spin = QSpinBox()
         self._threads_spin.setRange(1, 8)
@@ -88,7 +94,8 @@ class SettingsDialog(QDialog):
         form.addRow("Phím đổi chế độ", self._mode_edit)
         form.addRow("Nhận dạng giọng nói", self._stt_combo)
         form.addRow("", self._tts_check)
-        form.addRow("Tự kết thúc sau im lặng", self._silence_spin)
+        form.addRow("", self._vad_check)
+        form.addRow("Khoảng im lặng để dừng", self._silence_spin)
         form.addRow("Số luồng Gipformer", self._threads_spin)
 
         self._error = QLabel("")
@@ -123,6 +130,7 @@ class SettingsDialog(QDialog):
             hotkey_mode=mode_key,
             stt_mode=stt_mode,
             tts_enabled=self._tts_check.isChecked(),
+            vad_enabled=self._vad_check.isChecked(),
             silence_end_ms=self._silence_spin.value(),
             gipformer_threads=self._threads_spin.value(),
         )

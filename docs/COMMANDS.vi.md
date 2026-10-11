@@ -5,6 +5,9 @@ VoicePilot nghe lệnh bằng tiếng Việt và thực hiện trên PowerPoint,
 ## Cách dùng nhanh
 
 - Nhấn **Ctrl + Alt + Space** để bắt đầu nghe, nói lệnh, rồi chờ phản hồi. Nhấn lại **Ctrl + Alt + Space** để kết thúc sớm. Nếu bạn im lặng khoảng **0,8 giây** sau khi nói, VoicePilot tự kết thúc lượt.
+- Trong **Cài đặt**, bật **Tự dừng khi ngừng nói**. Mặc định dừng sau 800 ms im lặng;
+  có thể tăng khoảng này khi đọc chính tả và hay nghỉ giữa câu. Tắt tùy chọn để kết thúc
+  bằng phím nghe lần nữa hoặc hết thời lượng. Không nói trong 5 giây thì tự hủy lượt nghe.
 - Nhấn **Ctrl + Alt + D** để chuyển giữa **Ra lệnh** và **Đọc chính tả**.
 - Mỗi lần chỉ nói **một câu, một lệnh**. Các từ lịch sự ở đầu hoặc cuối câu sẽ bị bỏ qua:
   - Ở đầu câu: "làm ơn", "giúp tôi", "giúp mình", "giùm", "giùm tôi", "giùm mình", "cho tôi", "cho mình", "hãy", "ơi".

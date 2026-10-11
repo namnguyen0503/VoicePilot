@@ -152,3 +152,24 @@ def test_command_list_is_built_from_commands_toml() -> None:
     html = _commands_html()
     assert "PPT_NEXT_SLIDE" in html
     assert "Thử nói:" in html
+
+
+def test_settings_can_enable_auto_stop_from_disabled_config(qtbot: QtBot, config_home: Path) -> None:
+    dialog = SettingsDialog(AppConfig(vad_enabled=False))
+    qtbot.addWidget(dialog)
+    assert not dialog._vad_check.isChecked()
+    assert not dialog._silence_spin.isEnabled()
+    dialog._vad_check.setChecked(True)
+    assert dialog._silence_spin.isEnabled()
+    with qtbot.waitSignal(dialog.settings_changed, timeout=2000):
+        dialog.accept()
+    assert load_config().vad_enabled is True
+
+
+def test_settings_can_disable_auto_stop(qtbot: QtBot, config_home: Path) -> None:
+    dialog = SettingsDialog(AppConfig(vad_enabled=True))
+    qtbot.addWidget(dialog)
+    dialog._vad_check.setChecked(False)
+    with qtbot.waitSignal(dialog.settings_changed, timeout=2000):
+        dialog.accept()
+    assert load_config().vad_enabled is False

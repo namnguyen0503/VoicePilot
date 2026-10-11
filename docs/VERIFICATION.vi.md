@@ -131,3 +131,15 @@ Micro thu khoảng 1 s, không lưu clip/transcript. Các probe keys ở QT_SCAL
 Các giới hạn còn lại ở HANDOFF §6/TODO: benchmark 30 câu và demo giọng thật, nghe TTS,
 UIPI/admin, các điều kiện Office/DPI khác, máy sạch và CI sau khi có remote. Không đánh dấu
 chúng đạt bằng transcript fixture hoặc âm thanh tổng hợp.
+
+
+## Kiểm chứng tự dừng khi ngừng nói
+
+Chạy `.\.venv\Scripts\python.exe tools/verify_endpoint.py` trước/sau sửa VAD.
+Harness dùng WebRTC thật và bốn câu tiếng Việt tổng hợp, kiểm nói ngay, nói nhỏ, nhiễu nhẹ,
+nghỉ 300 ms giữa câu, không cắt âm đầu và timeout im lặng. Recorder thật nhận callback PCM
+fixture ở 16/48 kHz, kiểm cả Ra lệnh và Đọc chính tả; không phát loa/thu micro/chạy lệnh.
+Mỗi báo cáo giữ `synthetic-*.npy` (PCM tổng hợp, không phải giọng người dùng).
+Đối chứng cùng dữ liệu bằng `--reuse <thư mục báo cáo> --label vad-replay`.
+Kết quả này không chứng minh chất lượng trên micro hoặc giọng Nam; tiếng nhỏ có thể bị VAD
+coi là im lặng sớm, cần tăng khoảng dừng trong Cài đặt nếu nói ngắt quãng.

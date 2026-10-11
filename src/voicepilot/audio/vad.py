@@ -70,7 +70,7 @@ class Endpointer:
         speech on every frame, which would never end the utterance.
         """
         self._margin_db = noise_margin_db
-        self._calibration: list[float] = []
+        self._calibration: list[tuple[float, bool]] = []
         self._floor_db = 0.0
         self._silence_end_ms = silence_end_ms
         self._max_duration_ms = max_duration_ms
@@ -103,14 +103,32 @@ class Endpointer:
         return b"".join(self._frames)
 
     def _gate_by_noise_floor(self, frame: bytes, speech: bool) -> bool:
-        """Return speech only when the frame is clearly above the noise floor learnt from the first frames."""
+        """Gate steady noise while preserving speech spoken during calibration."""
         db = frame_db(frame)
-        if len(self._calibration) < NOISE_CALIBRATION_FRAMES:
-            self._calibration.append(db)
-            if len(self._calibration) == NOISE_CALIBRATION_FRAMES:
-                self._floor_db = sorted(self._calibration)[NOISE_CALIBRATION_FRAMES // 2]
-            return False
         assert self._margin_db is not None
+        if len(self._calibration) < NOISE_CALIBRATION_FRAMES:
+            self._calibration.append((db, speech))
+            if len(self._calibration) < NOISE_CALIBRATION_FRAMES:
+                return False
+            levels = [level for level, _ in self._calibration]
+            background = [level for level, voiced in self._calibration if not voiced]
+            self._floor_db = float(np.median(background or levels))
+            # An immediate word can fill the calibration window. Do not learn its
+            # varying syllable as steady noise. Require sustained modulation so a
+            # single click still cannot start an utterance, even with a noisy VAD.
+            minimum = min(levels)
+            run = 0
+            modulated_onset = False
+            for level, voiced in self._calibration:
+                run = run + 1 if voiced and level > minimum + self._margin_db / 2 else 0
+                modulated_onset |= run >= MIN_SPEECH_FRAMES
+            if not background and modulated_onset:
+                self._floor_db = minimum - self._margin_db - 0.1
+            # Replay the preceding onset votes; their PCM is already in pre-roll.
+            # This preserves short words that end immediately after calibration.
+            for level, voiced in self._calibration[:-1]:
+                accepted = voiced and level > self._floor_db + self._margin_db
+                self._speech_run = self._speech_run + 1 if accepted else 0
         loud = db > self._floor_db + self._margin_db
         if db < self._floor_db:
             self._floor_db = db

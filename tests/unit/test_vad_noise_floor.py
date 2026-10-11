@@ -93,3 +93,20 @@ def test_recorder_with_vad_disabled_records_until_stopped() -> None:
     clip = recorder.record(1, Mode.COMMAND, stop, threading.Event())
     assert clip is not None
     assert len(clip.samples) >= 16000 * 2 * 0.9
+
+
+def test_immediate_modulated_speech_is_not_used_as_noise_floor() -> None:
+    for scale in (1.0, 0.15):
+        ep = make()
+        onset = [tone(round(value * scale)) for value in (1000, 2500, 3000, 4000, 2500)]
+        frames = onset + [tone(round(2000 * scale))] * 6 + [bytes(FRAME_SAMPLES * 2)] * 30
+        assert run(ep, frames) is Decision.END_SILENCE
+        assert ep.speech_started
+        assert ep.audio().startswith(b"".join(onset))
+
+
+def test_initial_click_over_steady_noise_does_not_start_speech() -> None:
+    ep = make()
+    frames = [noise(), noise(), speech(), noise(), noise()] + [noise()] * 180
+    assert run(ep, frames) is Decision.END_NO_SPEECH
+    assert not ep.speech_started
