@@ -154,3 +154,23 @@ coi là im lặng sớm, cần tăng khoảng dừng trong Cài đặt nếu nó
 LocalAppData/VoicePilot/verification/custom-*. Transcript vẫn là fixture;
 không tính thành demo/benchmark giọng nói. Báo cáo ngày 2026-10-11 có 59 checks đạt,
 trong đó 7 checks custom; không dùng hoặc đóng tài liệu/profile riêng của Nam.
+
+
+## Harness Voice/Text và điều khiển Windows
+
+- `python tools/verify_input_modes.py`: acceptance đã tạo trước code (14 lỗi ban đầu),
+  giữ PCM khi đổi mode, hủy STT cũ, không mở micro trong Text, chống gửi lặp,
+  kiểm đích, cấu hình ba chính sách và cửa sổ hướng dẫn.
+- `python tools/verify_input_native.py --windows --report-dir build/input-native-<ten-moi>`:
+  Qt Windows, Notepad/tệp riêng, Enter chèn Unicode/emoji đúng một lần, focus về
+  đích, mở lại Text, chuyển Voice, vùng màn hình và hướng dẫn. Báo cáo/PNG được giữ
+  trong thư mục mới. Audio/STT dùng fixture; không chứng minh chất lượng giọng nói.
+- `python tools/verify_system_native.py --windows --report build/system-native.json`:
+  tác động thật chín lệnh mới, giữ/khôi phục power plan, độ sáng và âm lượng.
+  Media dùng MediaPlayer SMTC fixture riêng (cần cài `winrt-Windows.Media.Playback==3.2.1`
+  để chạy harness; package này không phải dependency app).
+  Harness kiểm API nhận cả Pause/Play/Next/Previous và bốn callback tương ứng.
+  Không chạy khi Windows đang khóa; để máy không thao tác trong lúc chạy.
+- Lỗi native mới có regression: WMI dispatch/ExecMethod/thiếu output, level driver,
+  readback chậm, apartment STA/MTA, QObject/Qt khi thoát, vị trí composer ngoài màn hình.
+  Chạy đầy đủ pytest với mã thoát tiến trình 0; dòng “passed” chưa đủ nếu Python crash sau đó.

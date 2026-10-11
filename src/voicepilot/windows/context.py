@@ -78,6 +78,10 @@ def _user32() -> Any:
     lib.GetWindowThreadProcessId.restype = ctypes.c_uint32
     lib.GetWindowTextW.argtypes = [ctypes.c_void_p, ctypes.c_wchar_p, ctypes.c_int]
     lib.GetWindowTextW.restype = ctypes.c_int
+    lib.SetForegroundWindow.argtypes = [ctypes.c_void_p]
+    lib.SetForegroundWindow.restype = ctypes.c_int
+    lib.IsWindow.argtypes = [ctypes.c_void_p]
+    lib.IsWindow.restype = ctypes.c_int
     return lib
 
 
@@ -151,3 +155,27 @@ class Win32ContextProvider:
         """True when the current foreground window is the one captured in ctx."""
         hwnd, pid = _foreground()
         return same_target(ctx, hwnd, pid)
+
+
+def restore_text_target(ctx: WindowContext, composer_hwnd: int) -> bool:
+    """Restore only from our composer, after checking HWND identity to reject reuse.
+
+    Never redirect input if the user switched to another external window while typing.
+    No thread attachment or simulated focus-stealing keystrokes are used.
+    """
+    hwnd, pid = _foreground()
+    if same_target(ctx, hwnd, pid):
+        return True
+    if hwnd != composer_hwnd or pid != os.getpid():
+        return False
+    if not ctx.hwnd:
+        return True  # Only actions that do not require a window can execute.
+    user = _user32()
+    target_pid = ctypes.c_uint32()
+    user.GetWindowThreadProcessId(ctx.hwnd, ctypes.byref(target_pid))
+    if not user.IsWindow(ctx.hwnd) or target_pid.value != ctx.pid:
+        return False
+    if not user.SetForegroundWindow(ctx.hwnd):
+        return False
+    hwnd, pid = _foreground()
+    return same_target(ctx, hwnd, pid)

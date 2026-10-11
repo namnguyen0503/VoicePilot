@@ -716,8 +716,10 @@ def execute(parser, executor, hwnd: int, text: str, mode: Mode = Mode.COMMAND):
         return result
     finally:
         controller.shutdown()
+        controller.deleteLater()
         executor._hide_overlay = previous_hide
         overlay.close()
+        overlay.deleteLater()
 
 
 def edit_text(hwnd: int) -> str:
@@ -871,6 +873,7 @@ def keys_suite(folder: Path) -> list[Check]:
         runner.check("native_microphone", microphone)
     finally:
         overlay.close()
+        overlay.deleteLater()
         executor.shutdown()
         if editor:
             win32gui.SendMessage(editor, 0x00B9, 0, 0)  # EM_SETMODIFY: avoid a save prompt

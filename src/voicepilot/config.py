@@ -46,6 +46,8 @@ class AppConfig:
 
     hotkey_listen: str = "ctrl+alt+space"
     hotkey_mode: str = "ctrl+alt+d"
+    input_policy: str = "voice"
+    last_input_channel: str = "voice"
     vad_enabled: bool = True
     silence_end_ms: int = 800
     max_command_s: int = 15
@@ -167,6 +169,11 @@ def _from_table(data: Mapping[str, Any]) -> AppConfig:
 
 def _checked_value(name: str, value: Any) -> Any:
     """Return value converted to the type of setting name, or raise TypeError/ValueError."""
+    if name in {"input_policy", "last_input_channel"}:
+        choices = {"voice", "remember", "text"} if name == "input_policy" else {"voice", "text"}
+        if not isinstance(value, str) or value not in choices:
+            raise ValueError(f"Invalid {name}")
+        return value
     if name == "stt_mode":
         return SttBackendMode(value)
     if name == "overlay_pos":
@@ -227,3 +234,8 @@ def _to_table(cfg: AppConfig) -> dict[str, Any]:
     table["websites"] = dict(cfg.website_aliases)
     table["apps"] = dict(cfg.app_aliases)
     return table
+
+
+def opening_input_channel(config: AppConfig) -> str:
+    """Choose the input tab when the interaction panel is opened again."""
+    return config.last_input_channel if config.input_policy == "remember" else config.input_policy

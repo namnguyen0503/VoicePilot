@@ -18,6 +18,7 @@ from PySide6.QtWidgets import (
     QLabel,
     QProgressBar,
     QSizePolicy,
+    QTabBar,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -89,6 +90,8 @@ class Overlay(QWidget):
     The window never takes focus, so the target application keeps the keyboard.
     """
 
+    mode_requested = Signal()
+    input_requested = Signal(str)
     cancel_requested = Signal()
     position_changed = Signal(int, int)  # saved by the app after a drag ends
 
@@ -113,6 +116,7 @@ class Overlay(QWidget):
         self._gui = _GuiCaller(self)
         self._position = position
         self._placed = False
+        self._input_channel = "voice"
         self._pinned = False
         self._turn_active = False
         self._full_transcript = ""
@@ -145,7 +149,16 @@ class Overlay(QWidget):
 
         top = QHBoxLayout()
         top.setSpacing(8)
-        self._mode_chip = QLabel(CHIP_TEXT[Mode.COMMAND])
+        self._input_tabs = QTabBar()
+        self._input_tabs.addTab("Voice")
+        self._input_tabs.addTab("Text")
+        self._input_tabs.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._input_tabs.currentChanged.connect(lambda i: self.input_requested.emit("text" if i else "voice"))
+        self._mode_chip = QToolButton()
+        self._mode_chip.setText(CHIP_TEXT[Mode.COMMAND])
+        self._mode_chip.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self._mode_chip.setToolTip("Đổi Ra lệnh / Chính tả; giữ phần đã nói khi đang nghe")
+        self._mode_chip.clicked.connect(self.mode_requested)
         self._mode_chip.setObjectName("overlayMode")
         self._target = QLabel("")
         self._target.setObjectName("overlayTarget")
@@ -156,6 +169,7 @@ class Overlay(QWidget):
         self._cancel.setText("✕")
         self._cancel.setToolTip("Hủy lượt")
         self._cancel.clicked.connect(self.cancel_requested)
+        top.addWidget(self._input_tabs)
         top.addWidget(self._mode_chip)
         top.addWidget(self._target)
         top.addStretch(1)
@@ -185,6 +199,16 @@ class Overlay(QWidget):
     def set_mode(self, mode: Mode) -> None:
         """Show the mode chip for mode."""
         self._mode_chip.setText(CHIP_TEXT[mode])
+
+    def set_input_channel(self, channel: str) -> None:
+        """Keep the voice overlay hidden while the focusable text composer is in use."""
+        self._input_channel = channel
+        self._input_tabs.blockSignals(True)
+        self._input_tabs.setCurrentIndex(1 if channel == "text" else 0)
+        self._input_tabs.blockSignals(False)
+        if channel == "text":
+            self._hide_timer.stop()
+            self.hide()
 
     def set_target(self, label: str) -> None:
         """Show the name of the target application."""
@@ -220,6 +244,8 @@ class Overlay(QWidget):
 
     def show_bar(self) -> None:
         """Show the bar without activating it. The first show places it near the bottom of the screen."""
+        if self._input_channel != "voice":
+            return
         if not self._placed:
             self._placed = True
             self.move(self._initial_position())
@@ -255,7 +281,7 @@ class Overlay(QWidget):
                 self._hide_timer.start()
 
     def _on_auto_hide(self) -> None:
-        if self._turn_active:
+        if self._turn_active or self._input_channel == "text":
             return
         if self._pinned:
             self.set_status(READY_TEXT)

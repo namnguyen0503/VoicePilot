@@ -9,6 +9,7 @@ from dataclasses import replace
 from importlib import resources
 from pathlib import Path
 from typing import Any
+from unittest.mock import Mock
 
 import pytest
 from PySide6.QtGui import QIcon
@@ -22,7 +23,7 @@ import voicepilot.stt.google as google_module
 import voicepilot.stt.hybrid as hybrid_module
 from voicepilot import app as bootstrap
 from voicepilot.config import AppConfig
-from voicepilot.contracts import Command, Intent, Mode, SttBackendMode, WindowContext
+from voicepilot.contracts import AppKind, Command, Intent, Mode, SttBackendMode, WindowContext
 from voicepilot.paths import MODELS_ENV_VAR
 
 
@@ -149,11 +150,15 @@ def test_runtime_selftest_is_opt_in(config_home, models_home, no_module_imports,
 
 
 def test_runtime_selftest_reports_failure_without_starting_gui(
-    config_home, models_home, no_module_imports, monkeypatch,
+    config_home,
+    models_home,
+    no_module_imports,
+    monkeypatch,
 ):
     monkeypatch.setattr(bootstrap, "VoicePilot", _fail)
-    monkeypatch.setattr(bootstrap, "_check_speech_runtime",
-                        lambda: [(False, "runtime: fake inference failed")])
+    monkeypatch.setattr(
+        bootstrap, "_check_speech_runtime", lambda: [(False, "runtime: fake inference failed")]
+    )
     assert bootstrap.main(["--selftest-runtime"]) == 1
     assert "[FAIL] runtime: fake inference failed" in _report(config_home)
 
@@ -161,6 +166,7 @@ def test_runtime_selftest_reports_failure_without_starting_gui(
 def test_runtime_selftest_guards_native_load_errors(config_home, models_home, monkeypatch):
     def broken():
         raise RuntimeError("synthetic DLL failure")
+
     monkeypatch.setattr(bootstrap, "_check_speech_runtime", broken)
     assert bootstrap.run_selftest((), runtime=True) == 1
     assert "[FAIL] runtime: RuntimeError" in _report(config_home)
@@ -173,25 +179,32 @@ def test_speech_runtime_observes_command_and_unbiased_dictation(monkeypatch):
     from voicepilot.contracts import Transcript
 
     calls = []
+
     class FakeAsr:
         def __init__(self, *args, **kwargs):
             assert kwargs["hotwords"]
+
         def warmup(self):
             calls.append("load_asr")
+
         def without_hotwords(self):
             calls.append("unbiased")
             return self
+
         def transcribe(self, clip):
             assert clip.samples
             text = "chụp màn hình" if clip.turn_id == 0 else "xin chào"
             return Transcript(text, "gipformer", 1, clip.turn_id)
+
     class FakeVoice:
         def generate(self, text, **kwargs):
             calls.append("synthesize")
             return types.SimpleNamespace(samples=[0.1] * 160, sample_rate=16000)
+
     def load_voice(path):
         calls.append("load_tts")
         return FakeVoice()
+
     monkeypatch.setattr(gipformer_module, "GipformerStt", FakeAsr)
     monkeypatch.setattr(piper, "_load_sherpa_voice", load_voice)
     checks = bootstrap._check_speech_runtime()
@@ -389,11 +402,18 @@ def test_make_parser_reuses_one_installed_app_index(monkeypatch: pytest.MonkeyPa
     assert command.params["app"] == "shell:AppsFolder\\Zalo"
 
 
-
 def test_custom_command_change_rebuilds_hotword_model_and_parser(make_app, engines):
     app = make_app(AppConfig())
-    custom = dict(id="test", name="Search", patterns=["câu riêng"], intent="BROWSER_SEARCH",
-                  params={"query": "gold"}, enabled=True, context="any", process="")
+    custom = dict(
+        id="test",
+        name="Search",
+        patterns=["câu riêng"],
+        intent="BROWSER_SEARCH",
+        params={"query": "gold"},
+        enabled=True,
+        context="any",
+        process="",
+    )
     app._apply_settings(replace(AppConfig(), custom_commands=[custom]))
     assert len(engines.gipformers) == 2
     assert app._controller._config.custom_commands == [custom]
@@ -429,3 +449,44 @@ def test_settings_restores_a_minimized_dialog_when_requested_again(make_app, mon
     app._open_settings()
     dialog.showNormal.assert_called_once_with()
     dialog.activateWindow.assert_called_once_with()
+
+
+def test_text_reopen_preserves_external_target(make_app, monkeypatch):
+    app = make_app(AppConfig())
+    ctx = WindowContext(42, 7, "notepad.exe", "Fixture", AppKind.OTHER, None)
+    provider = Mock()
+    provider.capture.return_value = ctx
+    app._context_provider = provider
+    app._select_input("text")
+    own = WindowContext(int(app._text_input.winId()), 999, "python.exe", "Text", AppKind.OTHER, None)
+    provider.capture.return_value = own
+    app._select_input("text")
+    assert app._input_context == ctx
+
+
+def test_return_to_voice_restores_composer_target(make_app, monkeypatch):
+    from voicepilot.windows import context
+
+    app = make_app(AppConfig())
+    ctx = WindowContext(42, 7, "notepad.exe", "Fixture", AppKind.OTHER, None)
+    app._input_context = ctx
+    app._text_input.show()
+    app._windows = True
+    restore = Mock(return_value=True)
+    monkeypatch.setattr(context, "restore_text_target", restore)
+    app._select_input("voice")
+    restore.assert_called_once_with(ctx, int(app._text_input.winId()))
+    assert not app._text_input.isVisible()
+
+
+def test_shutdown_disposes_input_windows_before_qapplication_teardown(make_app):
+    from PySide6.QtCore import QCoreApplication, QEvent
+    from shiboken6 import isValid
+
+    app = make_app(AppConfig())
+    app._open_manual()
+    assert app.parent() is QApplication.instance()
+    windows = (app._text_input, app._manual, app._overlay, app._tray._menu, app._tray, app)
+    app.shutdown()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert all(not isValid(window) for window in windows)

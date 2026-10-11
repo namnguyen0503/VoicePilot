@@ -15,6 +15,7 @@ Command-line flags:
 from __future__ import annotations
 
 import argparse
+import contextlib
 import getpass
 import logging
 import sys
@@ -32,7 +33,7 @@ from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMessageBox, QStyle, QSystemTrayIcon
 
 from voicepilot import debuglog
-from voicepilot.config import AppConfig, config_dir, load_config, save_config
+from voicepilot.config import AppConfig, config_dir, load_config, opening_input_channel, save_config
 from voicepilot.contracts import (
     ActionResult,
     AppKind,
@@ -45,10 +46,12 @@ from voicepilot.contracts import (
     SttBackendMode,
     WindowContext,
 )
-from voicepilot.controller import Controller, Recorder, Transcriber
+from voicepilot.controller import Controller, Recorder, Transcriber, target_label
+from voicepilot.ui.manual import UserManualWindow
 from voicepilot.ui.overlay import Overlay
 from voicepilot.ui.settings import SettingsDialog, show_settings_dialog
-from voicepilot.ui.tray import Tray, show_command_help
+from voicepilot.ui.text_input import TextInputWindow
+from voicepilot.ui.tray import Tray
 
 if TYPE_CHECKING:
     from voicepilot.stt.gipformer import GipformerStt
@@ -66,7 +69,7 @@ MANIFEST_RESOURCE = "models.toml"
 GIPFORMER_MODEL_DIR = ("asr", "gipformer1.5-int8")
 PIPER_MODEL_FILE = ("tts", "vits-piper-vi_VN-vais1000-medium", "vi_VN-vais1000-medium.onnx")
 SELFTEST_IMPORTS = ("sherpa_onnx", "sounddevice", "webrtcvad", "speech_recognition", "mss")
-SELFTEST_WINDOWS_IMPORTS = ("win32com.client", "pythoncom")
+SELFTEST_WINDOWS_IMPORTS = ("win32com.client", "pythoncom", "winrt.windows.media.control")
 
 _SELFTEST_PPT = WindowContext(
     hwnd=0,
@@ -82,6 +85,15 @@ _SELFTEST_SENTENCES: tuple[tuple[str, WindowContext | None, Intent], ...] = (
     ("tìm kiếm thời tiết Hà Nội", None, Intent.BROWSER_SEARCH),
     ("giá vàng hôm nay bao nhiêu", None, Intent.BROWSER_SEARCH),
     ("mở youtube", None, Intent.BROWSER_OPEN_SITE),
+    ("bật tiết kiệm pin", None, Intent.WIN_POWER_SAVER),
+    ("giảm độ sáng", None, Intent.WIN_BRIGHTNESS_DOWN),
+    ("tăng độ sáng", None, Intent.WIN_BRIGHTNESS_UP),
+    ("giảm âm lượng", None, Intent.WIN_VOLUME_DOWN),
+    ("tăng âm lượng", None, Intent.WIN_VOLUME_UP),
+    ("play", None, Intent.MEDIA_PLAY),
+    ("pause", None, Intent.MEDIA_PAUSE),
+    ("next", None, Intent.MEDIA_NEXT),
+    ("previous", None, Intent.MEDIA_PREVIOUS),
 )
 
 Check = tuple[bool, str]
@@ -309,7 +321,7 @@ class VoicePilot(QObject):
         instance_server: QLocalServer,
     ) -> None:
         """Build every component. Nothing is shown or registered until start()."""
-        super().__init__()
+        super().__init__(qt_app)
         self._config = config
         self._windows = windows
         self._instance_server = instance_server
@@ -319,11 +331,16 @@ class VoicePilot(QObject):
         self._level_relay = _LevelRelay(self)
         self._hotkey_relay = _HotkeyRelay(self)
 
+        self._manual = None
+        self._text_input = TextInputWindow()
+        self._input_context = None
         self._overlay = Overlay(config.overlay_pos)
         if windows:
             context_provider, executor = _windows_components(config, self._overlay)
+            executor._hide_overlay = self._hidden_input_ui
         else:
             context_provider, executor = _DevContextProvider(), _DevExecutor()
+        self._context_provider = context_provider
         recorder, transcriber, self._gipformer = _audio_components(config, self._level_relay.push)
         self._controller = Controller(
             config,
@@ -347,16 +364,27 @@ class VoicePilot(QObject):
         controller.target_changed.connect(overlay.set_target)
         controller.mode_changed.connect(lambda mode: overlay.set_mode(mode))
         overlay.cancel_requested.connect(controller.cancel)
+        overlay.mode_requested.connect(controller.toggle_mode)
+        overlay.input_requested.connect(self._select_input)
+        composer = self._text_input
+        composer.mode_requested.connect(controller.toggle_mode)
+        composer.input_requested.connect(self._select_input)
+        composer.submitted.connect(self._submit_text)
+        composer.cancel_requested.connect(controller.cancel)
+        composer.closed.connect(controller.cancel)
+        controller.mode_changed.connect(composer.set_mode)
+        controller.state_changed.connect(composer.on_state)
+        controller.result_ready.connect(composer.on_result)
         overlay.position_changed.connect(self._on_overlay_moved)
 
         self._level_relay.value.connect(controller.on_audio_level, Qt.ConnectionType.QueuedConnection)
-        self._hotkey_relay.listen.connect(controller.toggle_listen, Qt.ConnectionType.QueuedConnection)
+        self._hotkey_relay.listen.connect(self._listen_requested, Qt.ConnectionType.QueuedConnection)
         self._hotkey_relay.mode.connect(controller.toggle_mode, Qt.ConnectionType.QueuedConnection)
 
         tray = self._tray
-        tray.overlay_toggled.connect(overlay.set_pinned)
+        tray.overlay_toggled.connect(self._show_input_panel)
         tray.settings_requested.connect(self._open_settings)
-        tray.commands_requested.connect(lambda: show_command_help(None))
+        tray.commands_requested.connect(self._open_manual)
         tray.quit_requested.connect(qt_app.quit)
         qt_app.aboutToQuit.connect(self.shutdown)
 
@@ -377,7 +405,107 @@ class VoicePilot(QObject):
         self._controller.shutdown()
         self._stop_hotkeys()
         self._overlay.hide()
-        self._tray.hide()
+        self._overlay.deleteLater()
+        self._text_input.hide()
+        self._text_input.deleteLater()
+        if self._manual is not None:
+            self._manual.hide()
+            self._manual.deleteLater()
+        self._tray.shutdown()
+        self._tray.deleteLater()
+        if self._settings_dialog is not None:
+            self._settings_dialog.hide()
+            self._settings_dialog.deleteLater()
+        self.deleteLater()
+
+    @contextlib.contextmanager
+    def _hidden_input_ui(self):
+        """Keep both voice and text panels out of screenshots without stealing focus."""
+        visible = self._text_input._gui.run(self._text_input.hide_for_capture)
+        try:
+            with self._overlay.hidden_temporarily():
+                yield
+        finally:
+            self._text_input._gui.run(lambda: self._text_input.restore_after_capture(visible))
+
+    def _listen_requested(self) -> None:
+        """Open the chosen input tab, or stop an existing voice capture."""
+        if self._closed:
+            return
+        if self._controller._turn is not None:
+            self._controller.toggle_listen()
+            return
+        if self._text_input.isVisible():
+            self._select_input("text")
+            return
+        self._select_input(opening_input_channel(self._config))
+        if self._controller.input_channel == "voice":
+            self._controller.toggle_listen()
+
+    def _show_input_panel(self, shown: bool) -> None:
+        if shown:
+            self._select_input(opening_input_channel(self._config))
+            if self._controller.input_channel == "voice":
+                self._overlay.set_pinned(True)
+        else:
+            self._controller.cancel()
+            self._text_input.hide()
+            self._overlay.set_pinned(False)
+
+    def _select_input(self, channel: str) -> None:
+        if self._closed:
+            return
+        if channel == "text":
+            turn = self._controller._turn
+            ctx = turn.context if turn is not None else self._context_provider.capture()
+            if ctx.hwnd and ctx.hwnd != int(self._text_input.winId()):
+                self._input_context = ctx
+            elif self._input_context is None:
+                self._input_context = ctx
+        elif self._text_input.isVisible() and self._windows and self._input_context is not None:
+            from voicepilot.windows.context import restore_text_target
+
+            restore_text_target(self._input_context, int(self._text_input.winId()))
+        self._controller.set_input_channel(channel)
+        self._overlay.set_input_channel(channel)
+        if channel == "text":
+            self._text_input.move(self._overlay._initial_position())
+            self._text_input.open_for_input(target_label(self._input_context))
+        else:
+            self._text_input.hide()
+            self._overlay.show_bar()
+        if self._config.last_input_channel != channel:
+            self._config = replace(self._config, last_input_channel=channel)
+            try:
+                save_config(self._config)
+            except OSError as exc:
+                log.warning("could not save input choice: %s", type(exc).__name__)
+
+    def _submit_text(self, text: str) -> None:
+        ctx = self._input_context
+        if ctx is None or self._controller.input_channel != "text":
+            self._text_input.on_state("IDLE", "Hãy mở lại tab Text.")
+            return
+        if self._windows:
+            from voicepilot.windows.context import restore_text_target
+
+            if not restore_text_target(ctx, int(self._text_input.winId())):
+                self._text_input.on_state("IDLE", "Cửa sổ đích đã thay đổi, hãy mở lại tab Text.")
+                return
+        self._text_input.hide()
+        accepted = self._controller.submit_text(text, ctx)
+        if not accepted:
+            self._text_input.on_state("IDLE", "Đang xử lý lượt trước.")
+        # Remain visible for status/retry, without reclaiming the target's keyboard.
+        self._text_input.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating, True)
+        self._text_input.show()
+
+    def _open_manual(self) -> None:
+        if self._manual is None:
+            self._manual = UserManualWindow(self._config)
+        else:
+            self._manual.set_config(self._config)
+        show_settings_dialog(self._manual)
 
     # ----- hotkeys ------------------------------------------------------------------
 
@@ -559,12 +687,39 @@ def _check_imports(names: Sequence[str]) -> list[Check]:
     results: list[Check] = []
     for name in names:
         try:
-            import_module(name)
+            module = import_module(name)
+            if name == "winrt.windows.media.control":
+                _check_media_projection(module)
         except Exception as exc:
             results.append((False, f"import {name}: {type(exc).__name__}: {exc}"))
         else:
             results.append((True, f"import {name}"))
     return results
+
+
+def _check_media_projection(module) -> None:
+    """Exercise frozen WinRT projections with a read-only session lookup."""
+    import asyncio
+    from concurrent.futures import ThreadPoolExecutor
+
+    def lookup():
+        import winrt.runtime
+
+        from voicepilot.windows.system_controls import init_media_apartment
+
+        async def request():
+            async with asyncio.timeout(3):
+                manager = await module.GlobalSystemMediaTransportControlsSessionManager.request_async()
+                manager.get_current_session()
+
+        init_media_apartment()
+        try:
+            asyncio.run(request())
+        finally:
+            winrt.runtime.uninit_apartment()
+
+    with ThreadPoolExecutor(max_workers=1) as worker:
+        worker.submit(lookup).result()
 
 
 def _write_report(lines: Sequence[str]) -> bool:

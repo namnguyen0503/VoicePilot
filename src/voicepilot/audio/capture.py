@@ -225,6 +225,8 @@ class Recorder:
         mode: Mode,
         stop_event: threading.Event,
         cancel_event: threading.Event,
+        *,
+        mode_getter: Callable[[], Mode] | None = None,
     ) -> AudioClip | None:
         """Capture one utterance.
 
@@ -256,7 +258,7 @@ class Recorder:
                 stream.start()
             except Exception as exc:
                 raise AudioDeviceError("Không mở được micro.") from exc
-            self._pump(chunks, source, endpointer, stop_event, cancel_event)
+            self._pump(chunks, source, endpointer, stop_event, cancel_event, mode_getter)
         finally:
             with contextlib.suppress(Exception):  # a stream that never started may refuse to stop
                 stream.stop()
@@ -265,6 +267,10 @@ class Recorder:
         if cancel_event.is_set() or not endpointer.speech_started:
             return None
         return AudioClip(samples=endpointer.audio(), turn_id=turn_id)
+
+    def record_live(self, turn_id, mode_getter, stop_event, cancel_event) -> AudioClip | None:
+        """Retain PCM and update the duration limit when the live mode changes."""
+        return self.record(turn_id, mode_getter(), stop_event, cancel_event, mode_getter=mode_getter)
 
     def _open(self, rate: int, on_chunk: Callable[[np.ndarray], None]) -> InputStreamLike:
         def callback(indata: np.ndarray, frames: int, time_info: Any, status: Any) -> None:
@@ -282,6 +288,7 @@ class Recorder:
         endpointer: Endpointer,
         stop_event: threading.Event,
         cancel_event: threading.Event,
+        mode_getter: Callable[[], Mode] | None = None,
     ) -> None:
         """Feed frames to the endpointer until it decides, stop is requested, or cancel is requested.
 
@@ -307,5 +314,9 @@ class Recorder:
                 if self._on_level is not None and now - level_at >= _LEVEL_INTERVAL_S:
                     level_at = now
                     self._on_level(rms_level(frame))
+                if mode_getter is not None:
+                    max_s = (self._config.max_dictation_s if mode_getter() is Mode.DICTATION
+                             else self._config.max_command_s)
+                    endpointer.set_max_duration(max_s * 1000)
                 if endpointer.feed(frame) is not Decision.CONTINUE:
                     return

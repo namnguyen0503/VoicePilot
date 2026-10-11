@@ -58,7 +58,7 @@ Chi tiết nguồn và giấy phép: `THIRD_PARTY_NOTICES.md`.
 
 - Harness được tạo/chạy trước khi sửa app. Đủ 15 intent có kiểm tra tác động parser → executor
   với fakes; test chứng minh harness phát hiện executor lỗi và giữ trạng thái fail/blocked.
-- Pytest mới nhất 1390 pass, 2 skip; ruff sạch. Pytest dùng basetemp mới và tắt cache để tránh ACL/cache
+- Pytest mới nhất 1496 pass, 2 skip; ruff sạch. Pytest dùng basetemp mới và tắt cache để tránh ACL/cache
   cũ ở máy Nam. Không xóa thư mục test cũ bị lỗi quyền.
   Bản copy có đường dẫn dài: 1145 pass, 3 skip; thêm một fixture thư mục 150 ký tự tự bỏ qua
   vì tmp_path đã quá dài. Hai skip mặc định Windows kiểm đường dẫn cấu hình của OS khác.
@@ -119,3 +119,15 @@ Nam chạy app với `--debug` rồi nói “xem log đi”: chỉ đọc sessio
 
 Benchmark đo STT/parser, chưa gồm vẽ UI/thu âm; RAM đỉnh chỉ so sánh đúng khi chạy riêng từng backend.
 Lần chính tả offline đầu nạp decoder riêng, tăng độ trễ và RAM; báo cáo phải ghi điều kiện warm/cold.
+
+
+## Bổ sung theo yêu cầu Nam ngày 2026-10-11
+
+- Hai tab Voice/Text; Enter/nút gửi dùng cùng pipeline, tắt thu âm trong Text.
+- Đổi Ra lệnh/Chính tả khi đang ghi giữ PCM, dùng chế độ mới cho cả lượt;
+  khi đã nhận dạng/thực thi thì hủy lượt cũ.
+- Cài đặt tab khi mở lại: Voice mặc định, nhớ lựa chọn cuối hoặc luôn mở Text.
+- Hướng dẫn sử dụng trong cửa sổ riêng, có danh mục/tìm kiếm/phím tắt thực tế.
+- Chín hành động Windows mới: Power saver (Nam chốt chuyển power plan), độ sáng
+  tăng/giảm 10 điểm phần trăm, âm lượng tăng/giảm, media Play/Pause/Next/Previous qua SMTC.
+- Các hành động mới cũng có trong trình tạo lệnh custom. Wi-Fi/Excel vẫn ngoài phạm vi.

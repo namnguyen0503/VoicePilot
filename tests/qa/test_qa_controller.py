@@ -278,15 +278,15 @@ def test_hotkey_spam_starts_exactly_one_turn(qtbot, make):
     assert len(executor.calls) <= 1
 
 
-def test_toggle_mode_mid_turn_is_ignored(qtbot, make):
+def test_toggle_mode_mid_capture_updates_mode(qtbot, make):
     recorder = Recorder(hold=True)
     ctrl = make(recorder=recorder)
     watch = Watch(ctrl)
     ctrl.toggle_listen()
     wait_state(qtbot, ctrl, State.LISTENING)
     ctrl.toggle_mode()
-    assert ctrl.mode is Mode.COMMAND
-    assert watch.modes == []
+    assert ctrl.mode is Mode.DICTATION
+    assert watch.modes == [Mode.DICTATION]
     ctrl.cancel()
     wait_idle(qtbot, ctrl)
 

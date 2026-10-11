@@ -7,15 +7,11 @@ import tomllib
 from importlib import resources
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QUrl, Signal
-from PySide6.QtGui import QAction, QDesktopServices, QIcon
+from PySide6.QtCore import QObject, Signal
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import (
-    QDialog,
-    QDialogButtonBox,
     QMenu,
     QSystemTrayIcon,
-    QTextBrowser,
-    QVBoxLayout,
     QWidget,
 )
 
@@ -54,7 +50,7 @@ class Tray(QObject):
         self._show_action.toggled.connect(self.overlay_toggled)
         settings_action = QAction("Cài đặt…", menu)
         settings_action.triggered.connect(self.settings_requested)
-        commands_action = QAction("Danh sách lệnh", menu)
+        commands_action = QAction("Hướng dẫn sử dụng / Danh sách lệnh", menu)
         commands_action.triggered.connect(self.commands_requested)
         quit_action = QAction("Thoát", menu)
         quit_action.triggered.connect(self.quit_requested)
@@ -75,6 +71,12 @@ class Tray(QObject):
         """Hide the tray icon."""
         self._tray.hide()
 
+    def shutdown(self) -> None:
+        """Release the parentless menu while Qt and its Python callbacks are alive."""
+        self._tray.hide()
+        self._tray.setContextMenu(None)
+        self._menu.deleteLater()
+
     def set_hotkeys(self, hotkey_listen: str, hotkey_mode: str) -> None:
         """Update the tooltip that lists the hotkeys."""
         self._tray.setToolTip(
@@ -93,23 +95,11 @@ def command_guide_path() -> Path | None:
 
 
 def show_command_help(parent: QWidget | None = None) -> None:
-    """Open the command guide if it ships with the app, else show the built-in command list."""
-    guide = command_guide_path()
-    if guide is not None:
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(guide)))
-        return
-    dialog = QDialog(parent)
-    dialog.setWindowTitle("Danh sách lệnh")
-    browser = QTextBrowser()
-    browser.setOpenExternalLinks(False)
-    browser.setHtml(_commands_html())
-    buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
-    buttons.rejected.connect(dialog.reject)
-    buttons.accepted.connect(dialog.accept)
-    layout = QVBoxLayout(dialog)
-    layout.addWidget(browser)
-    layout.addWidget(buttons)
-    dialog.resize(480, 520)
+    """Show the built-in manual window instead of launching an external editor."""
+    from voicepilot.config import load_config
+    from voicepilot.ui.manual import UserManualWindow
+
+    dialog = UserManualWindow(load_config())
     dialog.exec()
 
 

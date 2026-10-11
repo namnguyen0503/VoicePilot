@@ -420,21 +420,21 @@ def test_failures_report_a_message_and_return_to_idle(
     assert (len(rig.executor.calls) == 1) is executes
 
 
-def test_mode_toggle_is_ignored_during_a_turn(build_rig: Callable[..., Rig], qtbot: QtBot) -> None:
+def test_mode_toggle_updates_a_listening_turn(build_rig: Callable[..., Rig], qtbot: QtBot) -> None:
     rig = build_rig()
     rig.recorder.wait_for_stop = True
     rig.controller.toggle_listen()
     qtbot.waitUntil(rig.recorder.started.is_set, timeout=5000)
 
     rig.controller.toggle_mode()
-    assert rig.controller.mode is Mode.COMMAND
-    assert rig.modes == []
+    assert rig.controller.mode is Mode.DICTATION
+    assert rig.modes == [Mode.DICTATION]
 
     rig.controller.toggle_listen()
     wait_for_idle(qtbot, rig)
     rig.controller.toggle_mode()
-    assert rig.controller.mode is Mode.DICTATION
-    assert rig.modes == [Mode.DICTATION]
+    assert rig.controller.mode is Mode.COMMAND
+    assert rig.modes == [Mode.DICTATION, Mode.COMMAND]
 
 
 def test_history_keeps_only_the_last_entries(build_rig: Callable[..., Rig], qtbot: QtBot) -> None:

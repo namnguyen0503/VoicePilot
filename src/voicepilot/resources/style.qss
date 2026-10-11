@@ -164,3 +164,20 @@ QTabBar::tab {
 QTabBar::tab:selected {
     background-color: #1e3a8a;
 }
+
+QToolButton#overlayMode {
+    background-color: #1e3a8a;
+    color: #bfdbfe;
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-weight: 600;
+}
+QDialog#textInputWindow QLabel { color: #e5e7eb; }
+QDialog#textInputWindow QToolButton {
+    background-color: #1e3a8a;
+    color: #f9fafb;
+    border: none;
+    border-radius: 6px;
+    padding: 7px 12px;
+}
+QDialog#textInputWindow QToolButton:disabled { color: #64748b; background-color: #1f2937; }

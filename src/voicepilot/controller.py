@@ -149,6 +149,9 @@ class _Turn:
     cancel_event: threading.Event = field(default_factory=threading.Event)
     state: State = State.LISTENING
     cancelled: bool = False
+    mode_lock: threading.Lock = field(default_factory=threading.Lock)
+    input_frozen: bool = False
+    text: str | None = None
 
 
 @dataclass(frozen=True)
@@ -238,6 +241,8 @@ class Controller(QObject):
             if pool is not None
             else concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="voicepilot-turn")
         )
+        self._input_channel = "voice"
+        self._record_lock = threading.Lock()
         self._mode = Mode.COMMAND
         self._state = State.IDLE
         self._turn: _Turn | None = None
@@ -278,7 +283,7 @@ class Controller(QObject):
 
     def toggle_listen(self) -> None:
         """Start a turn when idle, or end the current listening phase early."""
-        if self._closed:
+        if self._closed or self._input_channel != "voice":
             return
         turn = self._turn
         if turn is None:
@@ -310,12 +315,43 @@ class Controller(QObject):
         )
         self._set_state(State.IDLE, MSG_CANCELLED)
 
-    def toggle_mode(self) -> None:
-        """Switch between command and dictation mode. Ignored while a turn is active."""
-        if self._turn is not None or self._closed:
+    @property
+    def input_channel(self) -> str:
+        """Selected input channel; text selection blocks microphone starts."""
+        return self._input_channel
+
+    def set_input_channel(self, channel: str) -> None:
+        """Cancel the old channel before enabling another one."""
+        if channel not in {"voice", "text"}:
+            raise ValueError("Unknown input channel")
+        if self._closed or channel == self._input_channel:
             return
-        self._mode = Mode.DICTATION if self._mode is Mode.COMMAND else Mode.COMMAND
+        self.cancel()
+        self._safe_speaker_call(self._speaker.stop, "stop")
+        self._input_channel = channel
+
+    def toggle_mode(self) -> None:
+        """Keep captured audio when switching during capture; cancel frozen work."""
+        if self._closed:
+            return
+        new_mode = Mode.DICTATION if self._mode is Mode.COMMAND else Mode.COMMAND
+        turn = self._turn
+        if turn is not None:
+            with turn.mode_lock:
+                frozen = turn.input_frozen
+                if not frozen:
+                    turn.mode = new_mode
+            if frozen:
+                self.cancel()
+        self._mode = new_mode
         self.mode_changed.emit(self._mode)
+
+    def submit_text(self, text: str, context: WindowContext) -> bool:
+        """Submit one typed turn. Never opens the microphone or a speech backend."""
+        if self._closed or self._input_channel != "text" or self._turn is not None or not text.strip():
+            return False
+        self._start_turn(text=text, context=context)
+        return True
 
     def on_audio_level(self, level: float) -> None:
         """Show a microphone level while listening, throttled to about 20 Hz.
@@ -376,11 +412,11 @@ class Controller(QObject):
 
     # ----- turn start ---------------------------------------------------------------
 
-    def _start_turn(self) -> None:
+    def _start_turn(self, *, text: str | None = None, context: WindowContext | None = None) -> None:
         self._hold_timer.stop()
         self._apply_pending()
         self._safe_speaker_call(self._speaker.stop, "stop")
-        ctx = self._capture_context()
+        ctx = context if context is not None else self._capture_context()
         self._turn_seq += 1
         turn = _Turn(
             turn_id=self._turn_seq,
@@ -391,11 +427,14 @@ class Controller(QObject):
             started=self._clock(),
             parser=self._parser,
             config=self._config,
+            text=text,
+            input_frozen=text is not None,
         )
         self._turn = turn
         self.transcript_changed.emit("")
         self.target_changed.emit(target_label(ctx))
-        self._set_state(State.LISTENING, MSG_LISTENING)
+        self._set_state(State.LISTENING if text is None else State.EXECUTING,
+                        MSG_LISTENING if text is None else MSG_EXECUTING)
         self._last_future = self._pool.submit(self._run_turn, turn)
 
     def _apply_pending(self) -> None:
@@ -439,9 +478,21 @@ class Controller(QObject):
     def _pipeline(self, turn: _Turn) -> _Outcome | None:
         """Run one turn. Returns None when the turn was cancelled and nothing should be reported."""
         now = self._clock
+        if turn.text is not None:
+            heard = _Heard(speech_end=now(), transcript=turn.text, source="text")
+            self._transcript_ready.emit(turn.turn_id, turn.text)
+            return self._execute_text(turn, heard)
         t_start = now()
         try:
-            clip = turn.recorder.record(turn.turn_id, turn.mode, turn.stop_event, turn.cancel_event)
+            # A cancelled capture may still be closing its stream when another turn starts.
+            with self._record_lock:
+                if turn.cancel_event.is_set():
+                    return None
+                live_record = getattr(turn.recorder, "record_live", None)
+                if callable(live_record):
+                    clip = live_record(turn.turn_id, lambda: turn.mode, turn.stop_event, turn.cancel_event)
+                else:
+                    clip = turn.recorder.record(turn.turn_id, turn.mode, turn.stop_event, turn.cancel_event)
         except AudioDeviceError:
             return self._outcome(
                 turn, ActionResult(ResultStatus.ERROR, MSG_NO_MIC, "audio_device"), _Heard(speech_end=now())
@@ -458,6 +509,10 @@ class Controller(QObject):
             )
         debuglog.save_clip(turn.turn_id, clip.samples, clip.sample_rate)
 
+        with turn.mode_lock:
+            if turn.cancel_event.is_set():
+                return None
+            turn.input_frozen = True
         self._stage.emit(turn.turn_id, State.RECOGNIZING.value)
         t_stt = now()
         try:
@@ -484,6 +539,14 @@ class Controller(QObject):
         text = transcript.text
         self._transcript_ready.emit(turn.turn_id, text)
 
+        return self._execute_text(turn, heard)
+
+    def _execute_text(self, turn: _Turn, heard: _Heard) -> _Outcome | None:
+        """Shared typed/recognized-text path with identical parse, cancel and focus guards."""
+        now = self._clock
+        text = heard.transcript
+        if turn.cancel_event.is_set():
+            return None
         if turn.mode is Mode.DICTATION:
             if not text.strip():
                 no_speech = ActionResult(ResultStatus.ERROR, MSG_NO_SPEECH, "no_speech")
@@ -495,7 +558,7 @@ class Controller(QObject):
                 "turn id=%d heard=%r source=%s app=%s -> intent=%s params=%r missing=%r",
                 turn.turn_id,
                 text,
-                transcript.source,
+                heard.source,
                 turn.context.app_kind.value,
                 command.intent.value,
                 dict(command.params),

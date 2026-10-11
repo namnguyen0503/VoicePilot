@@ -100,6 +100,17 @@ class SettingsDialog(QDialog):
             self._stt_combo.addItem(label, value)
         self._stt_combo.setCurrentIndex(max(0, self._stt_combo.findData(config.stt_mode)))
 
+        self._input_policy_combo = QComboBox()
+        for label, value in (
+            ("Mặc định về Voice", "voice"),
+            ("Nhớ tab đã chọn lần cuối", "remember"),
+            ("Luôn mở Text", "text"),
+        ):
+            self._input_policy_combo.addItem(label, value)
+        self._input_policy_combo.setCurrentIndex(
+            max(0, self._input_policy_combo.findData(config.input_policy))
+        )
+
         self._tts_check = QCheckBox("Đọc phản hồi bằng giọng nói")
         self._tts_check.setChecked(config.tts_enabled)
 
@@ -122,6 +133,7 @@ class SettingsDialog(QDialog):
         form = QFormLayout()
         form.addRow("Phím bắt đầu nghe", self._listen_edit)
         form.addRow("Phím đổi chế độ", self._mode_edit)
+        form.addRow("Tab khi mở lại", self._input_policy_combo)
         form.addRow("Nhận dạng giọng nói", self._stt_combo)
         form.addRow("", self._tts_check)
         form.addRow("", self._vad_check)
@@ -167,6 +179,7 @@ class SettingsDialog(QDialog):
             hotkey_listen=listen,
             hotkey_mode=mode_key,
             stt_mode=stt_mode,
+            input_policy=self._input_policy_combo.currentData(),
             tts_enabled=self._tts_check.isChecked(),
             vad_enabled=self._vad_check.isChecked(),
             silence_end_ms=self._silence_spin.value(),

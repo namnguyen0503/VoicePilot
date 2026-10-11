@@ -435,3 +435,15 @@ def test_frame_source_keeps_int16_scale_for_device_shaped_chunks(chunk: np.ndarr
 
     samples = np.frombuffer(frame, dtype="<i2")
     assert samples.min() == samples.max() == expected
+
+
+def test_live_mode_extends_capture_without_losing_pcm():
+    config = make_config(vad_enabled=False, max_command_s=3, max_dictation_s=5)
+    chunks = chunked(speech_samples(5.5))
+    mode = [Mode.COMMAND]
+    def level(value):
+        mode[0] = Mode.DICTATION
+    recorder, _, streams = scripted_recorder(config, chunks, on_level=level)
+    clip = recorder.record_live(1, lambda: mode[0], threading.Event(), threading.Event())
+    assert clip is not None and 4.9 <= clip.duration_s <= 5.1
+    assert streams[0].stopped and streams[0].closed

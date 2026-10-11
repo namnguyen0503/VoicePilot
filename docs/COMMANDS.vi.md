@@ -1,4 +1,4 @@
-# Danh sách lệnh VoicePilot
+# Hướng dẫn sử dụng VoicePilot
 
 VoicePilot nghe lệnh bằng tiếng Việt và thực hiện trên PowerPoint, Edge/Chrome và Windows.
 
@@ -15,6 +15,31 @@ VoicePilot nghe lệnh bằng tiếng Việt và thực hiện trên PowerPoint,
   - Với lệnh ngắn hoặc tên website, tên ứng dụng: "đi" và "với" ở cuối câu cũng bị bỏ qua, ví dụ "mở youtube đi" hay "slide tiếp với".
   - Với nội dung tìm kiếm, tên tệp: chỉ bỏ các từ lịch sự, còn "đi" và "với" được giữ lại. Ví dụ "tìm đường đi" tìm đúng "đường đi".
 - Muốn đổi phím tắt, vào mục **Cài đặt** của VoicePilot.
+
+## Voice và Text
+
+Thanh điều khiển có hai tab **Voice** và **Text**. Voice dùng micro; Text có ô nhập dài,
+nhấn **Enter** hoặc nút **➤** để gửi. Trong Text, VoicePilot tắt thu âm; phím nghe chỉ
+mở lại ô nhập. Cả hai tab dùng chung lệnh có sẵn, lệnh tùy chỉnh và chế độ chính tả.
+Khi đang xử lý, ô nhập/nút gửi bị khóa để một lượt chỉ thực hiện một lần.
+
+Chọn ứng dụng đích trước khi mở Text. Khi gửi, VoicePilot trả focus về cửa sổ đã chọn.
+Nếu bạn chuyển sang cửa sổ khác trong lúc nhập hoặc đóng cửa sổ đích, lượt bị chặn;
+hãy chọn lại ứng dụng và mở Text bằng phím nghe. Với chính tả, text được chèn vào
+con trỏ của ứng dụng đích, giữ dấu tiếng Việt và emoji.
+
+Bấm nút **Ra lệnh / Chính tả**, hoặc phím đổi chế độ, ngay khi đang nói. Âm thanh đã
+thu được giữ lại và cả lượt dùng chế độ mới. Nếu nhận dạng/thực thi đã bắt đầu,
+lượt cũ bị hủy; hãy bắt đầu lượt mới theo chế độ đã chọn.
+
+Trong **Cài đặt → Tab khi mở lại**, chọn:
+
+- **Mặc định về Voice**: mỗi lần mở lại bảng nhập dùng Voice (mặc định).
+- **Nhớ tab đã chọn lần cuối**: mở lại Voice hoặc Text theo lựa chọn trước đó.
+- **Luôn mở Text**: mỗi lần mở lại dùng Text; vẫn có thể bấm tab Voice cho lượt hiện tại.
+
+Mở tray **Hướng dẫn sử dụng / Danh sách lệnh** để xem cửa sổ này trong app.
+Có danh mục ở bên trái và ô tìm kiếm; phím tắt trong cửa sổ phản ánh cấu hình hiện tại.
 
 ## Khi nào lệnh chạy
 
@@ -64,6 +89,19 @@ câu hỏi chỉ được chèn thành văn bản.
 |---|---|---|
 | Mở ứng dụng | `mở word`, `mở excel`, `mở powerpoint`, `khởi động notepad`, `chạy máy tính`, `mở ứng dụng Word` | Chạy từ mọi cửa sổ. Tên ứng dụng phải có trong danh sách bên dưới. Chỉ nói "mở" sẽ được hỏi lại. |
 | Chụp màn hình | `chụp màn hình`, `chụp ảnh màn hình`, `chụp màn` | Chạy từ mọi cửa sổ. Ảnh PNG được lưu vào `Pictures\VoicePilot`. |
+| Tiết kiệm pin | `bật chế độ tiết kiệm pin`, `bật tiết kiệm pin`, `bật power saver` | Chuyển power plan Windows sang **Power saver**. Đây là lựa chọn power plan; có thể đổi lại trong Power Options. Nếu máy không hỗ trợ, app báo không khả dụng. |
+| Giảm độ sáng | `giảm độ sáng`, `giảm độ sáng màn hình` | Giảm 10 điểm phần trăm, giới hạn 0–100%; dành cho màn hình có hỗ trợ WMI, thường là màn hình laptop. |
+| Tăng độ sáng | `tăng độ sáng`, `tăng độ sáng màn hình` | Tăng 10 điểm phần trăm; giá trị thực tế có thể được driver làm tròn. |
+| Giảm âm lượng | `giảm âm lượng`, `giảm volume` | Giảm âm lượng Windows một nấc. |
+| Tăng âm lượng | `tăng âm lượng`, `tăng volume` | Tăng âm lượng Windows một nấc. |
+| Phát nhạc | `play`, `phát nhạc`, `tiếp tục phát nhạc`, `bật nhạc` | Gửi Play đến phiên media đang được Windows chọn. |
+| Tạm dừng | `pause`, `tạm dừng nhạc`, `dừng nhạc`, `tạm dừng phát nhạc` | Gửi Pause riêng; không đảo trạng thái phát/tạm dừng. |
+| Bài tiếp | `bài tiếp theo`, `bài tiếp`, `next`, `next bài` | Chuyển bài trong phiên media hiện tại. |
+| Bài trước | `bài trước`, `previous`, `previous bài` | Quay lại bài trước trong phiên media hiện tại. |
+
+Các thao tác nhạc dùng API phiên media Windows (SMTC). Cần app phát nhạc đăng ký
+với Windows và hỗ trợ thao tác tương ứng; nếu không có phiên hoặc app từ chối,
+VoicePilot báo rõ. Có thể dùng các hành động này trong **Lệnh tùy chỉnh**.
 
 ## 4. Đọc chính tả
 

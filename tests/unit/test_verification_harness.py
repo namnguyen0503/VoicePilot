@@ -167,6 +167,8 @@ def test_powerpoint_fixture_observes_show_without_com_hwnd_dispatch():
 def test_native_turn_harness_routes_controller_to_executor_once(monkeypatch, qapp, dictation):
     from unittest.mock import Mock
 
+    from PySide6.QtCore import QCoreApplication, QEvent
+
     from voicepilot.contracts import AppKind, Mode, WindowContext
     from voicepilot.windows.executor import WindowsExecutor
 
@@ -180,7 +182,10 @@ def test_native_turn_harness_routes_controller_to_executor_once(monkeypatch, qap
     monkeypatch.setattr(harness, "Win32ContextProvider", lambda: provider)
     mode = Mode.DICTATION if dictation else Mode.COMMAND
     text = "Xin chào Việt Nam 👋" if dictation else "tab mới"
+    existing_windows = {id(widget) for widget in qapp.topLevelWidgets()}
     result = harness.execute(parser, executor, 100, text, mode)
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    assert {id(widget) for widget in qapp.topLevelWidgets()} <= existing_windows
     assert result.status is harness.ResultStatus.OK
     if dictation:
         keys.type_unicode.assert_called_once_with(text)

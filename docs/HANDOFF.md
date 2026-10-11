@@ -6,7 +6,7 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
 ## 1. Trạng thái hiện tại
 
 - Đủ 15 chức năng trong PLAN; Nam chốt hoàn thiện v1, để Wi-Fi và Excel ngoài phạm vi lần này.
-- **1390 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
+- **1496 test pass, 2 skip; ruff sạch trên Windows 10/Python 3.12.** Harness được tạo và chạy trước
   khi sửa app, rồi chạy lại sau sửa. Đủ 15 luồng parser → executor với backend giả lập đều đạt.
 - Harness thêm 60 lượt recorder → Controller → hybrid → parser → executor cho 15 chức năng
   qua bốn đường STT. Đã tái hiện/sửa hai lỗi chọn câu slide trong browser và câu tab trong PowerPoint;
@@ -87,6 +87,30 @@ Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PL
   Mở Cài đặt nay kiểm native visibility, hiện lại HWND và phục hồi cửa sổ thu nhỏ;
   chỉ áp dụng khi người dùng yêu cầu Cài đặt, không tác động overlay. Hai regression
   với fakes bắt lỗi trước sửa và đạt sau sửa. App tương tác phải khởi chạy Normal.
+
+- Bổ sung theo yêu cầu Nam: hai tab Voice/Text, ô nhập Enter/nút gửi, micro bị chặn
+  khi Text; cùng pipeline lệnh/custom/chính tả và trả focus về đích trước gửi.
+  Mở lại tab có ba chính sách Voice mặc định/nhớ lựa chọn/luôn Text.
+  Đổi Ra lệnh/Chính tả trong capture giữ PCM và cập nhật giới hạn thời lượng;
+  khi đã nhận dạng/thực thi thì hủy lượt cũ.
+- Hướng dẫn dùng trong cửa sổ riêng có danh mục/tìm kiếm/phím tắt theo cấu hình,
+  resource dự phòng được đóng gói cùng app.
+- Chín lệnh mới và custom action tương ứng: Power saver (power plan theo Nam chốt),
+  tăng/giảm độ sáng và âm lượng, Play/Pause/Next/Previous qua Windows SMTC.
+  Native đạt trên Lenovo: power plan bật/khôi phục; volume 50→52→50%; sáng 100→89→100%;
+  bốn API media và callback tương ứng. Power plan/âm lượng/độ sáng được khôi phục.
+- Harness trước code: Voice/Text 14 lỗi, hệ thống 29 lỗi. Lỗi WMI native đã có regression
+  dispatch/ExecMethod/readback thiếu và chậm/level không liên tục. WinRT khởi tạo
+  MTA hoặc STA có sẵn, cân bằng uninitialize. Không gửi phím toggle thay cho Play/Pause.
+- Ảnh Nam gửi tái hiện crash pytest sau khi báo pass; Event Log xác nhận pyside6.abi3.dll.
+  App nay có owner QApplication và chủ động giải phóng các cửa sổ/đối tượng khi shutdown;
+  regression giải phóng cửa sổ/menu trước teardown. Đối chứng tiếp tìm đúng hai overlay
+  còn sống trong harness execute(); nay controller/overlay được giải phóng và regression
+  kiểm không còn cửa sổ thừa sau lượt. Pytest dọn Qt trước khi interpreter đóng;
+  bộ test đầy đủ 1496 pass/2 skip đã thoát mã 0 sau sửa.
+- Native Text: Notepad giữ đúng tiếng Việt/emoji, Enter gửi một lần, mở lại giữ đích,
+  micro không mở, về Voice trả focus, composer nằm trọn màn hình. Tệp fixture/PNG/báo cáo
+  trong build/input-native-final-dc7a327dc24d48818c90ad7add38a5a3; hệ thống ở build/system-native-final.json; harness và giới hạn ở docs/VERIFICATION.vi.md.
 
 ## 2. Những gì đã làm trong phiên 2026-10-09/10 (theo commit)
 

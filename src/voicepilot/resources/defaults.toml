@@ -5,6 +5,8 @@
 
 hotkey_listen = "ctrl+alt+space"
 hotkey_mode = "ctrl+alt+d"
+input_policy = "voice"       # voice | remember | text
+last_input_channel = "voice" # voice | text
 vad_enabled = true
 silence_end_ms = 800
 max_command_s = 15

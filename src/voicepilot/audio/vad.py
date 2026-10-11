@@ -98,6 +98,10 @@ class Endpointer:
         """Milliseconds of audio fed so far."""
         return self._total_ms
 
+    def set_max_duration(self, duration_ms: int) -> None:
+        """Update a live turn's limit without resetting its PCM or VAD history."""
+        self._max_duration_ms = duration_ms
+
     def audio(self) -> bytes:
         """Return the captured utterance: pre-roll, speech and trailing silence."""
         return b"".join(self._frames)
