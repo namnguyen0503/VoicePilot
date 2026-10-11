@@ -66,6 +66,9 @@ Mặc định:
 
 - Điều khiển Edge/Chrome đang dùng bằng thao tác Windows, kiểm tra đúng cửa sổ trước khi gửi phím.
 - Mở website và tìm Google trong tab mới. Khi chưa có trình duyệt đích, dùng trình duyệt mặc định.
+  Tìm kiếm nhận cả câu hỏi tự nhiên như "giá vàng hôm nay bao nhiêu", "Python là gì",
+  "thời tiết Hà Nội hôm nay"; giữ toàn bộ câu hỏi làm query. Lệnh rõ được ưu tiên trước.
+  Đây là mở kết quả Google; không lấy giá/đọc AI Overview trong app.
 - Website nhận tên alias cấu hình sẵn hoặc địa chỉ HTTP/HTTPS.
 - Mở ứng dụng qua danh sách alias: PowerPoint, Word, Excel, Edge, Chrome, Notepad và Calculator; chỉ chức năng mở ứng dụng được tính trong v1.
 - Chụp màn hình chứa cửa sổ đích, ẩn thanh nổi lúc chụp, lưu PNG có timestamp vào `Pictures\VoicePilot`.

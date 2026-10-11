@@ -5,7 +5,9 @@
 #   patterns (required, except DICTATE_TEXT) Vietnamese phrasings. Write them as you would say them;
 #            matching normalizes case, punctuation and spacing on both sides.
 #            A placeholder {name} captures the spoken text at that position.
-#            Allowed placeholders: query, filename, site, app_name, target.
+#            Allowed placeholders: query, filename, site, app_name, target, question.
+#            {question} is only for BROWSER_SEARCH: it searches the whole question after
+#            explicit command patterns miss, retaining words such as "bao nhieu".
 #            A pattern without placeholders is a bare phrase; if the intent has params, the
 #            missing params are reported (for example "tìm" alone gives missing query).
 #   context  (optional) PREFERRED window context for ambiguous phrases. Values: "powerpoint",
@@ -168,6 +170,25 @@ patterns = [
     "google {query}",
     "gu gồ {query}",
     "search {query}",
+    "{question} bao nhiêu",
+    "{question} bao nhiêu tiền",
+    "{question} là gì",
+    "{question} là ai",
+    "{question} ở đâu",
+    "{question} khi nào",
+    "{question} như thế nào",
+    "{question} thế nào",
+    "{question} ra sao",
+    "tại sao {question}",
+    "vì sao {question}",
+    "ai là {question}",
+    "khi nào {question}",
+    "ở đâu {question}",
+    "cách {question}",
+    "làm thế nào {question}",
+    "làm sao {question}",
+    "giá {question}",
+    "thời tiết {question}",
     "tìm",
     "tìm kiếm",
     "tìm trên mạng",

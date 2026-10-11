@@ -15,6 +15,9 @@ Các phép thử giả lập/âm thanh tổng hợp không thay cho demo giọng
 - [x] Bật VAD trên máy Nam; có toggle tự dừng trong Cài đặt. Harness trước sửa bắt lỗi
   câu ngắn nói ngay; regression giữ đầu câu và chống click/nhiễu đều. 24 tình huống WebRTC
   thật + PCM tổng hợp đạt; micro/giọng thật vẫn nằm trong benchmark bên dưới.
+- [x] Câu hỏi tự nhiên mở Google với query đầy đủ; lệnh rõ và chính tả giữ ưu tiên.
+  Câu "giá vàng hôm nay bao nhiêu" có regression qua bốn đường STT/Controller,
+  Edge/Chrome thật đều mở đúng một tab tìm kiếm. Không thêm backend lấy giá vàng.
 - [ ] Cửa sổ admin/UIPI, DPI hệ thống 125–150%/nhiều màn hình; Office thật nhiều tài liệu,
   unsaved/trùng tên, COM bị treo. Các nhánh logic đã có fakes; chưa thay bằng native evidence.
 - [ ] Đối chứng giọng nói mở app riêng Roblox/VS Code/Photoshop/Outlook; Notepad đã đạt native.
@@ -50,7 +53,7 @@ Chi tiết nguồn và giấy phép: `THIRD_PARTY_NOTICES.md`.
 
 - Harness được tạo/chạy trước khi sửa app. Đủ 15 intent có kiểm tra tác động parser → executor
   với fakes; test chứng minh harness phát hiện executor lỗi và giữ trạng thái fail/blocked.
-- Pytest mới nhất 1206 pass, 2 skip; ruff sạch. Pytest dùng basetemp mới và tắt cache để tránh ACL/cache
+- Pytest mới nhất 1282 pass, 2 skip; ruff sạch. Pytest dùng basetemp mới và tắt cache để tránh ACL/cache
   cũ ở máy Nam. Không xóa thư mục test cũ bị lỗi quyền.
   Bản copy có đường dẫn dài: 1145 pass, 3 skip; thêm một fixture thư mục 150 ký tự tự bỏ qua
   vì tmp_path đã quá dài. Hai skip mặc định Windows kiểm đường dẫn cấu hình của OS khác.

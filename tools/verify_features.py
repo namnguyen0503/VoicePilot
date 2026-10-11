@@ -1111,6 +1111,15 @@ def browser_suite(folder: Path, name: str, runner: Runner | None = None) -> list
                                        ("BROWSER_NEW_TAB", new), ("BROWSER_CLOSE_TAB", close),
                                        ("BROWSER_OPEN_SITE", open_site), ("BROWSER_SEARCH", search)):
                     runner.check(f"round{round_number}:{intent}", action)
+            def natural_question_search():
+                reset_tabs()
+                before = {tab["id"] for tab in tabs()}
+                question = "giá vàng hôm nay bao nhiêu"
+                execute(parser, executor, hwnd, question)
+                wait_for(lambda: new_browser_tab(before, tabs(), browser.build_search_url(question)))
+                require(len(tabs()) == len(before) + 1, "Question must open exactly one search tab")
+                return "Natural question opens one Google tab with the full Vietnamese query"
+            runner.check("natural_question_search", natural_question_search)
             def dictate():
                 execute(parser, executor, hwnd, "mở " + address + "/dictation")
                 wait_for(lambda: any(t["url"] == address + "/dictation" for t in tabs()))

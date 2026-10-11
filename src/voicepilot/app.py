@@ -80,6 +80,7 @@ _SELFTEST_PPT = WindowContext(
 _SELFTEST_SENTENCES: tuple[tuple[str, WindowContext | None, Intent], ...] = (
     ("slide tiếp theo", _SELFTEST_PPT, Intent.PPT_NEXT_SLIDE),
     ("tìm kiếm thời tiết Hà Nội", None, Intent.BROWSER_SEARCH),
+    ("giá vàng hôm nay bao nhiêu", None, Intent.BROWSER_SEARCH),
     ("mở youtube", None, Intent.BROWSER_OPEN_SITE),
 )
 

@@ -43,11 +43,20 @@ Chỉ chạy khi cửa sổ PowerPoint đang ở phía trước.
 | Chức năng | Cách nói | Ghi chú |
 |---|---|---|
 | Mở website | `mở youtube`, `vào facebook`, `mở trang vnexpress`, `mở vnexpress.net`, `mở https://example.com` | Chạy từ mọi cửa sổ. Tên phải có trong danh sách website bên dưới, hoặc là tên miền như `mở vnexpress.net` hoặc `mở github.com/abc`. Chỉ `http://` và `https://` được mở trực tiếp; các giao thức khác như `ftp://` không được mở. Tên tệp như `notepad.exe` và đường dẫn ổ đĩa như `C:\Windows\...` không được mở như website. Tên lạ sẽ không mở được. Chỉ nói "mở trang" sẽ được hỏi lại. |
-| Tìm kiếm | `tìm thời tiết hôm nay`, `tìm kiếm giá vàng`, `google giá vàng`, `tra cứu lịch thi học kỳ` | Chạy từ mọi cửa sổ. Câu tìm kiếm giữ nguyên như bạn nói. Chỉ nói "tìm" sẽ được hỏi lại nội dung. |
+| Tìm kiếm | `tìm thời tiết hôm nay`, `tìm kiếm giá vàng`, `google giá vàng`, `tra cứu lịch thi học kỳ`, `giá vàng hôm nay bao nhiêu`, `thời tiết Hà Nội hôm nay`, `Python là gì` | Chạy từ mọi cửa sổ. Câu tìm kiếm giữ nguyên như bạn nói. Chỉ nói "tìm" sẽ được hỏi lại nội dung. |
 | Tab tiếp | `tab tiếp theo`, `tab sau`, `chuyển tab`, `chuyển tab tiếp theo`, `chuyển sang tab tiếp theo`, `next tab` | Cần Edge hoặc Chrome ở phía trước. |
 | Tab trước | `tab trước`, `quay lại tab`, `chuyển về tab trước`, `lùi tab`, `previous tab` | Cần Edge hoặc Chrome ở phía trước. |
 | Tab mới | `tab mới`, `mở tab mới`, `thêm tab`, `tab trống` | Cần Edge hoặc Chrome ở phía trước. |
 | Đóng tab | `đóng tab`, `đóng tab này`, `tắt tab`, `close tab` | Cần Edge hoặc Chrome ở phía trước. Đóng tab đang hoạt động. |
+
+Cũng có thể nói câu hỏi trực tiếp. Các mẫu tìm kiếm tự nhiên gồm: "… bao nhiêu",
+"… bao nhiêu tiền", "… là gì", "… là ai", "… ở đâu", "… khi nào", "… như thế nào",
+"… thế nào", "… ra sao", "tại sao …", "vì sao …", "ai là …", "khi nào …", "ở đâu …",
+"cách …", "làm thế nào …", "làm sao …", "giá …" và "thời tiết …". Cần có nội dung đi
+kèm; nói riêng "bao nhiêu" hoặc "là gì" không mở tìm kiếm. Toàn bộ câu hỏi được gửi
+đến Google sau khi bỏ lời đệm; kết quả và AI Overview (nếu có) hiện trong trình duyệt.
+Lệnh rõ như "tìm …", "lưu thành …", "mở Word" vẫn được ưu tiên. Trong Đọc chính tả,
+câu hỏi chỉ được chèn thành văn bản.
 
 ## 3. Windows
 

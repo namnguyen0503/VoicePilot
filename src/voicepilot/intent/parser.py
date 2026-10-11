@@ -11,6 +11,9 @@ Polite fillers are stripped before matching. Free-text captures (query, filename
 only polite fillers, so "tìm đường đi" keeps "đi". Other rules also strip the words "đi"
 and "với", so "mở youtube đi" and "slide tiếp đi" still work.
 
+Natural question patterns use {question}; they run only after explicit commands
+miss and search for the whole question, keeping its interrogative words.
+
 An app name that is not in the [apps] alias table is passed to an optional app_finder
 (on Windows: the installed apps from the Start Menu). It runs only after the website and
 alias lookups miss, so aliases always win.
@@ -35,8 +38,8 @@ COMMANDS_RESOURCE = "commands.toml"
 DEFAULT_EXAMPLE = "Slide tiếp theo"
 DICTATION_INTENT = Intent.DICTATE_TEXT
 
-_ALLOWED_PLACEHOLDERS = frozenset({"query", "filename", "site", "app_name", "target"})
-_FREE_TEXT_PLACEHOLDERS = frozenset({"query", "filename"})
+_ALLOWED_PLACEHOLDERS = frozenset({"query", "filename", "site", "app_name", "target", "question"})
+_FREE_TEXT_PLACEHOLDERS = frozenset({"query", "filename", "question"})
 _ALLOWED_CONTEXTS = frozenset({"powerpoint", "browser", "other", "none"})
 _ROUTED_PLACEHOLDER = "target"
 _CAPTURE = "(.+)"
@@ -112,6 +115,11 @@ class _Rule:
     contexts: frozenset[str]
     params: tuple[str, ...]
     example: str | None
+
+    @property
+    def question(self) -> bool:
+        """True for a natural search phrasing that keeps the whole utterance as its query."""
+        return "question" in self.captures
 
     @property
     def free_text(self) -> bool:
@@ -201,6 +209,9 @@ class RuleParser:
         base = normalize(text)
         hits = _choose_hits(_match(self._plain, base), _match(self._folded, base))
         if not hits:
+            hits = _choose_hits(_match(self._plain, base, questions=True),
+                                _match(self._folded, base, questions=True))
+        if not hits:
             return self._unknown(text)
         return self._decide(text, hits, kind)
 
@@ -222,6 +233,8 @@ class RuleParser:
         for group, name in enumerate(rule.captures, start=1):
             start, end = match.span(group)
             values[name] = _slice(view, start, end)
+        if rule.question:
+            values = {"query": view}
         if _ROUTED_PLACEHOLDER in values:
             return self._route_open(text, values[_ROUTED_PLACEHOLDER])
         if "filename" in values:
@@ -296,13 +309,15 @@ class RuleParser:
         return Command(Intent.UNKNOWN, text, example=example or DEFAULT_EXAMPLE)
 
 
-def _match(view: _View, base: Normalized) -> list[_Hit]:
+def _match(view: _View, base: Normalized, *, questions: bool = False) -> list[_Hit]:
     """Every rule of one view that matches the utterance, each with its own stripped text."""
     source = fold(base) if view.folded else base
     polite = _strip_fillers(source, view.leading, view.polite_trailing)
     full = _strip_fillers(source, view.leading, view.command_trailing)
     hits: list[_Hit] = []
     for rule in view.rules:
+        if rule.question != questions:
+            continue
         stripped = polite if rule.free_text else full
         if not stripped.text:
             continue
@@ -369,7 +384,7 @@ def _load_entries(text: str, source: str) -> tuple[list[_Entry], str]:
         if not contexts <= _ALLOWED_CONTEXTS:
             unknown = sorted(contexts - _ALLOWED_CONTEXTS)
             raise ValueError(f"{source}: unknown context in {intent.value}: {unknown}")
-        if not set(params) <= _ALLOWED_PLACEHOLDERS:
+        if not set(params) <= _ALLOWED_PLACEHOLDERS - {"question"}:
             raise ValueError(f"{source}: unknown params in {intent.value}: {list(params)}")
 
         if intent is DICTATION_INTENT:
@@ -439,6 +454,8 @@ def _compile_rule(entry: _Entry, pattern: str, folded: bool) -> _Rule:
         if literal:
             pieces.append(re.escape(literal))
             literal_len += len(literal)
+    if "question" in captures and (entry.intent is not Intent.BROWSER_SEARCH or captures != ["question"]):
+        raise ValueError(f"question placeholder is only valid alone in BROWSER_SEARCH: {pattern!r}")
     return _Rule(
         intent=entry.intent,
         regex=re.compile("^" + " ".join(pieces) + "$"),
