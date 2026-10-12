@@ -15,6 +15,7 @@ from typing import Any, Protocol
 
 from voicepilot.config import AppConfig
 from voicepilot.contracts import (
+    OFFICE_INTENT_KINDS,
     SYSTEM_INTENTS,
     ActionResult,
     AppKind,
@@ -27,7 +28,7 @@ from voicepilot.contracts import (
 )
 from voicepilot.windows import browser, desktop
 from voicepilot.windows import input as input_ops
-from voicepilot.windows.office import OFFICE_ACTIONS, OfficeController
+from voicepilot.windows.office import OfficeController
 from voicepilot.windows.powerpoint import PowerPointController
 from voicepilot.windows.system_controls import SystemControls
 from voicepilot.windows.window_close import is_closable_window
@@ -130,15 +131,21 @@ class WindowsExecutor:
             Intent.WIN_HOTKEY: self._hotkey,
         }
         self._handlers.update(dict.fromkeys(SYSTEM_INTENTS, self._system_action))
-        self._handlers.update(dict.fromkeys(OFFICE_ACTIONS, self._office_new))
+        self._handlers.update(dict.fromkeys(OFFICE_INTENT_KINDS, self._office_new))
 
     def _office_new(self, command, ctx, cancel) -> ActionResult:
-        kind, exe, _ = OFFICE_ACTIONS[command.intent]
-        if ctx.app_kind is not kind or ctx.process_name.casefold() != exe:
-            return ActionResult(ResultStatus.NOT_AVAILABLE, "Hãy chuyển sang đúng cửa sổ Office rồi thử lại.",
-                                "no_office_window")
-        return self._guarded(ctx, lambda: self._office.new_blank(ctx, self._keys, cancel=cancel),
-                             strict=True, cancel=cancel)
+        if ctx.app_kind is not OFFICE_INTENT_KINDS[command.intent]:
+            return ActionResult(
+                ResultStatus.NOT_AVAILABLE,
+                "Hãy chuyển sang đúng cửa sổ Office rồi thử lại.",
+                "no_office_window",
+            )
+        return self._guarded(
+            ctx,
+            lambda: self._office.new_blank(ctx, self._keys, command.intent, cancel=cancel),
+            strict=True,
+            cancel=cancel,
+        )
 
     def _system_action(self, command, ctx, cancel) -> ActionResult:
         return self._guarded(ctx, lambda: self._system_controls.execute(command.intent, cancel),

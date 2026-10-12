@@ -11,13 +11,15 @@ from urllib.parse import urlsplit
 import pytest
 
 from voicepilot.config import load_config
-from voicepilot.contracts import BUILTIN_INTENTS, AppKind, Intent, Mode, WindowContext
+from voicepilot.contracts import SPOKEN_INTENTS, AppKind, Intent, Mode, WindowContext
 from voicepilot.intent.parser import RuleParser
 
 COMMANDS_TOML = Path(__file__).resolve().parents[2] / "src" / "voicepilot" / "resources" / "commands.toml"
 
 KINDS = {
     "ppt": AppKind.POWERPOINT,
+    "word": AppKind.WORD,
+    "excel": AppKind.EXCEL,
     "browser": AppKind.BROWSER,
     "other": AppKind.OTHER,
     "none": AppKind.NONE,
@@ -112,6 +114,23 @@ DOC_PHRASES = [
     ("chụp màn hình", "none", Intent.WIN_SCREENSHOT, {}),
     ("chụp ảnh màn hình", "none", Intent.WIN_SCREENSHOT, {}),
     ("chụp màn", "none", Intent.WIN_SCREENSHOT, {}),
+    # documents, windows and system commands (COMMANDS.vi.md; one example per intent)
+    ("tạo tài liệu Word mới", "word", Intent.WORD_NEW_DOCUMENT, {}),
+    ("tạo bảng tính mới", "excel", Intent.EXCEL_NEW_WORKBOOK, {}),
+    ("tạo bài trình chiếu mới", "ppt", Intent.PPT_NEW_PRESENTATION, {}),
+    ("mở cửa sổ mới", "browser", Intent.BROWSER_NEW_WINDOW, {}),
+    ("mở cửa sổ ẩn danh", "browser", Intent.BROWSER_PRIVATE_WINDOW, {}),
+    ("đóng cửa sổ", "none", Intent.WIN_CLOSE_WINDOW, {}),
+    ("bật tiết kiệm pin", "none", Intent.WIN_POWER_SAVER, {}),
+    ("tắt tiết kiệm pin", "none", Intent.WIN_POWER_RESTORE, {}),
+    ("giảm độ sáng", "none", Intent.WIN_BRIGHTNESS_DOWN, {}),
+    ("tăng độ sáng", "none", Intent.WIN_BRIGHTNESS_UP, {}),
+    ("giảm âm lượng", "none", Intent.WIN_VOLUME_DOWN, {}),
+    ("tăng âm lượng", "none", Intent.WIN_VOLUME_UP, {}),
+    ("play", "none", Intent.MEDIA_PLAY, {}),
+    ("pause", "none", Intent.MEDIA_PAUSE, {}),
+    ("bài tiếp theo", "none", Intent.MEDIA_NEXT, {}),
+    ("bài trước", "none", Intent.MEDIA_PREVIOUS, {}),
 ]
 
 
@@ -126,9 +145,10 @@ def test_documented_phrase_maps_to_intent(parser, text, kind, intent, params):
 
 
 def test_every_command_intent_is_reachable(parser):
-    # PLAN.md "Hiểu lệnh": each v1 function must be reachable from speech
+    # PLAN.md "Hiểu lệnh" and the bundled commands: every spoken intent must be reachable from speech.
+    # DICTATE_TEXT is reached through dictation mode; WIN_HOTKEY only through custom commands.
     reached = {parse(parser, text, kind).intent for text, kind, _, _ in DOC_PHRASES}
-    expected = BUILTIN_INTENTS - {Intent.DICTATE_TEXT}
+    expected = SPOKEN_INTENTS - {Intent.DICTATE_TEXT}
     assert expected <= reached, sorted(i.value for i in expected - reached)
 
 

@@ -291,7 +291,7 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
             require(controller.history[-1][3] == intent.value, "Wrong intent reached execution")
             require(stream.stop.call_count == stream.close.call_count == 1, "Device not released")
             if intent in (Intent.WORD_NEW_DOCUMENT, Intent.EXCEL_NEW_WORKBOOK, Intent.PPT_NEW_PRESENTATION):
-                office.new_blank.assert_called_once_with(ctx, keys, cancel=cancel_token)
+                office.new_blank.assert_called_once_with(ctx, keys, intent, cancel=cancel_token)
             elif intent in PPT_METHODS:
                 expected = (ctx, params["filename"]) if intent is Intent.PPT_SAVE_AS else (ctx,)
                 getattr(ppt, PPT_METHODS[intent]).assert_called_once_with(*expected, cancel=cancel_token)
@@ -521,7 +521,7 @@ def powerpoint_shutdown_probe() -> str:
         old_worker = controller._thread
         second = pool.submit(controller.save, ctx)
         wait_for(lambda: controller._jobs.qsize() == 1, timeout=0.3)
-        with patch("voicepilot.windows.powerpoint._SHUTDOWN_TIMEOUT_S", 0.02):
+        with patch("voicepilot.windows.com_worker._SHUTDOWN_TIMEOUT_S", 0.02):
             controller.shutdown()
         restart = controller.save(ctx)
         require(restart.status is ResultStatus.NOT_AVAILABLE and

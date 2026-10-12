@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Collection
 
-from voicepilot.contracts import AppKind, Command, Intent, WindowContext
+from voicepilot.contracts import OFFICE_INTENT_KINDS, AppKind, Command, Intent, WindowContext
 
 _POWERPOINT_INTENTS = frozenset(
     {
@@ -40,12 +40,8 @@ def is_valid_candidate(command: Command, context: WindowContext | None, known_si
     """
     if not command.is_executable:
         return False
-    from voicepilot.windows.office import OFFICE_ACTIONS
-
-    if command.intent in OFFICE_ACTIONS:
-        expected_kind, exe, _ = OFFICE_ACTIONS[command.intent]
-        return (context is not None and context.app_kind is expected_kind
-                and context.process_name.casefold() == exe)
+    if command.intent in OFFICE_INTENT_KINDS:
+        return context is not None and context.app_kind is OFFICE_INTENT_KINDS[command.intent]
     kind = context.app_kind if context is not None else AppKind.NONE
     if command.intent in _POWERPOINT_INTENTS and kind is not AppKind.POWERPOINT:
         return False

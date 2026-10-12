@@ -2,7 +2,6 @@
 
 import contextlib
 import threading
-from dataclasses import replace
 from unittest.mock import Mock
 
 import pytest
@@ -105,42 +104,225 @@ def test_browser_window_keys(name, kind, exe, phrase):
         executor.shutdown()
 
 
-@pytest.mark.parametrize("name,kind,exe,phrase", CASES[:3])
-@pytest.mark.parametrize("home", [True, False])
-def test_office_home_selects_blank_and_editor_uses_ctrl_n(name, kind, exe, phrase, home):
+class FakeClock:
+    """Monotonic fake: each read advances by step, and sleep advances the clock."""
+
+    def __init__(self, step: float = 0.0) -> None:
+        self.now = 0.0
+        self.step = step
+
+    def __call__(self) -> float:
+        self.now += self.step
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
+
+
+ROOT = 1000
+HOME = 2000
+
+
+class _FakeDispatch:
+    """Stands in for the pythoncom wrapper: Invoke on the object (child 0) or on a child id."""
+
+    def __init__(self, com: "FakeCOM", pointer: int) -> None:
+        self._oleobj_ = self
+        self._com = com
+        self._pointer = pointer
+        self.accChildCount = len(com.objects[pointer]["kids"])
+
+    def Invoke(self, dispid, lcid, flags, want, child_id=0):  # noqa: N802 - mirrors COM naming
+        self._com.check_live(self._pointer)
+        obj = self._com.objects[self._pointer]
+        if dispid == -5018:
+            self._com.events.append(("invoke", self._pointer, child_id))
+            return None
+        table = obj["ids"][child_id] if child_id else obj
+        values = {-5003: table.get("name", ""), -5006: table.get("role", 0), -5007: table.get("state", 0)}
+        return values[dispid]
+
+
+class FakeCOM:
+    """Fake MSAA tree. Kids are ("ptr", pointer) IAccessible objects or ("id", child_id) children."""
+
+    def __init__(self, objects: dict) -> None:
+        self.objects = objects
+        self.events: list[tuple] = []
+        self.released: set[int] = set()
+
+    def check_live(self, pointer: int) -> None:
+        if pointer in self.released:
+            self.events.append(("use_after_release", pointer))
+
+    def open_root(self, hwnd: int) -> int:
+        self.events.append(("open", hwnd))
+        return ROOT
+
+    def dispatch_for(self, pointer: int) -> _FakeDispatch:
+        self.check_live(pointer)
+        return _FakeDispatch(self, pointer)
+
+    def children(self, pointer: int, count: int, session) -> list[tuple[str, int]]:
+        self.check_live(pointer)
+        out = []
+        for kind, value in self.objects[pointer]["kids"]:
+            if kind == "ptr":
+                session.own(value)
+                out.append(("accessible", value))
+            else:
+                out.append(("child", value))
+        return out
+
+    def release(self, pointer: int) -> None:
+        if pointer in self.released:
+            self.events.append(("double_release", pointer))
+        self.released.add(pointer)
+        self.events.append(("release", pointer))
+
+    def install(self, monkeypatch) -> None:
+        from voicepilot.windows import office
+
+        monkeypatch.setattr(office, "_open_root", self.open_root)
+        monkeypatch.setattr(office, "_dispatch_for", self.dispatch_for)
+        monkeypatch.setattr(office, "_accessible_children", self.children)
+        monkeypatch.setattr(office, "_release", self.release)
+
+
+def home_tree(*items, role: int = 0x10) -> dict:
+    """Word-like window: root -> Home pane (ROOT/HOME) -> child-id objects (ids 7, 8, ...)."""
+    ids = {number: dict(name=name, role=tile_role, state=state)
+           for number, (name, tile_role, state) in enumerate(items, start=7)}
+    return {
+        ROOT: dict(name="Word", role=0x01, state=0, kids=[("ptr", HOME)]),
+        HOME: dict(name="Home", role=role, state=0, kids=[("id", number) for number in ids], ids=ids),
+    }
+
+
+def office_controller(provider=None, *, clock=None, foreground=None, blank_source=None, **kwargs):
     from voicepilot.windows.office import OfficeController
 
-    ctx = context(kind, exe)
-    keys = Mock()
-    blank = Mock() if home else None
-    probe = Mock(return_value=blank)
-    provider = Mock(is_still_target=Mock(return_value=True))
-    controller = OfficeController(
-        context_provider=provider, blank_source=probe, apartment=contextlib.nullcontext
+    clock = clock or FakeClock()
+    return OfficeController(
+        context_provider=provider or Mock(is_still_target=Mock(return_value=True)),
+        apartment=contextlib.nullcontext,
+        clock=clock,
+        sleep=clock.sleep,
+        foreground=foreground or (lambda: (0, 0)),
+        blank_source=blank_source,
+        **kwargs,
     )
+
+
+@pytest.mark.parametrize("name,kind,exe,_phrase", CASES[:3])
+def test_office_blank_tile_skips_ctrl_n_and_reports_intent_message(name, kind, exe, _phrase):
+    from voicepilot.windows.office import OFFICE_MESSAGES
+
+    intent = Intent(name)
+    keys = Mock()
+    blank = Mock()
+    def blank_source(ctx, guard):
+        blank()
+        return True
+
+    controller = office_controller(blank_source=blank_source)
     try:
-        result = controller.new_blank(ctx, keys, cancel=None)
-        assert result.status is ResultStatus.OK
-        if home:
-            blank.assert_called_once_with()
-            keys.send_hotkey.assert_not_called()
-        else:
-            keys.send_hotkey.assert_called_once_with("ctrl", "n")
+        result = controller.new_blank(context(kind, exe), keys, intent, cancel=None)
     finally:
         controller.shutdown()
+    assert result.status is ResultStatus.OK
+    assert result.message_vi == OFFICE_MESSAGES[intent]
+    blank.assert_called_once_with()
+    keys.send_hotkey.assert_not_called()
+
+
+def test_office_messages_name_each_document_type():
+    from voicepilot.windows.office import OFFICE_MESSAGES
+
+    assert OFFICE_MESSAGES[Intent.EXCEL_NEW_WORKBOOK] == "Đã tạo bảng tính Excel trắng."
+    assert OFFICE_MESSAGES[Intent.WORD_NEW_DOCUMENT] == "Đã tạo tài liệu Word trắng."
+    assert OFFICE_MESSAGES[Intent.PPT_NEW_PRESENTATION] == "Đã tạo bài trình chiếu trắng."
+
+
+@pytest.mark.parametrize("name,kind,exe,_phrase", CASES[:3])
+@pytest.mark.parametrize(
+    "foreground,verified",
+    [
+        (lambda: (2, 2), True),  # a new window of the same process came to the front
+        (lambda: (1, 2), False),  # the original window is still in front
+        (lambda: (2, 3), False),  # a window of another process
+        (lambda: (0, 0), False),  # no foreground window
+    ],
+)
+def test_ctrl_n_is_reported_only_when_a_new_window_is_verified(
+    name, kind, exe, _phrase, foreground, verified
+):
+    from voicepilot.windows.office import OFFICE_MESSAGES
+
+    intent = Intent(name)
+    keys = Mock()
+    clock = FakeClock()
+    controller = office_controller(
+        clock=clock, foreground=foreground, blank_source=lambda ctx, guard: False
+    )
+    try:
+        result = controller.new_blank(context(kind, exe), keys, intent)
+    finally:
+        controller.shutdown()
+    keys.send_hotkey.assert_called_once_with("ctrl", "n")
+    if verified:
+        assert result.status is ResultStatus.OK
+        assert result.message_vi == OFFICE_MESSAGES[intent]
+    else:
+        assert result.status is ResultStatus.ERROR
+        assert result.error_code == "office_new_unverified"
+        assert result.message_vi == "Office không tạo được tài liệu mới."
+        assert clock.now >= 2.4
+
+
+def test_ctrl_n_waits_for_a_late_new_window(monkeypatch):
+    keys = Mock()
+    answers = iter([(1, 2), (1, 2), (2, 2)])
+    clock = FakeClock()
+    controller = office_controller(
+        clock=clock, foreground=lambda: next(answers), blank_source=lambda ctx, guard: False
+    )
+    try:
+        result = controller.new_blank(context("word", "WINWORD.EXE"), keys, Intent.WORD_NEW_DOCUMENT)
+    finally:
+        controller.shutdown()
+    assert result.status is ResultStatus.OK
+    assert clock.now == pytest.approx(0.2)
+
+
+def test_cancel_during_tile_search_prevents_ctrl_n():
+    keys = Mock()
+    cancel = threading.Event()
+
+    def blank_source(ctx, guard):
+        cancel.set()
+        return False
+
+    controller = office_controller(blank_source=blank_source)
+    try:
+        result = controller.new_blank(
+            context("excel", "EXCEL.EXE"), keys, Intent.EXCEL_NEW_WORKBOOK, cancel=cancel
+        )
+    finally:
+        controller.shutdown()
+    assert result.status is not ResultStatus.OK
+    keys.send_hotkey.assert_not_called()
 
 
 @pytest.mark.parametrize("abandon", ["focus", "cancel", "timeout"])
 def test_home_probe_cannot_invoke_blank_after_abandonment(abandon):
-    from voicepilot.windows.office import OfficeController
-
     ctx = context("excel", "EXCEL.EXE")
     cancel = threading.Event()
     provider = Mock(is_still_target=Mock(return_value=True))
     entered, release = threading.Event(), threading.Event()
     blank, keys = Mock(), Mock()
 
-    def probe(ctx):
+    def probe(ctx, guard):
         entered.set()
         if abandon == "timeout":
             release.wait(1)
@@ -148,13 +330,13 @@ def test_home_probe_cannot_invoke_blank_after_abandonment(abandon):
             provider.is_still_target.return_value = False
         else:
             cancel.set()
-        return blank
+        guard()  # the session re-checks before the tile is pressed
+        blank()
+        return True
 
-    controller = OfficeController(
-        context_provider=provider, blank_source=probe, apartment=contextlib.nullcontext, timeout_s=0.03
-    )
+    controller = office_controller(provider, blank_source=probe, timeout_s=0.03)
     try:
-        result = controller.new_blank(ctx, keys, cancel=cancel)
+        result = controller.new_blank(ctx, keys, Intent.EXCEL_NEW_WORKBOOK, cancel=cancel)
         assert result.status is not ResultStatus.OK
         release.set()
         controller.shutdown()
@@ -167,28 +349,188 @@ def test_home_probe_cannot_invoke_blank_after_abandonment(abandon):
 
 
 def test_home_probe_error_does_not_fall_back_to_unverified_shortcut():
-    from voicepilot.windows.office import OfficeController
-
     keys = Mock()
     probe = Mock(side_effect=OSError("accessibility unavailable"))
-    controller = OfficeController(blank_source=probe, apartment=contextlib.nullcontext)
+    controller = office_controller(blank_source=probe)
     try:
-        assert controller.new_blank(context("excel", "EXCEL.EXE"), keys).status is not ResultStatus.OK
+        result = controller.new_blank(context("excel", "EXCEL.EXE"), keys, Intent.EXCEL_NEW_WORKBOOK)
+        assert result.status is not ResultStatus.OK
         keys.send_hotkey.assert_not_called()
     finally:
         controller.shutdown()
 
 
-def test_office_rejects_process_kind_mismatch():
-    ctx = replace(context("excel", "EXCEL.EXE"), process_name="notepad.exe")
+def test_tile_is_invoked_inside_session_after_guard_and_before_release(monkeypatch):
+    com = FakeCOM(home_tree(("Blank document", 0x22, 0), ("Blank document", 0x22, 0x8000)))
+    com.install(monkeypatch)
+    answers = iter([True, True, True])
+    provider = Mock()
+    provider.is_still_target.side_effect = lambda _ctx: (
+        com.events.append(("guard",)) or next(answers, True)
+    )
     keys = Mock()
-    executor = WindowsExecutor(AppConfig(), Mock(is_still_target=Mock(return_value=True)), keys=keys)
+    controller = office_controller(provider)
     try:
-        command = RuleParser({}, {}).parse("tạo bảng tính mới", ctx, Mode.COMMAND)
-        assert executor.execute(command, ctx).status is not ResultStatus.OK
-        keys.send_hotkey.assert_not_called()
+        result = controller.new_blank(context("word", "WINWORD.EXE"), keys, Intent.WORD_NEW_DOCUMENT)
     finally:
-        executor.shutdown()
+        controller.shutdown()
+    assert result.status is ResultStatus.OK
+    invoke_at = com.events.index(("invoke", HOME, 7))
+    guards_before = [index for index, event in enumerate(com.events[:invoke_at]) if event == ("guard",)]
+    assert guards_before and guards_before[-1] == invoke_at - 1
+    assert not any(event[0] == "release" for event in com.events[:invoke_at])
+    assert com.events[-2:] == [("release", HOME), ("release", ROOT)]
+    assert not any(event[0] in ("use_after_release", "double_release") for event in com.events)
+    assert ("invoke", HOME, 8) not in com.events
+    keys.send_hotkey.assert_not_called()
+
+
+def test_guard_failure_before_invoke_releases_pointers_without_pressing(monkeypatch):
+    com = FakeCOM(home_tree(("Blank document", 0x22, 0)))
+    com.install(monkeypatch)
+    answers = iter([True, True, False])
+    provider = Mock()
+    provider.is_still_target.side_effect = lambda _ctx: next(answers, False)
+    keys = Mock()
+    controller = office_controller(provider)
+    try:
+        result = controller.new_blank(context("word", "WINWORD.EXE"), keys, Intent.WORD_NEW_DOCUMENT)
+    finally:
+        controller.shutdown()
+    assert result.status is ResultStatus.NEEDS_RETRY
+    assert not any(event[0] == "invoke" for event in com.events)
+    keys.send_hotkey.assert_not_called()
+    assert com.events[-2:] == [("release", HOME), ("release", ROOT)]
+
+
+@pytest.mark.parametrize(
+    "items",
+    [
+        [("Blank document", 0x1E, 0)],  # a recent file (link role) with the template name
+        [("Blank document", 0x22, 0), ("Blank document", 0x2B, 0)],  # two candidates are ambiguous
+        [("Blank document", 0x22, 0x8000)],  # only a hidden tile
+    ],
+)
+def test_only_one_visible_list_item_button_or_menu_item_is_pressed(monkeypatch, items):
+    com = FakeCOM(home_tree(*items))
+    com.install(monkeypatch)
+    keys = Mock()
+    controller = office_controller(foreground=lambda: (2, 2))
+    try:
+        result = controller.new_blank(context("word", "WINWORD.EXE"), keys, Intent.WORD_NEW_DOCUMENT)
+    finally:
+        controller.shutdown()
+    assert not any(event[0] == "invoke" for event in com.events)
+    keys.send_hotkey.assert_called_once_with("ctrl", "n")
+    assert result.status is ResultStatus.OK
+
+
+@pytest.mark.parametrize("role", [0x0C, 0x22, 0x2B])
+def test_menu_item_list_item_and_button_tiles_are_accepted(monkeypatch, role):
+    com = FakeCOM(home_tree(("Blank document", role, 0)))
+    com.install(monkeypatch)
+    keys = Mock()
+    controller = office_controller()
+    try:
+        result = controller.new_blank(context("word", "WINWORD.EXE"), keys, Intent.WORD_NEW_DOCUMENT)
+    finally:
+        controller.shutdown()
+    assert result.status is ResultStatus.OK
+    assert ("invoke", HOME, 7) in com.events
+    keys.send_hotkey.assert_not_called()
+
+
+def _walk(com, **kwargs):
+    from voicepilot.windows import office
+    from voicepilot.windows.office import BLANK_NAMES
+
+    with office._Accessible.root(1) as root:
+        return office._find_blank_tiles(root, BLANK_NAMES[AppKind.WORD], **kwargs)
+
+
+def test_walk_stops_quietly_at_the_node_budget(monkeypatch):
+    items = [("Other", 0x22, 0)] * 9 + [("Blank document", 0x22, 0)]
+    com = FakeCOM(home_tree(*items))
+    com.install(monkeypatch)
+    assert len(_walk(com, budget=50)) == 1
+    assert _walk(com, budget=5) == []  # not found, never an exception
+
+
+def test_walk_depth_limit_is_not_found(monkeypatch):
+    objects = {ROOT: dict(name="Word", role=0x01, state=0, kids=[("ptr", 3001)])}
+    for depth in range(1, 25):
+        kids = [("ptr", 3000 + depth + 1)] if depth < 24 else [("id", 7)]
+        ids = {7: dict(name="Blank document", role=0x22, state=0)} if depth == 24 else {}
+        objects[3000 + depth] = dict(name="Pane", role=0x10, state=0, kids=kids, ids=ids)
+    com = FakeCOM(objects)
+    com.install(monkeypatch)
+    assert _walk(com) == []
+    controller = office_controller(foreground=lambda: (2, 2))
+    keys = Mock()
+    try:
+        result = controller.new_blank(context("word", "WINWORD.EXE"), keys, Intent.WORD_NEW_DOCUMENT)
+    finally:
+        controller.shutdown()
+    assert result.status is ResultStatus.OK
+    keys.send_hotkey.assert_called_once_with("ctrl", "n")
+
+
+def test_walk_deadline_is_not_found(monkeypatch):
+    items = [("Other", 0x22, 0)] * 9 + [("Blank document", 0x22, 0)]
+    com = FakeCOM(home_tree(*items))
+    com.install(monkeypatch)
+    assert _walk(com, clock=FakeClock(step=0.5), seconds=2.0) == []
+    assert len(_walk(com, clock=FakeClock(step=0.0), seconds=2.0)) == 1
+
+
+def test_huge_window_falls_back_to_ctrl_n_without_error(monkeypatch):
+    com = FakeCOM(home_tree(*[("Other", 0x22, 0)] * 2000))
+    com.install(monkeypatch)
+    keys = Mock()
+    controller = office_controller(foreground=lambda: (2, 2))
+    try:
+        result = controller.new_blank(context("word", "WINWORD.EXE"), keys, Intent.WORD_NEW_DOCUMENT)
+    finally:
+        controller.shutdown()
+    assert result.status is ResultStatus.OK
+    keys.send_hotkey.assert_called_once_with("ctrl", "n")
+
+
+def test_office_is_a_generic_com_worker_without_powerpoint_actions():
+    from voicepilot.windows.com_worker import ComWorker
+    from voicepilot.windows.office import OfficeController
+    from voicepilot.windows.powerpoint import PowerPointController
+
+    assert issubclass(OfficeController, ComWorker)
+    assert not issubclass(OfficeController, PowerPointController)
+    for name in ("save", "save_as", "next_slide", "previous_slide", "start_show", "stop_show"):
+        assert not hasattr(OfficeController, name)
+
+
+def test_office_loaders_are_cached_once_per_process(monkeypatch):
+    import ctypes
+
+    from voicepilot.windows import office
+
+    loads = []
+    monkeypatch.setattr(ctypes, "OleDLL", lambda name: loads.append(name) or Mock(), raising=False)
+    office._oleacc.cache_clear()
+    office._variant_clear.cache_clear()
+    try:
+        assert office._oleacc() is office._oleacc()
+        assert office._variant_clear() is office._variant_clear()
+        assert loads == ["oleacc", "oleaut32"]
+    finally:
+        office._oleacc.cache_clear()
+        office._variant_clear.cache_clear()
+
+
+@pytest.mark.parametrize("kind,label", [(AppKind.WORD, "Word"), (AppKind.EXCEL, "Excel"),
+                                        (AppKind.POWERPOINT, "PowerPoint")])
+def test_target_label_names_office_applications(kind, label):
+    from voicepilot.controller import target_label
+
+    assert target_label(WindowContext(1, 2, "app.exe", "Fixture", kind, None)) == label
 
 
 @pytest.mark.parametrize("name,kind,exe,phrase", CASES)
@@ -207,28 +549,6 @@ def test_new_commands_in_full_voice_pipeline(qapp, name, kind, exe, phrase, back
     harness.pipeline_case(Intent[name], phrase, AppKind(kind), {}, backend)
 
 
-def test_home_scan_only_invokes_exact_visible_blank_template():
-    from voicepilot.windows.office import BLANK_NAMES, _find_blank
-
-    class Node:
-        def __init__(self, name, *, state=0, children=()):
-            self.name, self.state, self._children = name, state, children
-            self.invoke = Mock()
-
-        def children(self):
-            return iter(self._children)
-
-    hidden = Node("Blank workbook", state=0x8000)
-    other_template = Node("Not blank workbook")
-    blank = Node("Blank workbook")
-    root = Node("Home", children=[hidden, other_template, blank])
-    action = _find_blank(root, BLANK_NAMES["excel.exe"])
-    action()
-    blank.invoke.assert_called_once_with()
-    hidden.invoke.assert_not_called()
-    other_template.invoke.assert_not_called()
-
-
 def test_old_other_custom_context_still_includes_word_and_excel():
     item = dict(
         id="existing",
@@ -243,20 +563,15 @@ def test_old_other_custom_context_still_includes_word_and_excel():
         assert parser.parse("ký tên", context(kind, exe), Mode.COMMAND).params == {"text": "Nam"}
 
 
-def test_msaa_children_query_accessible_interface_and_clear_native_variants(monkeypatch):
-    """Regression: child IDispatch vtables caused native access violations during MSAA traversal."""
+def test_msaa_children_are_owned_by_session_until_close(monkeypatch):
+    """Regression: a child IAccessible stays valid until the walk session closes, not after the query."""
     import ctypes
 
     from voicepilot.windows import office
 
-    adapter = office._Accessible
-    root = object.__new__(adapter)
-    root._child_id, root._pointer = 0, 101
-    root._dispatch = Mock(accChildCount=1)
     vtable = (ctypes.c_void_p * 3)(11, 12, 13)
     vtable_pointer = ctypes.cast(vtable, ctypes.POINTER(ctypes.c_void_p))
     dispatch_pointer = ctypes.addressof(vtable_pointer)
-    events = []
 
     def read_children(pointer, start, count, values, obtained):
         assert pointer == 101
@@ -265,26 +580,37 @@ def test_msaa_children_query_accessible_interface_and_clear_native_variants(monk
 
     def query(pointer, iid, output):
         assert pointer == dispatch_pointer and iid == office._IID_ACCESSIBLE
-        events.append("query")
         ctypes.cast(output, ctypes.POINTER(ctypes.c_void_p)).contents.value = 202
         return 0
 
-    def make_child(pointer):
-        assert pointer == 202
-        events.append("wrap_accessible")
-        return Mock()
-
     clear = Mock()
-    lib = Mock(AccessibleChildren=Mock(side_effect=read_children), VariantClear=clear)
-    monkeypatch.setattr(ctypes, "OleDLL", Mock(return_value=lib), raising=False)
+    lib = Mock(AccessibleChildren=Mock(side_effect=read_children))
+    monkeypatch.setattr(office, "_oleacc", lambda: lib)
+    monkeypatch.setattr(office, "_variant_clear", lambda: clear)
     monkeypatch.setattr(ctypes, "WINFUNCTYPE", lambda *args: lambda address: query, raising=False)
-    monkeypatch.setattr(office, "_Accessible", make_child)
     release = Mock()
     monkeypatch.setattr(office, "_release", release)
-    assert len(list(adapter.children(root))) == 1
-    assert events == ["query", "wrap_accessible"]
-    release.assert_called_once_with(202)
+    session = office._Session()
+    assert office._accessible_children(101, 1, session) == [("accessible", 202)]
     clear.assert_called_once()
+    release.assert_not_called()
+    session.close()
+    release.assert_called_once_with(202)
+
+
+def test_office_rejects_window_kind_mismatch_before_any_effect():
+    parsed = context("excel", "EXCEL.EXE")
+    command = RuleParser({}, {}).parse("tạo bảng tính mới", parsed, Mode.COMMAND)
+    ctx = context("other", "notepad.exe")
+    keys, office = Mock(), Mock()
+    provider = Mock(is_still_target=Mock(return_value=True))
+    executor = WindowsExecutor(AppConfig(), provider, keys=keys, office=office)
+    try:
+        assert executor.execute(command, ctx).status is ResultStatus.NOT_AVAILABLE
+        keys.send_hotkey.assert_not_called()
+        assert office.mock_calls == []
+    finally:
+        executor.shutdown()
 
 
 @pytest.mark.parametrize("exe,kind", [("WINWORD.EXE", AppKind.WORD), ("EXCEL.EXE", AppKind.EXCEL)])

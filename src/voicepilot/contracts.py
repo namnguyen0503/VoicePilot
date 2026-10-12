@@ -150,6 +150,14 @@ DOCUMENT_INTENTS = frozenset({
     Intent.WIN_CLOSE_WINDOW,
 })
 BUILTIN_INTENTS = frozenset(Intent) - {Intent.UNKNOWN, Intent.WIN_HOTKEY} - SYSTEM_INTENTS - DOCUMENT_INTENTS
+# Every intent with a bundled spoken pattern; WIN_HOTKEY is reachable only through custom commands.
+SPOKEN_INTENTS = frozenset(Intent) - {Intent.UNKNOWN, Intent.WIN_HOTKEY}
+# Office intents create a blank document in the captured Office application.
+OFFICE_INTENT_KINDS: dict[Intent, AppKind] = {
+    Intent.WORD_NEW_DOCUMENT: AppKind.WORD,
+    Intent.EXCEL_NEW_WORKBOOK: AppKind.EXCEL,
+    Intent.PPT_NEW_PRESENTATION: AppKind.POWERPOINT,
+}
 
 
 @dataclass(frozen=True)

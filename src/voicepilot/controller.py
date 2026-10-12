@@ -109,6 +109,10 @@ def target_label(ctx: WindowContext) -> str:
     """Short name of the target application shown in the overlay."""
     if ctx.app_kind is AppKind.POWERPOINT:
         return "PowerPoint"
+    if ctx.app_kind is AppKind.WORD:
+        return "Word"
+    if ctx.app_kind is AppKind.EXCEL:
+        return "Excel"
     if ctx.app_kind is AppKind.BROWSER:
         return {"edge": "Edge", "chrome": "Chrome"}.get(ctx.browser or "", "Trình duyệt")
     return "Windows"
