@@ -17,6 +17,8 @@ PHRASES = {
     "tăng độ sáng": "WIN_BRIGHTNESS_UP",
     "giảm âm lượng": "WIN_VOLUME_DOWN",
     "tăng âm lượng": "WIN_VOLUME_UP",
+    "tắt tiếng": "WIN_MUTE",
+    "bật tiếng": "WIN_UNMUTE",
     "play": "MEDIA_PLAY",
     "pause": "MEDIA_PAUSE",
     "bài tiếp theo": "MEDIA_NEXT",
@@ -352,15 +354,14 @@ def test_volume_com_failure_during_set_is_reported_not_raised():
 
 
 @pytest.fixture
-def fake_pythoncom(monkeypatch):
-    import sys
-    import types
+def fake_ole32(monkeypatch):
+    """ole32 stand-in for the Core Audio apartment; CoreAudioEndpoint is faked by each test."""
+    import ctypes
 
-    module = types.ModuleType("pythoncom")
-    module.CoInitialize = Mock()
-    module.CoUninitialize = Mock()
-    monkeypatch.setitem(sys.modules, "pythoncom", module)
-    return module
+    ole32 = Mock()
+    ole32.CoInitializeEx.return_value = 0  # S_OK
+    monkeypatch.setattr(ctypes, "WinDLL", lambda name, *args, **kwargs: ole32, raising=False)
+    return ole32
 
 
 @pytest.fixture
@@ -374,7 +375,7 @@ def fake_input(monkeypatch):
     return module
 
 
-def test_volume_falls_back_to_media_keys_without_core_audio(monkeypatch, fake_pythoncom, fake_input):
+def test_volume_falls_back_to_media_keys_without_core_audio(monkeypatch, fake_ole32, fake_input):
     from voicepilot.windows import system_controls
 
     def unavailable():
@@ -386,7 +387,7 @@ def test_volume_falls_back_to_media_keys_without_core_audio(monkeypatch, fake_py
     assert result.message_vi == "Đã tăng âm lượng."
     assert fake_input.send_hotkey.call_count == 10
     fake_input.send_hotkey.assert_called_with("volumeup")
-    fake_pythoncom.CoUninitialize.assert_called_once()
+    fake_ole32.CoUninitialize.assert_called_once()
 
 
 def test_volume_key_fallback_presses_each_two_percent_and_caps_at_fifty(fake_input):
@@ -448,6 +449,8 @@ def test_execute_without_amount_uses_default_step(monkeypatch):
         ("WIN_BRIGHTNESS_DOWN", {}, 12),
         ("WIN_BRIGHTNESS_UP", {"amount": "5"}, 5),
         ("MEDIA_PLAY", {}, None),
+        ("WIN_MUTE", {}, None),
+        ("WIN_UNMUTE", {}, None),
     ],
 )
 def test_executor_passes_spoken_amount_or_configured_step(name, params, expected):
@@ -463,3 +466,144 @@ def test_executor_passes_spoken_amount_or_configured_step(name, params, expected
     executor.update_config(AppConfig(volume_step_percent=7, brightness_step_percent=12))
     executor.execute(Command(Intent(name), "fixture", params=params), CTX)
     assert backend.execute.call_args.kwargs.get("amount") == expected
+
+
+# ---------------------------------------------------------------- mute / unmute
+
+
+def test_mute_sets_state_explicitly_and_reads_it_back():
+    from voicepilot.windows.system_controls import set_muted
+
+    endpoint = FakeVolumeEndpoint(muted=False)
+    result = set_muted(True, endpoint=endpoint)
+    assert result.status is ResultStatus.OK
+    assert result.message_vi == "Đã tắt tiếng."
+    assert endpoint.mute_calls == [True]
+    assert endpoint.muted is True
+
+
+def test_unmute_sets_state_explicitly_and_reads_it_back():
+    from voicepilot.windows.system_controls import set_muted
+
+    endpoint = FakeVolumeEndpoint(muted=True)
+    result = set_muted(False, endpoint=endpoint)
+    assert result.status is ResultStatus.OK
+    assert result.message_vi == "Đã bật tiếng."
+    assert endpoint.mute_calls == [False]
+
+
+@pytest.mark.parametrize(("muted", "message"), [(True, "Đã tắt tiếng."), (False, "Đã bật tiếng.")])
+def test_mute_already_in_requested_state_is_ok_without_write(muted, message):
+    from voicepilot.windows.system_controls import set_muted
+
+    endpoint = FakeVolumeEndpoint(muted=muted)
+    result = set_muted(muted, endpoint=endpoint)
+    assert result.status is ResultStatus.OK
+    assert result.message_vi == message
+    assert endpoint.mute_calls == []
+
+
+def test_mute_cancelled_before_set_never_writes():
+    from voicepilot.windows.system_controls import set_muted
+
+    cancel = Event()
+    cancel.set()
+    endpoint = FakeVolumeEndpoint(muted=False)
+    assert set_muted(True, endpoint=endpoint, cancel=cancel).error_code == "cancelled"
+    assert endpoint.mute_calls == []
+
+
+def test_mute_cancelled_during_read_never_writes():
+    from voicepilot.windows.system_controls import set_muted
+
+    cancel = Event()
+
+    class CancelOnRead(FakeVolumeEndpoint):
+        def get_mute(self) -> bool:
+            cancel.set()  # the user cancels while the state is being read
+            return self.muted
+
+    endpoint = CancelOnRead(muted=False)
+    assert set_muted(True, endpoint=endpoint, cancel=cancel).error_code == "cancelled"
+    assert endpoint.mute_calls == []
+
+
+def test_mute_endpoint_failure_is_mute_unavailable_and_presses_no_key(fake_input):
+    from voicepilot.windows.system_controls import set_muted
+
+    class Broken(FakeVolumeEndpoint):
+        def set_mute(self, muted: bool) -> None:
+            raise OSError("SetMute failed")
+
+    result = set_muted(True, endpoint=Broken(muted=False))
+    assert result.status is ResultStatus.NOT_AVAILABLE
+    assert result.message_vi == "Không điều khiển được âm thanh."
+    assert result.error_code == "mute_unavailable"
+    fake_input.send_hotkey.assert_not_called()
+
+
+def test_mute_readback_mismatch_is_mute_unavailable():
+    from voicepilot.windows.system_controls import set_muted
+
+    class Ignores(FakeVolumeEndpoint):
+        def set_mute(self, muted: bool) -> None:
+            self.mute_calls.append(muted)  # accepted but not applied
+
+    result = set_muted(True, endpoint=Ignores(muted=False))
+    assert result.error_code == "mute_unavailable"
+
+
+def test_mute_without_core_audio_is_unavailable_and_never_uses_toggle_key(
+    monkeypatch, fake_ole32, fake_input
+):
+    from voicepilot.windows import system_controls
+
+    def unavailable():
+        raise OSError("CoCreateInstance failed")
+
+    monkeypatch.setattr(system_controls, "CoreAudioEndpoint", unavailable)
+    for muted in (True, False):
+        result = system_controls.set_muted(muted)
+        assert result.status is ResultStatus.NOT_AVAILABLE
+        assert result.error_code == "mute_unavailable"
+    fake_input.send_hotkey.assert_not_called()
+    assert fake_ole32.CoUninitialize.call_count == 2
+
+
+def test_mute_with_core_audio_uses_the_default_endpoint(monkeypatch, fake_ole32):
+    from voicepilot.windows import system_controls
+
+    endpoint = FakeVolumeEndpoint(muted=False)
+    endpoint.close = Mock()
+    monkeypatch.setattr(system_controls, "CoreAudioEndpoint", lambda: endpoint)
+    assert system_controls.set_muted(True).message_vi == "Đã tắt tiếng."
+    assert endpoint.mute_calls == [True]
+    endpoint.close.assert_called_once()
+    fake_ole32.CoUninitialize.assert_called_once()
+
+
+def test_execute_routes_mute_and_unmute_without_amount(monkeypatch):
+    from voicepilot.windows import system_controls
+
+    set_muted = Mock(return_value=Mock())
+    monkeypatch.setattr(system_controls, "set_muted", set_muted)
+    controls = system_controls.SystemControls()
+
+    controls.execute(Intent.WIN_MUTE)
+    set_muted.assert_called_with(True, cancel=None)
+    controls.execute(Intent.WIN_UNMUTE)
+    set_muted.assert_called_with(False, cancel=None)
+
+
+@pytest.mark.parametrize("hresult,owns", [(0, True), (1, True), (-2147417850, False)])
+def test_core_audio_apartment_is_balanced_with_the_callers(monkeypatch, fake_ole32, hresult, owns):
+    # Regression: pythoncom.CoInitialize() adds no reference after "import pythoncom" initialized
+    # the thread, so its CoUninitialize() dropped the caller's apartment (CO_E_NOTINITIALIZED next).
+    from voicepilot.windows import system_controls
+
+    fake_ole32.CoInitializeEx.return_value = hresult  # S_OK, S_FALSE, RPC_E_CHANGED_MODE
+    endpoint = FakeVolumeEndpoint(muted=False)
+    endpoint.close = Mock()
+    monkeypatch.setattr(system_controls, "CoreAudioEndpoint", lambda: endpoint)
+    assert system_controls.set_muted(True).status is ResultStatus.OK
+    assert fake_ole32.CoUninitialize.call_count == (1 if owns else 0)

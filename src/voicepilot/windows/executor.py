@@ -118,6 +118,8 @@ class WindowsExecutor:
             Intent.PPT_SAVE_AS: self._ppt_save_as,
             Intent.PPT_NEXT_SLIDE: self._ppt_next_slide,
             Intent.PPT_PREV_SLIDE: self._ppt_prev_slide,
+            Intent.PPT_FIRST_SLIDE: self._ppt_first_slide,
+            Intent.PPT_LAST_SLIDE: self._ppt_last_slide,
             Intent.PPT_START_SHOW: self._ppt_start_show,
             Intent.PPT_STOP_SHOW: self._ppt_stop_show,
             Intent.BROWSER_OPEN_SITE: self._browser_open_site,
@@ -244,6 +246,16 @@ class WindowsExecutor:
         self, command: Command, ctx: WindowContext, cancel: threading.Event | None
     ) -> ActionResult:
         return self._guarded_ppt(ctx, lambda: self._powerpoint.previous_slide(ctx, cancel=cancel), cancel)
+
+    def _ppt_first_slide(
+        self, command: Command, ctx: WindowContext, cancel: threading.Event | None
+    ) -> ActionResult:
+        return self._guarded_ppt(ctx, lambda: self._powerpoint.first_slide(ctx, cancel=cancel), cancel)
+
+    def _ppt_last_slide(
+        self, command: Command, ctx: WindowContext, cancel: threading.Event | None
+    ) -> ActionResult:
+        return self._guarded_ppt(ctx, lambda: self._powerpoint.last_slide(ctx, cancel=cancel), cancel)
 
     def _ppt_start_show(
         self, command: Command, ctx: WindowContext, cancel: threading.Event | None

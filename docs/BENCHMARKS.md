@@ -6,13 +6,13 @@ Yêu cầu của kế hoạch: ít nhất **30 câu**, đo trên laptop mục ti
 
 ## 1. Chuẩn bị bộ dữ liệu
 
-1. Thu 30 câu theo kịch bản ở mục 2, mỗi câu một tệp WAV. Mic và phòng giống lúc dùng thật. Không cần chuẩn hóa tần số lấy mẫu; công cụ chuyển về 16 kHz mono.
+1. Thu 32 câu theo kịch bản ở mục 2, mỗi câu một tệp WAV. Mic và phòng giống lúc dùng thật. Không cần chuẩn hóa tần số lấy mẫu; công cụ chuyển về 16 kHz mono.
 2. Đặt các tệp WAV và `labels.csv` trong một thư mục, ví dụ `bench\session-01\`. Thư mục này không đưa vào Git.
-3. Chép `docs/benchmark-labels.csv` thành `labels.csv` (30 câu ở mục 2), rồi sửa nhãn nếu bạn đọc khác.
+3. Chép `docs/benchmark-labels.csv` thành `labels.csv` (32 câu ở mục 2), rồi sửa nhãn nếu bạn đọc khác.
 
-## 2. Kịch bản 30 câu tiếng Việt
+## 2. Kịch bản 32 câu tiếng Việt
 
-30 câu bao phủ đủ 15 chức năng trong `docs/COMMANDS.vi.md`, trong đó có hai câu đọc chính tả. Đọc tự nhiên, không nhấn mạnh.
+32 câu bao phủ 15 chức năng gốc cùng slide đầu/cuối trong `docs/COMMANDS.vi.md`, trong đó có hai câu đọc chính tả. Đọc tự nhiên, không nhấn mạnh.
 
 | # | Câu cần đọc | Chức năng | Ngữ cảnh | Tham số mong đợi |
 |---|---|---|---|---|
@@ -46,6 +46,8 @@ Yêu cầu của kế hoạch: ít nhất **30 câu**, đo trên laptop mục ti
 | 28 | trang trước | Slide trước (`PPT_PREV_SLIDE`) | powerpoint | `{}` |
 | 29 | kết thúc trình chiếu | Dừng trình chiếu (`PPT_STOP_SHOW`) | powerpoint | `{}` |
 | 30 | mở google | Mở website (`BROWSER_OPEN_SITE`) | browser | `{"url": "https://www.google.com"}` |
+| 31 | về slide đầu tiên | Slide đầu (`PPT_FIRST_SLIDE`) | powerpoint | `{}` |
+| 32 | slide cuối cùng | Slide cuối (`PPT_LAST_SLIDE`) | powerpoint | `{}` |
 
 Mẹo: các câu 19, 20, 25 và 26 có tham số `app`. Tham số này lấy từ bảng `[apps]` trong `config.toml`. Nếu bạn đổi bảng alias, hãy cập nhật cột tương ứng trong `labels.csv`.
 

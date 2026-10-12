@@ -29,3 +29,5 @@ s27.wav,PPT_NEXT_SLIDE,{},powerpoint,slide tiếp
 s28.wav,PPT_PREV_SLIDE,{},powerpoint,trang trước
 s29.wav,PPT_STOP_SHOW,{},powerpoint,kết thúc trình chiếu
 s30.wav,BROWSER_OPEN_SITE,"{""url"": ""https://www.google.com""}",browser,mở google
+s31.wav,PPT_FIRST_SLIDE,{},powerpoint,về slide đầu tiên
+s32.wav,PPT_LAST_SLIDE,{},powerpoint,slide cuối cùng

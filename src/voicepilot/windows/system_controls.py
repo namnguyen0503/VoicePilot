@@ -328,6 +328,7 @@ _CLSID_MM_DEVICE_ENUMERATOR = "BCDE0395-E52F-467C-8E3D-C4579291692E"
 _IID_MM_DEVICE_ENUMERATOR = "A95664D2-9614-4F35-A746-DE8DB63617E6"
 _IID_AUDIO_ENDPOINT_VOLUME = "5CDF2C82-841E-4546-9722-0CF74078229A"
 _CLSCTX_ALL = 0x17
+_COINIT_APARTMENTTHREADED = 0x2
 _E_RENDER = 0  # EDataFlow: playback device
 _E_MULTIMEDIA = 1  # ERole: default multimedia device
 # Vtable slots, counted after IUnknown (0 QueryInterface, 1 AddRef, 2 Release).
@@ -445,29 +446,79 @@ def adjust_volume(delta: int, *, endpoint: VolumeEndpoint | None = None, cancel=
         return _set_volume(endpoint, delta, cancel)
     if result := cancelled(cancel):
         return result
+    return _with_default_endpoint(
+        lambda native: _set_volume(native, delta, cancel),
+        lambda: _adjust_volume_with_keys(delta, cancel),
+    )
+
+
+def set_muted(muted: bool, *, endpoint: VolumeEndpoint | None = None, cancel=None) -> ActionResult:
+    """Set the master mute state explicitly (not a toggle) and report the state read back.
+
+    Without an endpoint, the default playback device is opened through Core Audio. The media
+    mute key is a toggle and cannot be used safely, so when Core Audio is unavailable the
+    command reports mute_unavailable and presses nothing.
+    """
+    if endpoint is not None:
+        return _apply_mute(endpoint, muted, cancel)
+    if result := cancelled(cancel):
+        return result
+    return _with_default_endpoint(
+        lambda native: _apply_mute(native, muted, cancel),
+        _mute_unavailable,
+    )
+
+
+def _with_default_endpoint(
+    run: Callable[[VolumeEndpoint], ActionResult], unavailable: Callable[[], ActionResult]
+) -> ActionResult:
+    """Run an action on the default playback endpoint inside a COM apartment owned by this call.
+
+    Calls unavailable() when ole32 or Core Audio cannot be used on this host.
+    """
     try:
-        import pythoncom
-    except ImportError:
-        return _adjust_volume_with_keys(delta, cancel)
-    owns_com = False
+        ole32 = ctypes.WinDLL("ole32")
+    except (AttributeError, OSError):
+        return unavailable()
+    ole32.CoInitializeEx.argtypes = [ctypes.c_void_p, ctypes.c_uint32]
+    ole32.CoInitializeEx.restype = ctypes.c_long
+    # Call ole32 directly: pythoncom.CoInitialize() does not add a reference when importing
+    # pythoncom already initialized the thread, so a matching CoUninitialize() would drop the
+    # caller's apartment. S_OK and S_FALSE both need one CoUninitialize; RPC_E_CHANGED_MODE
+    # means another apartment model is active and is used as it is.
+    owns_com = ole32.CoInitializeEx(None, _COINIT_APARTMENTTHREADED) >= 0
     try:
-        try:
-            pythoncom.CoInitialize()
-            owns_com = True
-        except Exception:
-            # Already initialized on this thread in another mode: use that apartment as it is.
-            pass
         try:
             native = CoreAudioEndpoint()
         except Exception:
-            return _adjust_volume_with_keys(delta, cancel)
+            return unavailable()
         try:
-            return _set_volume(native, delta, cancel)
+            return run(native)
         finally:
             native.close()
     finally:
         if owns_com:
-            pythoncom.CoUninitialize()
+            ole32.CoUninitialize()
+
+
+def _apply_mute(endpoint: VolumeEndpoint, muted: bool, cancel) -> ActionResult:
+    """Set the mute state if it differs, then read it back. Endpoint failures are mute_unavailable."""
+    try:
+        if result := cancelled(cancel):
+            return result
+        if endpoint.get_mute() != muted:
+            if result := cancelled(cancel):
+                return result
+            endpoint.set_mute(muted)
+        if endpoint.get_mute() != muted:
+            return _mute_unavailable()
+    except OSError:
+        return _mute_unavailable()
+    return ActionResult(ResultStatus.OK, "Đã tắt tiếng." if muted else "Đã bật tiếng.")
+
+
+def _mute_unavailable() -> ActionResult:
+    return ActionResult(ResultStatus.NOT_AVAILABLE, "Không điều khiển được âm thanh.", "mute_unavailable")
 
 
 def _set_volume(endpoint: VolumeEndpoint, delta: int, cancel) -> ActionResult:
@@ -523,6 +574,8 @@ class SystemControls:
             if intent in {Intent.WIN_BRIGHTNESS_UP, Intent.WIN_BRIGHTNESS_DOWN}:
                 return adjust_brightness(delta, cancel=cancel)
             return adjust_volume(delta, cancel=cancel)
+        if intent in {Intent.WIN_MUTE, Intent.WIN_UNMUTE}:
+            return set_muted(intent is Intent.WIN_MUTE, cancel=cancel)
         import winrt.runtime
 
         init_media_apartment()

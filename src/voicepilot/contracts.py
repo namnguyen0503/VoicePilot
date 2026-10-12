@@ -100,6 +100,8 @@ class Intent(Enum):
     PPT_SAVE_AS = "PPT_SAVE_AS"
     PPT_NEXT_SLIDE = "PPT_NEXT_SLIDE"
     PPT_PREV_SLIDE = "PPT_PREV_SLIDE"
+    PPT_FIRST_SLIDE = "PPT_FIRST_SLIDE"
+    PPT_LAST_SLIDE = "PPT_LAST_SLIDE"
     PPT_START_SHOW = "PPT_START_SHOW"
     PPT_STOP_SHOW = "PPT_STOP_SHOW"
     PPT_NEW_PRESENTATION = "PPT_NEW_PRESENTATION"
@@ -124,6 +126,8 @@ class Intent(Enum):
     WIN_BRIGHTNESS_UP = "WIN_BRIGHTNESS_UP"
     WIN_VOLUME_DOWN = "WIN_VOLUME_DOWN"
     WIN_VOLUME_UP = "WIN_VOLUME_UP"
+    WIN_MUTE = "WIN_MUTE"
+    WIN_UNMUTE = "WIN_UNMUTE"
     MEDIA_PLAY = "MEDIA_PLAY"
     MEDIA_PAUSE = "MEDIA_PAUSE"
     MEDIA_NEXT = "MEDIA_NEXT"
@@ -131,7 +135,7 @@ class Intent(Enum):
     UNKNOWN = "UNKNOWN"
 
 
-# The original fifteen v1 features; user-only actions are tested separately.
+# The original fifteen v1 features plus mute/unmute; user-only actions are tested separately.
 SYSTEM_INTENTS = frozenset({
     Intent.WIN_POWER_SAVER,
     Intent.WIN_POWER_RESTORE,
@@ -139,6 +143,8 @@ SYSTEM_INTENTS = frozenset({
     Intent.WIN_BRIGHTNESS_UP,
     Intent.WIN_VOLUME_DOWN,
     Intent.WIN_VOLUME_UP,
+    Intent.WIN_MUTE,
+    Intent.WIN_UNMUTE,
     Intent.MEDIA_PLAY,
     Intent.MEDIA_PAUSE,
     Intent.MEDIA_NEXT,

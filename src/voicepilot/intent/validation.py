@@ -16,6 +16,8 @@ _POWERPOINT_INTENTS = frozenset(
         Intent.PPT_SAVE_AS,
         Intent.PPT_NEXT_SLIDE,
         Intent.PPT_PREV_SLIDE,
+        Intent.PPT_FIRST_SLIDE,
+        Intent.PPT_LAST_SLIDE,
         Intent.PPT_START_SHOW,
         Intent.PPT_STOP_SHOW,
     }

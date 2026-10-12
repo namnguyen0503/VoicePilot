@@ -84,6 +84,7 @@ _SELFTEST_PPT = WindowContext(
 # Sample sentences the rule parser must turn into executable commands.
 _SELFTEST_SENTENCES: tuple[tuple[str, WindowContext | None, Intent], ...] = (
     ("slide tiếp theo", _SELFTEST_PPT, Intent.PPT_NEXT_SLIDE),
+    ("slide cuối cùng", _SELFTEST_PPT, Intent.PPT_LAST_SLIDE),
     ("tìm kiếm thời tiết Hà Nội", None, Intent.BROWSER_SEARCH),
     ("giá vàng hôm nay bao nhiêu", None, Intent.BROWSER_SEARCH),
     ("mở youtube", None, Intent.BROWSER_OPEN_SITE),
@@ -93,6 +94,7 @@ _SELFTEST_SENTENCES: tuple[tuple[str, WindowContext | None, Intent], ...] = (
     ("tăng độ sáng", None, Intent.WIN_BRIGHTNESS_UP),
     ("giảm âm lượng", None, Intent.WIN_VOLUME_DOWN),
     ("tăng âm lượng", None, Intent.WIN_VOLUME_UP),
+    ("tắt tiếng", None, Intent.WIN_MUTE),
     ("play", None, Intent.MEDIA_PLAY),
     ("pause", None, Intent.MEDIA_PAUSE),
     ("next", None, Intent.MEDIA_NEXT),

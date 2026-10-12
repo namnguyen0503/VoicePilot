@@ -99,13 +99,13 @@ def test_benchmark_closes_worker_pools_when_case_fails(monkeypatch):
     assert closed == [True]
 
 
-def test_thirty_prompt_labels_cover_all_features_and_match_parser():
+def test_prompt_labels_cover_all_features_and_match_parser():
     root = Path(__file__).resolve().parents[2]
     config = load_config(root / "unused-benchmark-config.toml")
     parser = RuleParser(config.website_aliases, config.app_aliases)
     with (root / "docs" / "benchmark-labels.csv").open(encoding="utf-8", newline="") as file:
         rows = list(csv.DictReader(file))
-    assert len(rows) == 30
+    assert len(rows) == 32
     assert {row["expected_intent"] for row in rows} == {i.value for i in BUILTIN_INTENTS}
     for row in rows:
         intent = Intent(row["expected_intent"])

@@ -113,6 +113,31 @@ context = ["powerpoint"]
 example = "Slide trước"
 
 [[intent]]
+name = "PPT_FIRST_SLIDE"
+patterns = [
+    "slide đầu tiên",
+    "về slide đầu",
+    "về slide đầu tiên",
+    "quay về slide đầu",
+    "trang đầu tiên",
+    "slide đầu",
+]
+context = ["powerpoint"]
+example = "Slide đầu tiên"
+
+[[intent]]
+name = "PPT_LAST_SLIDE"
+patterns = [
+    "slide cuối cùng",
+    "đến slide cuối",
+    "slide cuối",
+    "trang cuối cùng",
+    "tới slide cuối cùng",
+]
+context = ["powerpoint"]
+example = "Slide cuối cùng"
+
+[[intent]]
 name = "PPT_START_SHOW"
 patterns = [
     "bắt đầu trình chiếu",
@@ -407,6 +432,16 @@ patterns = [
     "volume up {amount}",
 ]
 example = "tăng âm lượng"
+
+[[intent]]
+name = "WIN_MUTE"
+patterns = ["tắt tiếng", "tắt âm thanh", "tắt loa", "mute", "im lặng", "câm"]
+example = "tắt tiếng"
+
+[[intent]]
+name = "WIN_UNMUTE"
+patterns = ["bật tiếng", "bật âm thanh", "bật loa", "mở tiếng", "unmute", "bỏ tắt tiếng"]
+example = "bật tiếng"
 
 [[intent]]
 name = "MEDIA_PLAY"

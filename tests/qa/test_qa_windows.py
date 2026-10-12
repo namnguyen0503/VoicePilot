@@ -385,6 +385,8 @@ class FakeShow:
             GotoSlide=lambda i: self.calls.append(f"goto {i}"),
             Next=lambda: self.calls.append("next"),
             Previous=lambda: self.calls.append("previous"),
+            First=lambda: self.calls.append("first"),
+            Last=lambda: self.calls.append("last"),
             Exit=lambda: self.calls.append("exit"),
         )
 
@@ -500,6 +502,28 @@ def test_next_slide_on_last_slide_is_boundary():
 def test_previous_slide_on_first_slide_is_boundary():
     pres = FakePresentation("Bai.pptx", slides=3, view_index=1)
     assert ppt.previous_slide(FakeApp(pres), "Bai.pptx").status is ResultStatus.BOUNDARY
+    assert pres.view.calls == []
+
+
+def test_first_and_last_slide_in_edit_view():
+    pres = FakePresentation("Bai.pptx", slides=4, view_index=3)
+    assert ppt.first_slide(FakeApp(pres), "Bai.pptx").status is ResultStatus.OK
+    assert ppt.last_slide(FakeApp(pres), "Bai.pptx").status is ResultStatus.OK
+    assert pres.view.calls == [("goto", 1), ("goto", 4)]
+
+
+def test_first_and_last_slide_in_slide_show():
+    show = FakeShow(position=2)
+    pres = FakePresentation("Bai.pptx", slides=4, show=show)
+    assert ppt.first_slide(FakeApp(pres), "Bai.pptx").status is ResultStatus.OK
+    assert ppt.last_slide(FakeApp(pres), "Bai.pptx").status is ResultStatus.OK
+    assert show.calls == ["first", "last"]
+
+
+def test_first_and_last_on_empty_presentation_do_not_move():
+    pres = FakePresentation("Bai.pptx", slides=0, view_index=1)
+    assert ppt.first_slide(FakeApp(pres), "Bai.pptx").status is ResultStatus.BOUNDARY
+    assert ppt.last_slide(FakeApp(pres), "Bai.pptx").status is ResultStatus.BOUNDARY
     assert pres.view.calls == []
 
 
@@ -646,6 +670,12 @@ class FakePowerPoint:
     def previous_slide(self, ctx, *, cancel=None):
         return self._rec("prev")
 
+    def first_slide(self, ctx, *, cancel=None):
+        return self._rec("first")
+
+    def last_slide(self, ctx, *, cancel=None):
+        return self._rec("last")
+
     def start_show(self, ctx, *, cancel=None):
         return self._rec("start")
 
@@ -706,6 +736,8 @@ def cmd(intent: Intent, **params) -> Command:
         (Intent.PPT_SAVE_AS, {"filename": "Báo cáo"}),
         (Intent.PPT_NEXT_SLIDE, {}),
         (Intent.PPT_PREV_SLIDE, {}),
+        (Intent.PPT_FIRST_SLIDE, {}),
+        (Intent.PPT_LAST_SLIDE, {}),
         (Intent.PPT_START_SHOW, {}),
         (Intent.PPT_STOP_SHOW, {}),
     ],

@@ -219,6 +219,16 @@ def previous_slide(app: Any, title: str, *, before_action: BeforeAction = _ungua
     return _step_slide(app, title, -1, before_action)
 
 
+def first_slide(app: Any, title: str, *, before_action: BeforeAction = _unguarded) -> ActionResult:
+    """Go to the first slide in the slide show or in the edit view."""
+    return _jump_slide(app, title, to_last=False, before_action=before_action)
+
+
+def last_slide(app: Any, title: str, *, before_action: BeforeAction = _unguarded) -> ActionResult:
+    """Go to the last slide in the slide show or in the edit view."""
+    return _jump_slide(app, title, to_last=True, before_action=before_action)
+
+
 def start_show(
     app: Any,
     title: str,
@@ -276,6 +286,26 @@ def _step_slide(app: Any, title: str, step: int, before_action: BeforeAction) ->
         before_action()
         goto(index + step)
     message = "Đã chuyển slide tiếp." if step > 0 else "Đã chuyển slide trước."
+    return _result(ResultStatus.OK, message)
+
+
+def _jump_slide(app: Any, title: str, *, to_last: bool, before_action: BeforeAction) -> ActionResult:
+    """Move to slide 1 or to the last slide. Already being there is reported as success."""
+    target = resolve_target(app, title)
+    count = int(target.presentation.Slides.Count)
+    if count < 1:
+        return _boundary("Bài trình chiếu chưa có slide.", "no_slides")
+    if target.show is not None:
+        view = target.show.View
+        move = view.Last if to_last else view.First
+        before_action()
+        move()
+    else:
+        view = _edit_view(target)
+        goto = view.GotoSlide
+        before_action()
+        goto(count if to_last else 1)
+    message = "Đã đến slide cuối cùng." if to_last else "Đã về slide đầu tiên."
     return _result(ResultStatus.OK, message)
 
 
@@ -385,6 +415,18 @@ class PowerPointController(ComWorker):
         """Go to the previous slide."""
         return self._submit(
             lambda app, guard, _: previous_slide(app, ctx.title, before_action=guard), ctx, cancel
+        )
+
+    def first_slide(self, ctx: WindowContext, *, cancel: threading.Event | None = None) -> ActionResult:
+        """Go to the first slide."""
+        return self._submit(
+            lambda app, guard, _: first_slide(app, ctx.title, before_action=guard), ctx, cancel
+        )
+
+    def last_slide(self, ctx: WindowContext, *, cancel: threading.Event | None = None) -> ActionResult:
+        """Go to the last slide."""
+        return self._submit(
+            lambda app, guard, _: last_slide(app, ctx.title, before_action=guard), ctx, cancel
         )
 
     def start_show(self, ctx: WindowContext, *, cancel: threading.Event | None = None) -> ActionResult:

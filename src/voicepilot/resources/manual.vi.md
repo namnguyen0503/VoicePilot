@@ -66,6 +66,8 @@ Chỉ chạy khi cửa sổ PowerPoint đang ở phía trước.
 | Lưu thành tên khác | `lưu thành Báo cáo tháng 10`<br>`lưu tên khác là Hợp đồng 2026`<br>`lưu với tên Kế hoạch 10 năm`<br>`lưu thành Bài thuyết trình, chấm pptx` | Tên tệp giữ nguyên như bạn nói, VoicePilot tự thêm `.pptx`. Ngoặc đi kèm được giữ, ví dụ "Báo cáo Q3 (bản cuối)". Nếu nói thêm "chấm pptx" hoặc ".pptx" ở cuối, phần đó bị bỏ đi. Trùng tên sẽ tự thêm `(2)`, `(3)`… Nói "lưu thành" mà không kèm tên thì VoicePilot sẽ nhắc nói thêm tên. |
 | Slide tiếp | `slide tiếp theo`, `trang tiếp`, `chuyển slide`, `chuyển slide tiếp theo`, `chuyển sang slide tiếp theo`, `qua slide`, `next slide` | Không nên chỉ nói "tiếp theo"; xem mục "Từ mơ hồ" bên dưới. |
 | Slide trước | `slide trước`, `trang trước`, `quay lại slide`, `lùi slide`, `previous slide` | Không nên chỉ nói "quay lại"; xem mục "Từ mơ hồ" bên dưới. |
+| Slide đầu | `slide đầu tiên`, `về slide đầu`, `về slide đầu tiên`, `quay về slide đầu`, `trang đầu tiên`, `slide đầu` | Về slide 1, trong trình chiếu hoặc khi đang chỉnh sửa. |
+| Slide cuối | `slide cuối cùng`, `đến slide cuối`, `slide cuối`, `trang cuối cùng`, `tới slide cuối cùng` | Đến slide cuối, trong trình chiếu hoặc khi đang chỉnh sửa. |
 | Bắt đầu trình chiếu | `bắt đầu trình chiếu`, `trình chiếu`, `chiếu slide`, `start show` | Bắt đầu từ slide đầu tiên. |
 | Dừng trình chiếu | `dừng trình chiếu`, `kết thúc trình chiếu`, `thoát trình chiếu`, `đóng trình chiếu`, `end show` | Trở về chế độ chỉnh sửa. |
 | Tạo bài trình chiếu trắng | `tạo bài trình chiếu mới`, `tạo file PowerPoint mới`, `tạo bản trình bày mới`, `blank presentation` | Ở Home chọn Blank presentation; ở màn hình chỉnh sửa dùng Ctrl+N. Tài liệu mới chưa được lưu. |
@@ -118,6 +120,8 @@ câu hỏi chỉ được chèn thành văn bản.
 | Tăng độ sáng | `tăng độ sáng`, `tăng độ sáng màn hình`, `tăng độ sáng thêm 15%` | Tăng theo số phần trăm bạn nói, tính từ mức hiện tại, giới hạn 0–100%. Không nói số thì tăng 20%. |
 | Giảm âm lượng | `giảm âm lượng`, `giảm volume`, `giảm âm lượng 10 phần trăm` | Giảm âm lượng Windows theo số phần trăm bạn nói, tính từ mức hiện tại. Không nói số thì giảm 20%. Nếu không điều khiển được âm lượng trực tiếp, app bấm phím âm lượng (mỗi lần khoảng 2%). |
 | Tăng âm lượng | `tăng âm lượng`, `tăng volume`, `tăng âm lượng 30%`, `volume up 20` | Tăng âm lượng Windows theo số phần trăm bạn nói, tính từ mức hiện tại, và bỏ tắt tiếng. Không nói số thì tăng 20%. |
+| Tắt tiếng | `tắt tiếng`, `tắt âm thanh`, `tắt loa`, `mute`, `im lặng`, `câm` | Đặt trạng thái tắt tiếng Windows, không đảo trạng thái. Nếu đã tắt tiếng thì báo đã tắt. Không điều khiển được âm thanh thì báo lỗi và không bấm phím nào. |
+| Bật tiếng | `bật tiếng`, `bật âm thanh`, `bật loa`, `mở tiếng`, `unmute`, `bỏ tắt tiếng` | Bật lại tiếng Windows, không đảo trạng thái. Nếu đã có tiếng thì báo đã bật. |
 
 Số đọc được: `30`, `30%`, `30 phần trăm`, `mười lăm`, `hai mươi mốt`, `một trăm`, từ 1 đến 100. Nói số ngoài khoảng này hoặc không phải số, như "tăng âm lượng to lên", sẽ không được thực hiện. "Tăng âm lượng lên" hoặc "giảm âm lượng xuống" dùng mức mặc định. Câu như "giảm âm lượng xuống 10%" không được thực hiện vì có thể hiểu là "còn 10%".
 | Phát nhạc | `play`, `phát nhạc`, `tiếp tục phát nhạc`, `bật nhạc` | Gửi Play đến phiên media đang được Windows chọn. |

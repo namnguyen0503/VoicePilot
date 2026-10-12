@@ -51,6 +51,8 @@ CASES = (
      {"filename": "báo cáo kiểm thử"}),
     (Intent.PPT_NEXT_SLIDE, "slide tiếp theo", AppKind.POWERPOINT, {}),
     (Intent.PPT_PREV_SLIDE, "slide trước", AppKind.POWERPOINT, {}),
+    (Intent.PPT_FIRST_SLIDE, "slide đầu tiên", AppKind.POWERPOINT, {}),
+    (Intent.PPT_LAST_SLIDE, "slide cuối cùng", AppKind.POWERPOINT, {}),
     (Intent.PPT_START_SHOW, "bắt đầu trình chiếu", AppKind.POWERPOINT, {}),
     (Intent.PPT_STOP_SHOW, "dừng trình chiếu", AppKind.POWERPOINT, {}),
     (Intent.BROWSER_OPEN_SITE, "mở youtube", AppKind.BROWSER,
@@ -71,6 +73,7 @@ PPT_METHODS = {
     Intent.PPT_SAVE: "save", Intent.PPT_SAVE_AS: "save_as",
     Intent.PPT_NEXT_SLIDE: "next_slide", Intent.PPT_PREV_SLIDE: "previous_slide",
     Intent.PPT_START_SHOW: "start_show", Intent.PPT_STOP_SHOW: "stop_show",
+    Intent.PPT_FIRST_SLIDE: "first_slide", Intent.PPT_LAST_SLIDE: "last_slide",
 }
 
 
@@ -341,7 +344,7 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
 
 
 def pipeline_suite() -> list[Check]:
-    """All fifteen functions through each STT mode, plus context/focus selection probes."""
+    """Every spoken built-in function through each STT mode, plus context/focus selection probes."""
     runner = Runner("fake_pipeline")
     for backend_mode in ("google", "offline", "hybrid", "fallback"):
         for intent, text, kind, params in CASES:
@@ -463,10 +466,15 @@ def powerpoint_worker_case(intent: Intent, scenario: str) -> str:
         if scenario in ("healthy", "show_focus"):
             expected = {Intent.PPT_SAVE: "Save", Intent.PPT_SAVE_AS: "SaveAs",
                         Intent.PPT_NEXT_SLIDE: "GotoSlide", Intent.PPT_PREV_SLIDE: "GotoSlide",
-                        Intent.PPT_START_SHOW: "Run", Intent.PPT_STOP_SHOW: "Exit"}[intent]
+                        Intent.PPT_START_SHOW: "Run", Intent.PPT_STOP_SHOW: "Exit",
+                        Intent.PPT_FIRST_SLIDE: "GotoSlide", Intent.PPT_LAST_SLIDE: "GotoSlide"}[intent]
             getattr(effects, expected).assert_called_once()
             if intent is Intent.PPT_START_SHOW:
                 effects.GotoSlide.assert_called_once_with(1)
+            elif intent is Intent.PPT_FIRST_SLIDE:
+                effects.GotoSlide.assert_called_once_with(1)
+            elif intent is Intent.PPT_LAST_SLIDE:
+                effects.GotoSlide.assert_called_once_with(3)  # Slides.Count is 3 in this fixture
         elif scenario == "timeout_run":
             effects.Run.assert_called_once()
             require(effects.GotoSlide.call_count == 0,

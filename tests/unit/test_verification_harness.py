@@ -31,7 +31,7 @@ def test_executor_failure_is_not_reported_as_success(monkeypatch):
     monkeypatch.setattr(harness.WindowsExecutor, "execute",
                         lambda *_, **__: ActionResult(ResultStatus.ERROR, ""))
     checks = harness.contract_suite()
-    assert len(checks) == 15
+    assert len(checks) == 17  # one per spoken case in verify_features.CASES
     assert all(check.status == "fail" for check in checks)
 
 
@@ -40,7 +40,7 @@ def test_all_fifteen_features_through_controller_and_each_stt_mode(qapp):
     expected = {f"{mode}:{intent.value}" for mode in ("google", "offline", "hybrid", "fallback")
                 for intent in BUILTIN_INTENTS}
     assert expected <= {check.name for check in checks}
-    assert len(checks) == 64
+    assert len(checks) == 72  # 4 STT modes x 18 spoken cases
     assert all(check.status == "pass" for check in checks), [c for c in checks if c.status != "pass"]
 
 
@@ -55,7 +55,7 @@ def test_pipeline_harness_detects_executor_failure(monkeypatch, qapp):
 
 def test_powerpoint_worker_drops_expired_jobs_and_rechecks_target():
     checks = harness.powerpoint_worker_suite()
-    assert len(checks) == 49
+    assert len(checks) == 63  # 7 scenarios x 8 PowerPoint intents, plus 7 extra probes
     assert all(check.status == "pass" for check in checks), [c for c in checks if c.status != "pass"]
 
 

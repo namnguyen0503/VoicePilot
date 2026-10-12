@@ -115,9 +115,18 @@ class FakeEditView:
 
 
 class FakeShowView:
-    def __init__(self, position: int) -> None:
+    def __init__(self, position: int, slides: int = 3) -> None:
         self.CurrentShowPosition = position
+        self.slides = slides
         self.calls: list[str] = []
+
+    def First(self) -> None:
+        self.calls.append("first")
+        self.CurrentShowPosition = 1
+
+    def Last(self) -> None:
+        self.calls.append("last")
+        self.CurrentShowPosition = self.slides
 
     def Next(self) -> None:
         self.calls.append("next")
@@ -136,8 +145,8 @@ class FakeShowView:
 
 
 class FakeShow:
-    def __init__(self, position: int) -> None:
-        self.View = FakeShowView(position)
+    def __init__(self, position: int, slides: int = 3) -> None:
+        self.View = FakeShowView(position, slides)
 
 
 class FakeSettings:
@@ -166,7 +175,9 @@ class FakePresentation:
         self.Path = path
         self.FullName = f"{path}\\{name}" if path else name
         self.Slides = SimpleNamespace(Count=slides)
-        self.SlideShowWindow = FakeShow(show_position) if show_position is not None else None
+        self.SlideShowWindow = (
+            FakeShow(show_position, slides) if show_position is not None else None
+        )
         self.Windows = FakeCollection([SimpleNamespace(View=FakeEditView(edit_index))])
         self.SlideShowSettings = FakeSettings(self)
         self.saves = 0
@@ -709,6 +720,55 @@ def test_next_slide_in_edit_view_goes_to_next_index(ppt: Callable[..., PowerPoin
     assert presentation.Windows.Item(1).View.gotos == [3]
 
 
+def test_first_slide_in_show_goes_to_slide_one(ppt: Callable[..., PowerPointController]) -> None:
+    presentation = FakePresentation("Deck.pptx", path="C:\\Work", show_position=3, slides=3)
+    result = ppt(FakeApp(presentation)).first_slide(make_ctx(title="Deck.pptx"))
+    assert result.status is ResultStatus.OK
+    assert result.message_vi == "Đã về slide đầu tiên."
+    assert presentation.SlideShowWindow.View.calls == ["first"]
+
+
+def test_last_slide_in_show_goes_to_last_slide(ppt: Callable[..., PowerPointController]) -> None:
+    presentation = FakePresentation("Deck.pptx", path="C:\\Work", show_position=1, slides=4)
+    result = ppt(FakeApp(presentation)).last_slide(make_ctx(title="Deck.pptx"))
+    assert result.status is ResultStatus.OK
+    assert result.message_vi == "Đã đến slide cuối cùng."
+    assert presentation.SlideShowWindow.View.calls == ["last"]
+
+
+def test_first_slide_in_edit_view_goes_to_index_one(ppt: Callable[..., PowerPointController]) -> None:
+    presentation = FakePresentation("Deck.pptx", path="C:\\Work", edit_index=2, slides=3)
+    result = ppt(FakeApp(presentation)).first_slide(make_ctx(title="Deck.pptx"))
+    assert result.status is ResultStatus.OK
+    assert result.message_vi == "Đã về slide đầu tiên."
+    assert presentation.Windows.Item(1).View.gotos == [1]
+
+
+def test_last_slide_in_edit_view_goes_to_slide_count(ppt: Callable[..., PowerPointController]) -> None:
+    presentation = FakePresentation("Deck.pptx", path="C:\\Work", edit_index=1, slides=5)
+    result = ppt(FakeApp(presentation)).last_slide(make_ctx(title="Deck.pptx"))
+    assert result.status is ResultStatus.OK
+    assert result.message_vi == "Đã đến slide cuối cùng."
+    assert presentation.Windows.Item(1).View.gotos == [5]
+
+
+def test_first_and_last_when_already_there_still_succeed(ppt: Callable[..., PowerPointController]) -> None:
+    presentation = FakePresentation("Deck.pptx", path="C:\\Work", edit_index=1, slides=3)
+    controller = ppt(FakeApp(presentation))
+    assert controller.first_slide(make_ctx(title="Deck.pptx")).status is ResultStatus.OK
+    assert presentation.Windows.Item(1).View.gotos == [1]
+
+
+def test_first_and_last_on_empty_presentation_are_boundary(ppt: Callable[..., PowerPointController]) -> None:
+    presentation = FakePresentation("Deck.pptx", path="C:\\Work", edit_index=1, slides=0)
+    controller = ppt(FakeApp(presentation))
+    for action in (controller.first_slide, controller.last_slide):
+        result = action(make_ctx(title="Deck.pptx"))
+        assert result.status is ResultStatus.BOUNDARY
+        assert result.error_code == "no_slides"
+    assert presentation.Windows.Item(1).View.gotos == []
+
+
 def test_title_selects_presentation_not_active_one(ppt: Callable[..., PowerPointController]) -> None:
     first = FakePresentation("A.pptx", path="C:\\Work", edit_index=1)
     second = FakePresentation("B.pptx", path="C:\\Work", edit_index=1)
@@ -929,6 +989,8 @@ PPT_INTENTS_WITH_PARAMS = [
     (Intent.PPT_SAVE_AS, {"filename": "Báo cáo"}),
     (Intent.PPT_NEXT_SLIDE, {}),
     (Intent.PPT_PREV_SLIDE, {}),
+    (Intent.PPT_FIRST_SLIDE, {}),
+    (Intent.PPT_LAST_SLIDE, {}),
     (Intent.PPT_START_SHOW, {}),
     (Intent.PPT_STOP_SHOW, {}),
 ]
