@@ -32,6 +32,8 @@ _RANGES: dict[str, tuple[float, float]] = {
     "google_timeout_s": (0.5, 10),
     "gipformer_threads": (1, 8),
     "history_size": (1, 200),
+    "volume_step_percent": (1, 100),
+    "brightness_step_percent": (1, 100),
 }
 _NON_EMPTY_STRINGS = frozenset({"hotkey_listen", "hotkey_mode"})
 
@@ -59,6 +61,8 @@ class AppConfig:
     tts_enabled: bool = True
     tts_voice: str = "vi_VN-vais1000-medium"
     history_size: int = 20
+    volume_step_percent: int = 20
+    brightness_step_percent: int = 20
     overlay_pos: tuple[int, int] | None = None
     website_aliases: dict[str, str] = field(default_factory=dict)
     app_aliases: dict[str, str] = field(default_factory=dict)

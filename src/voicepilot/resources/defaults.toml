@@ -18,6 +18,8 @@ gipformer_threads = 2
 tts_enabled = true
 tts_voice = "vi_VN-vais1000-medium"
 history_size = 20
+volume_step_percent = 20     # % khi nói "tăng/giảm âm lượng" không kèm số
+brightness_step_percent = 20 # % khi nói "tăng/giảm độ sáng" không kèm số
 
 # Website: tên nói -> URL. Có thể dùng thêm cách đọc tiếng Việt.
 [websites]

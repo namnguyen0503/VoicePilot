@@ -181,3 +181,12 @@ def test_load_falls_back_to_greedy_when_hotword_recognizer_fails(
     GipformerStt(model_dir, hotwords=["chụp màn hình"]).warmup()
 
     assert [call["decoding_method"] for call in sherpa_calls] == ["modified_beam_search", "greedy_search"]
+
+
+def test_amount_placeholder_contributes_only_its_literal_prefix():
+    from voicepilot.stt.hotwords import command_phrases
+
+    phrases = command_phrases({}, {})
+    assert "tăng âm lượng" in phrases
+    assert "giảm độ sáng màn hình" in phrases
+    assert not any("{" in phrase for phrase in phrases)

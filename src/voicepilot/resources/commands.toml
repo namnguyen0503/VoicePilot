@@ -5,7 +5,10 @@
 #   patterns (required, except DICTATE_TEXT) Vietnamese phrasings. Write them as you would say them;
 #            matching normalizes case, punctuation and spacing on both sides.
 #            A placeholder {name} captures the spoken text at that position.
-#            Allowed placeholders: query, filename, site, app_name, target, question.
+#            Allowed placeholders: query, filename, site, app_name, target, question, amount.
+#            {amount} is an optional spoken percentage ("30", "30%", "mười lăm phần trăm"; 1..100).
+#            It is not listed in params: a bare phrase is valid and uses the configured default.
+#            An unparseable amount ("to lên") is UNKNOWN. Only the volume and brightness intents use it.
 #            {question} is only for BROWSER_SEARCH: it searches the whole question after
 #            explicit command patterns miss, retaining words such as "bao nhieu".
 #            A pattern without placeholders is a bare phrase; if the intent has params, the
@@ -351,22 +354,58 @@ example = "tắt tiết kiệm pin"
 
 [[intent]]
 name = "WIN_BRIGHTNESS_DOWN"
-patterns = ["giảm độ sáng", "giảm độ sáng màn hình", "giảm sáng", "tối màn hình hơn"]
+patterns = [
+    "giảm độ sáng",
+    "giảm độ sáng màn hình",
+    "giảm sáng",
+    "tối màn hình hơn",
+    "giảm độ sáng {amount}",
+    "giảm độ sáng màn hình {amount}",
+    "giảm sáng {amount}",
+]
 example = "giảm độ sáng"
 
 [[intent]]
 name = "WIN_BRIGHTNESS_UP"
-patterns = ["tăng độ sáng", "tăng độ sáng màn hình", "tăng sáng", "sáng màn hình hơn"]
+patterns = [
+    "tăng độ sáng",
+    "tăng độ sáng màn hình",
+    "tăng sáng",
+    "sáng màn hình hơn",
+    "tăng độ sáng {amount}",
+    "tăng độ sáng màn hình {amount}",
+    "tăng sáng {amount}",
+]
 example = "tăng độ sáng"
 
 [[intent]]
 name = "WIN_VOLUME_DOWN"
-patterns = ["giảm âm lượng", "giảm volume", "giảm tiếng", "nhỏ tiếng hơn", "volume down"]
+patterns = [
+    "giảm âm lượng",
+    "giảm volume",
+    "giảm tiếng",
+    "nhỏ tiếng hơn",
+    "volume down",
+    "giảm âm lượng {amount}",
+    "giảm volume {amount}",
+    "giảm tiếng {amount}",
+    "volume down {amount}",
+]
 example = "giảm âm lượng"
 
 [[intent]]
 name = "WIN_VOLUME_UP"
-patterns = ["tăng âm lượng", "tăng volume", "tăng tiếng", "to tiếng hơn", "volume up"]
+patterns = [
+    "tăng âm lượng",
+    "tăng volume",
+    "tăng tiếng",
+    "to tiếng hơn",
+    "volume up",
+    "tăng âm lượng {amount}",
+    "tăng volume {amount}",
+    "tăng tiếng {amount}",
+    "volume up {amount}",
+]
 example = "tăng âm lượng"
 
 [[intent]]

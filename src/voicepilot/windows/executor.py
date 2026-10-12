@@ -74,6 +74,10 @@ class _SendInputKeys:
             input_ops.type_unicode(text)
 
 
+_VOLUME_INTENTS = frozenset({Intent.WIN_VOLUME_UP, Intent.WIN_VOLUME_DOWN})
+_BRIGHTNESS_INTENTS = frozenset({Intent.WIN_BRIGHTNESS_UP, Intent.WIN_BRIGHTNESS_DOWN})
+
+
 class WindowsExecutor:
     """Dispatches each Intent to PowerPoint, browser, desktop or keyboard backends."""
 
@@ -92,7 +96,7 @@ class WindowsExecutor:
         """Create the executor.
 
         Args:
-            config: Application settings. Reserved for Windows-specific options; no option is read yet.
+            config: Application settings; the default volume/brightness steps are read from it.
             context_provider: Used to re-check the captured window before acting.
             hide_overlay: Factory for a context manager that hides the overlay while a screenshot is taken.
             powerpoint: PowerPoint backend. Defaults to a PowerPointController that starts lazily.
@@ -147,8 +151,21 @@ class WindowsExecutor:
             cancel=cancel,
         )
 
+    def update_config(self, config: AppConfig) -> None:
+        """Use new settings from the next command on (default volume/brightness steps)."""
+        self._config = config
+
     def _system_action(self, command, ctx, cancel) -> ActionResult:
-        return self._guarded(ctx, lambda: self._system_controls.execute(command.intent, cancel),
+        options = {}
+        if command.intent in _VOLUME_INTENTS | _BRIGHTNESS_INTENTS:
+            spoken = command.params.get("amount", "")
+            if spoken.isdigit():
+                options["amount"] = int(spoken)
+            elif command.intent in _VOLUME_INTENTS:
+                options["amount"] = self._config.volume_step_percent
+            else:
+                options["amount"] = self._config.brightness_step_percent
+        return self._guarded(ctx, lambda: self._system_controls.execute(command.intent, cancel, **options),
                              strict=False, cancel=cancel)
 
     def execute(

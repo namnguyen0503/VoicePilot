@@ -355,6 +355,7 @@ class VoicePilot(QObject):
         else:
             context_provider, executor = _DevContextProvider(), _DevExecutor()
         self._context_provider = context_provider
+        self._executor = executor
         recorder, transcriber, self._gipformer = _audio_components(config, self._level_relay.push)
         self._controller = Controller(
             config,
@@ -602,6 +603,9 @@ class VoicePilot(QObject):
             self._overlay.set_position(config.overlay_pos)
         recorder, transcriber, self._gipformer = _audio_components(config, self._level_relay.push, reuse)
         self._controller.apply_settings(config, recorder, transcriber, parser=_make_parser(config))
+        update_executor = getattr(self._executor, "update_config", None)
+        if update_executor is not None:
+            update_executor(config)
         self._stop_hotkeys()
         self._hotkeys = self._register_hotkeys(config)
         self._tray.set_hotkeys(config.hotkey_listen, config.hotkey_mode)

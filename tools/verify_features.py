@@ -307,7 +307,13 @@ def pipeline_case(intent, text, kind, params, backend_mode, *, google_text=None,
                 screenshot.assert_called_once_with(ctx, hide_overlay=None)
             elif (intent.value.startswith(("MEDIA_", "WIN_BRIGHTNESS_", "WIN_VOLUME_"))
                   or intent in SYSTEM_INTENTS):
-                system.execute.assert_called_once_with(intent, cancel_token)
+                if intent.value.startswith(("WIN_BRIGHTNESS_", "WIN_VOLUME_")):
+                    # No spoken amount in these fixtures: the configured default step is passed.
+                    step = (config.volume_step_percent if intent.value.startswith("WIN_VOLUME_")
+                            else config.brightness_step_percent)
+                    system.execute.assert_called_once_with(intent, cancel_token, amount=step)
+                else:
+                    system.execute.assert_called_once_with(intent, cancel_token)
             elif intent is Intent.WIN_CLOSE_WINDOW:
                 keys.send_hotkey.assert_called_once_with("alt", "f4")
             elif intent is Intent.WIN_HOTKEY:

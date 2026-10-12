@@ -16,6 +16,7 @@ import time
 import uuid
 from collections.abc import Callable
 from pathlib import Path
+from typing import Protocol
 
 from voicepilot.contracts import ActionResult, Intent, ResultStatus
 
@@ -92,7 +93,7 @@ async def media_action_async(action: str, cancel=None, *, request: Callable | No
 
 
 def adjust_brightness(delta: int, *, services=None, cancel=None) -> ActionResult:
-    """Adjust the active internal display by ten percentage points, clamped to 0..100."""
+    """Adjust the active internal display by delta percentage points, clamped to 0..100."""
     if result := cancelled(cancel):
         return result
     owns_com = services is None
@@ -311,26 +312,217 @@ def init_media_apartment() -> None:
         winrt.runtime.init_apartment(winrt.runtime.ApartmentType.SINGLE_THREADED)
 
 
+class VolumeEndpoint(Protocol):
+    """Master volume of one playback device: level as a fraction 0..1, plus mute state."""
+
+    def get(self) -> float: ...
+
+    def set(self, level: float) -> None: ...
+
+    def get_mute(self) -> bool: ...
+
+    def set_mute(self, muted: bool) -> None: ...
+
+
+_CLSID_MM_DEVICE_ENUMERATOR = "BCDE0395-E52F-467C-8E3D-C4579291692E"
+_IID_MM_DEVICE_ENUMERATOR = "A95664D2-9614-4F35-A746-DE8DB63617E6"
+_IID_AUDIO_ENDPOINT_VOLUME = "5CDF2C82-841E-4546-9722-0CF74078229A"
+_CLSCTX_ALL = 0x17
+_E_RENDER = 0  # EDataFlow: playback device
+_E_MULTIMEDIA = 1  # ERole: default multimedia device
+# Vtable slots, counted after IUnknown (0 QueryInterface, 1 AddRef, 2 Release).
+_SLOT_RELEASE = 2
+_SLOT_DEVICE_ACTIVATE = 3
+_SLOT_ENUM_GET_DEFAULT_ENDPOINT = 4
+_SLOT_VOLUME_SET_SCALAR = 7
+_SLOT_VOLUME_GET_SCALAR = 9
+_SLOT_VOLUME_SET_MUTE = 14
+_SLOT_VOLUME_GET_MUTE = 15
+_KEY_PERCENT_PER_PRESS = 2
+_MAX_KEY_PRESSES = 50
+DEFAULT_STEP_PERCENT = 20
+
+
+def _com_call(interface: ctypes.c_void_p, slot: int, argtypes: tuple, *args) -> int:
+    """Call one COM method by vtable slot and return its HRESULT."""
+    address = interface.value
+    vtable = ctypes.c_void_p.from_address(address).value
+    function = ctypes.c_void_p.from_address(vtable + slot * ctypes.sizeof(ctypes.c_void_p)).value
+    prototype = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, *argtypes)
+    return prototype(function)(address, *args)
+
+
+def _com_check(hresult: int, what: str) -> None:
+    if hresult < 0:
+        raise OSError(f"{what} failed: 0x{hresult & 0xFFFFFFFF:08X}")
+
+
+def _com_release(interface: ctypes.c_void_p) -> None:
+    if interface.value:
+        _com_call(interface, _SLOT_RELEASE, ())
+        interface.value = None
+
+
+def _guid(text: str) -> _Guid:
+    return _Guid.from_buffer_copy(uuid.UUID(text).bytes_le)
+
+
+class CoreAudioEndpoint:
+    """IAudioEndpointVolume of the default playback device, called through raw COM vtables.
+
+    Creation raises when Core Audio is unavailable (OSError, or another exception on hosts
+    without ole32). COM must be initialized on this thread; call close() before CoUninitialize.
+    """
+
+    def __init__(self) -> None:
+        ole32 = ctypes.WinDLL("ole32")
+        create = ole32.CoCreateInstance
+        create.argtypes = [ctypes.POINTER(_Guid), ctypes.c_void_p, ctypes.c_uint32,
+                           ctypes.POINTER(_Guid), ctypes.POINTER(ctypes.c_void_p)]
+        create.restype = ctypes.c_long
+        enumerator = ctypes.c_void_p()
+        device = ctypes.c_void_p()
+        self._volume = ctypes.c_void_p()
+        try:
+            _com_check(create(ctypes.byref(_guid(_CLSID_MM_DEVICE_ENUMERATOR)), None, _CLSCTX_ALL,
+                              ctypes.byref(_guid(_IID_MM_DEVICE_ENUMERATOR)), ctypes.byref(enumerator)),
+                       "CoCreateInstance")
+            _com_check(_com_call(enumerator, _SLOT_ENUM_GET_DEFAULT_ENDPOINT,
+                                 (ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_void_p)),
+                                 _E_RENDER, _E_MULTIMEDIA, ctypes.byref(device)),
+                       "GetDefaultAudioEndpoint")
+            _com_check(_com_call(device, _SLOT_DEVICE_ACTIVATE,
+                                 (ctypes.POINTER(_Guid), ctypes.c_uint32, ctypes.c_void_p,
+                                  ctypes.POINTER(ctypes.c_void_p)),
+                                 ctypes.byref(_guid(_IID_AUDIO_ENDPOINT_VOLUME)), _CLSCTX_ALL, None,
+                                 ctypes.byref(self._volume)),
+                       "IMMDevice::Activate")
+        except BaseException:
+            _com_release(self._volume)
+            raise
+        finally:
+            _com_release(device)
+            _com_release(enumerator)
+
+    def get(self) -> float:
+        level = ctypes.c_float()
+        _com_check(_com_call(self._volume, _SLOT_VOLUME_GET_SCALAR,
+                             (ctypes.POINTER(ctypes.c_float),), ctypes.byref(level)),
+                   "GetMasterVolumeLevelScalar")
+        return float(level.value)
+
+    def set(self, level: float) -> None:
+        _com_check(_com_call(self._volume, _SLOT_VOLUME_SET_SCALAR, (ctypes.c_float, ctypes.c_void_p),
+                             ctypes.c_float(level), None),
+                   "SetMasterVolumeLevelScalar")
+
+    def get_mute(self) -> bool:
+        muted = ctypes.c_int()
+        _com_check(_com_call(self._volume, _SLOT_VOLUME_GET_MUTE, (ctypes.POINTER(ctypes.c_int),),
+                             ctypes.byref(muted)), "GetMute")
+        return bool(muted.value)
+
+    def set_mute(self, muted: bool) -> None:
+        _com_check(_com_call(self._volume, _SLOT_VOLUME_SET_MUTE, (ctypes.c_int, ctypes.c_void_p),
+                             int(muted), None), "SetMute")
+
+    def close(self) -> None:
+        _com_release(self._volume)
+
+
+def _percent(level: float) -> int:
+    return max(0, min(100, round(level * 100)))
+
+
+def adjust_volume(delta: int, *, endpoint: VolumeEndpoint | None = None, cancel=None) -> ActionResult:
+    """Change the master volume by delta percentage points, clamped to 0..100.
+
+    Raising the volume also unmutes, like the media keys do. Without an endpoint, the default
+    playback device is opened through Core Audio; if that is unavailable, the media volume keys
+    are pressed instead, two percent per press.
+    """
+    if endpoint is not None:
+        return _set_volume(endpoint, delta, cancel)
+    if result := cancelled(cancel):
+        return result
+    try:
+        import pythoncom
+    except ImportError:
+        return _adjust_volume_with_keys(delta, cancel)
+    owns_com = False
+    try:
+        try:
+            pythoncom.CoInitialize()
+            owns_com = True
+        except Exception:
+            # Already initialized on this thread in another mode: use that apartment as it is.
+            pass
+        try:
+            native = CoreAudioEndpoint()
+        except Exception:
+            return _adjust_volume_with_keys(delta, cancel)
+        try:
+            return _set_volume(native, delta, cancel)
+        finally:
+            native.close()
+    finally:
+        if owns_com:
+            pythoncom.CoUninitialize()
+
+
+def _set_volume(endpoint: VolumeEndpoint, delta: int, cancel) -> ActionResult:
+    """Apply a relative change to an endpoint and report the level read back from it."""
+    try:
+        if result := cancelled(cancel):
+            return result
+        target = max(0, min(100, _percent(endpoint.get()) + delta))
+        if delta > 0 and endpoint.get_mute():
+            if result := cancelled(cancel):
+                return result
+            endpoint.set_mute(False)
+        if result := cancelled(cancel):
+            return result
+        endpoint.set(target / 100)
+        level = _percent(endpoint.get())
+    except OSError:
+        return ActionResult(ResultStatus.ERROR, "Không đổi được âm lượng.", "volume_failed")
+    return ActionResult(ResultStatus.OK, f"Âm lượng {level}%.", data={"volume": level})
+
+
+def _adjust_volume_with_keys(delta: int, cancel) -> ActionResult:
+    """Fallback when Core Audio is unavailable: press the media volume keys, one per 2 percent."""
+    from voicepilot.windows.input import send_hotkey
+
+    up = delta > 0
+    presses = min(_MAX_KEY_PRESSES, max(1, round(abs(delta) / _KEY_PERCENT_PER_PRESS)))
+    try:
+        for _ in range(presses):
+            if result := cancelled(cancel):
+                return result
+            send_hotkey("volumeup" if up else "volumedown")
+    except Exception:
+        return ActionResult(ResultStatus.ERROR, "Không đổi được âm lượng.", "volume_failed")
+    return ActionResult(ResultStatus.OK, "Đã tăng âm lượng." if up else "Đã giảm âm lượng.")
+
+
 class SystemControls:
     """Synchronous executor adapter. WinRT stays on the calling worker's apartment."""
 
-    def execute(self, intent: Intent, cancel=None) -> ActionResult:
+    def execute(self, intent: Intent, cancel=None, *, amount: int | None = None) -> ActionResult:
+        """Run a system intent. amount is the spoken percentage; None means DEFAULT_STEP_PERCENT."""
         if result := cancelled(cancel):
             return result
         if intent is Intent.WIN_POWER_SAVER:
             return power_saver(cancel)
         if intent is Intent.WIN_POWER_RESTORE:
             return PowerPlanManager().restore(cancel)
-        if intent in {Intent.WIN_BRIGHTNESS_UP, Intent.WIN_BRIGHTNESS_DOWN}:
-            return adjust_brightness(10 if intent is Intent.WIN_BRIGHTNESS_UP else -10, cancel=cancel)
-        if intent in {Intent.WIN_VOLUME_UP, Intent.WIN_VOLUME_DOWN}:
-            from voicepilot.windows.input import send_hotkey
-
-            if result := cancelled(cancel):
-                return result
-            up = intent is Intent.WIN_VOLUME_UP
-            send_hotkey("volumeup" if up else "volumedown")
-            return ActionResult(ResultStatus.OK, "Đã tăng âm lượng." if up else "Đã giảm âm lượng.")
+        if intent in {Intent.WIN_BRIGHTNESS_UP, Intent.WIN_BRIGHTNESS_DOWN, Intent.WIN_VOLUME_UP,
+                      Intent.WIN_VOLUME_DOWN}:
+            step = DEFAULT_STEP_PERCENT if amount is None else amount
+            delta = step if intent in {Intent.WIN_BRIGHTNESS_UP, Intent.WIN_VOLUME_UP} else -step
+            if intent in {Intent.WIN_BRIGHTNESS_UP, Intent.WIN_BRIGHTNESS_DOWN}:
+                return adjust_brightness(delta, cancel=cancel)
+            return adjust_volume(delta, cancel=cancel)
         import winrt.runtime
 
         init_media_apartment()

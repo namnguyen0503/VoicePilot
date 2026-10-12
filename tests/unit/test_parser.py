@@ -277,3 +277,89 @@ def test_commands_doc_mentions_every_intent() -> None:
         if not any(phrase in doc for phrase in phrases):
             missing.append(entry["name"])
     assert not missing, f"docs/COMMANDS.vi.md does not mention: {missing}"
+
+
+AMOUNT_PHRASES = [
+    ("tăng âm lượng 30%", Intent.WIN_VOLUME_UP, "30"),
+    ("giảm âm lượng 10 phần trăm", Intent.WIN_VOLUME_DOWN, "10"),
+    ("giảm độ sáng hai mươi phần trăm", Intent.WIN_BRIGHTNESS_DOWN, "20"),
+    ("tăng độ sáng thêm 15%", Intent.WIN_BRIGHTNESS_UP, "15"),
+    ("giảm volume ba mươi lăm", Intent.WIN_VOLUME_DOWN, "35"),
+    ("tăng volume 25", Intent.WIN_VOLUME_UP, "25"),
+    ("tăng tiếng 40 phần trăm", Intent.WIN_VOLUME_UP, "40"),
+    ("volume up 20 phan tram", Intent.WIN_VOLUME_UP, "20"),
+    ("tăng độ sáng màn hình mười lăm", Intent.WIN_BRIGHTNESS_UP, "15"),
+    ("giảm độ sáng màn hình 30%", Intent.WIN_BRIGHTNESS_DOWN, "30"),
+    ("tăng sáng 5%", Intent.WIN_BRIGHTNESS_UP, "5"),
+    ("giảm sáng hai mươi mốt", Intent.WIN_BRIGHTNESS_DOWN, "21"),
+    ("giảm tiếng 1", Intent.WIN_VOLUME_DOWN, "1"),
+    ("tăng âm lượng 100%", Intent.WIN_VOLUME_UP, "100"),
+]
+
+
+@pytest.mark.parametrize("phrase,intent,amount", AMOUNT_PHRASES)
+def test_spoken_amount_is_passed_as_integer_param(
+    parser: RuleParser, phrase: str, intent: Intent, amount: str
+) -> None:
+    command = parser.parse(phrase, _context("other"), COMMAND)
+    assert command.intent is intent
+    assert command.is_executable
+    assert command.params == {"amount": amount}
+
+
+@pytest.mark.parametrize(
+    "phrase,intent",
+    [
+        ("tăng âm lượng", Intent.WIN_VOLUME_UP),
+        ("giảm âm lượng", Intent.WIN_VOLUME_DOWN),
+        ("tăng độ sáng", Intent.WIN_BRIGHTNESS_UP),
+        ("giảm độ sáng màn hình", Intent.WIN_BRIGHTNESS_DOWN),
+        ("giảm sáng", Intent.WIN_BRIGHTNESS_DOWN),
+    ],
+)
+def test_bare_phrase_has_no_amount_and_is_executable(parser: RuleParser, phrase: str, intent: Intent) -> None:
+    command = parser.parse(phrase, _context("other"), COMMAND)
+    assert command.intent is intent
+    assert command.is_executable
+    assert "amount" not in command.params
+
+
+@pytest.mark.parametrize(
+    "phrase",
+    [
+        "tăng âm lượng to lên",
+        "tăng âm lượng lên 30",
+        "giảm độ sáng 0%",
+        "tăng độ sáng 101%",
+        "giảm âm lượng 1000",
+    ],
+)
+def test_invalid_amount_is_unknown_and_never_executes(parser: RuleParser, phrase: str) -> None:
+    command = parser.parse(phrase, _context("other"), COMMAND)
+    assert command.intent is Intent.UNKNOWN
+    assert not command.is_executable
+    assert command.example
+
+
+@pytest.mark.parametrize(
+    "phrase,intent",
+    [
+        ("tăng âm lượng lên", Intent.WIN_VOLUME_UP),
+        ("giảm âm lượng xuống", Intent.WIN_VOLUME_DOWN),
+        ("tăng âm lượng thêm chút nữa", Intent.WIN_VOLUME_UP),
+        ("tăng độ sáng lên", Intent.WIN_BRIGHTNESS_UP),
+    ],
+)
+def test_direction_words_without_number_use_default_step(
+    parser: RuleParser, phrase: str, intent: Intent
+) -> None:
+    command = parser.parse(phrase, None, Mode.COMMAND)
+    assert command.intent is intent
+    assert command.is_executable
+    assert "amount" not in command.params
+
+
+@pytest.mark.parametrize("phrase", ["giảm âm lượng xuống 10%", "tăng âm lượng lên 30"])
+def test_absolute_looking_amount_is_not_guessed(parser: RuleParser, phrase: str) -> None:
+    # "xuống 10%" may mean "to 10%"; never apply it as a relative change.
+    assert parser.parse(phrase, None, Mode.COMMAND).intent is Intent.UNKNOWN

@@ -259,3 +259,207 @@ def test_system_media_reuses_existing_sta_apartment(monkeypatch):
     system_controls.SystemControls().execute(Intent.MEDIA_PLAY)
     assert runtime.init_apartment.call_args_list == [((1,), {}), ((0,), {})]
     runtime.uninit_apartment.assert_called_once()
+
+
+class FakeVolumeEndpoint:
+    """In-memory VolumeEndpoint: level is a fraction 0..1, like IAudioEndpointVolume."""
+
+    def __init__(self, level: float = 0.5, muted: bool = False) -> None:
+        self.level = level
+        self.muted = muted
+        self.sets: list[float] = []
+        self.mute_calls: list[bool] = []
+
+    def get(self) -> float:
+        return self.level
+
+    def set(self, level: float) -> None:
+        self.sets.append(level)
+        self.level = level
+
+    def get_mute(self) -> bool:
+        return self.muted
+
+    def set_mute(self, muted: bool) -> None:
+        self.mute_calls.append(muted)
+        self.muted = muted
+
+
+@pytest.mark.parametrize(
+    "start,delta,expected",
+    [(0.5, 30, 80), (0.5, -10, 40), (0.9, 30, 100), (0.1, -30, 0), (0.0, -20, 0), (1.0, 20, 100)],
+)
+def test_volume_adjusts_by_points_and_clamps(start, delta, expected):
+    from voicepilot.windows.system_controls import adjust_volume
+
+    endpoint = FakeVolumeEndpoint(start)
+    result = adjust_volume(delta, endpoint=endpoint)
+    assert result.status is ResultStatus.OK
+    assert endpoint.sets == [expected / 100]
+    assert result.data == {"volume": expected}
+    assert result.message_vi == f"Âm lượng {expected}%."
+
+
+def test_volume_raise_unmutes_but_lower_keeps_mute_state():
+    from voicepilot.windows.system_controls import adjust_volume
+
+    muted = FakeVolumeEndpoint(0.4, muted=True)
+    assert adjust_volume(10, endpoint=muted).status is ResultStatus.OK
+    assert muted.mute_calls == [False]
+    assert muted.muted is False
+
+    lowered = FakeVolumeEndpoint(0.4, muted=True)
+    adjust_volume(-10, endpoint=lowered)
+    assert lowered.mute_calls == []
+
+
+def test_volume_cancelled_before_set_never_writes():
+    from voicepilot.windows.system_controls import adjust_volume
+
+    endpoint = FakeVolumeEndpoint(0.5, muted=True)
+    cancel = Event()
+    cancel.set()
+    result = adjust_volume(20, endpoint=endpoint, cancel=cancel)
+    assert result.error_code == "cancelled"
+    assert endpoint.sets == []
+    assert endpoint.mute_calls == []
+
+
+def test_volume_cancelled_between_unmute_and_set_never_sets_level():
+    from voicepilot.windows.system_controls import adjust_volume
+
+    class CancelAfterUnmute(FakeVolumeEndpoint):
+        def set_mute(self, muted: bool) -> None:
+            super().set_mute(muted)
+            cancel.set()
+
+    cancel = Event()
+    endpoint = CancelAfterUnmute(0.5, muted=True)
+    assert adjust_volume(20, endpoint=endpoint, cancel=cancel).error_code == "cancelled"
+    assert endpoint.sets == []
+
+
+def test_volume_com_failure_during_set_is_reported_not_raised():
+    from voicepilot.windows.system_controls import adjust_volume
+
+    class Broken(FakeVolumeEndpoint):
+        def set(self, level: float) -> None:
+            raise OSError("SetMasterVolumeLevelScalar failed")
+
+    result = adjust_volume(10, endpoint=Broken(0.5))
+    assert result.status is ResultStatus.ERROR
+    assert result.error_code == "volume_failed"
+
+
+@pytest.fixture
+def fake_pythoncom(monkeypatch):
+    import sys
+    import types
+
+    module = types.ModuleType("pythoncom")
+    module.CoInitialize = Mock()
+    module.CoUninitialize = Mock()
+    monkeypatch.setitem(sys.modules, "pythoncom", module)
+    return module
+
+
+@pytest.fixture
+def fake_input(monkeypatch):
+    import sys
+    import types
+
+    module = types.ModuleType("voicepilot.windows.input")
+    module.send_hotkey = Mock()
+    monkeypatch.setitem(sys.modules, "voicepilot.windows.input", module)
+    return module
+
+
+def test_volume_falls_back_to_media_keys_without_core_audio(monkeypatch, fake_pythoncom, fake_input):
+    from voicepilot.windows import system_controls
+
+    def unavailable():
+        raise OSError("CoCreateInstance failed")
+
+    monkeypatch.setattr(system_controls, "CoreAudioEndpoint", unavailable)
+    result = system_controls.adjust_volume(20)
+    assert result.status is ResultStatus.OK
+    assert result.message_vi == "Đã tăng âm lượng."
+    assert fake_input.send_hotkey.call_count == 10
+    fake_input.send_hotkey.assert_called_with("volumeup")
+    fake_pythoncom.CoUninitialize.assert_called_once()
+
+
+def test_volume_key_fallback_presses_each_two_percent_and_caps_at_fifty(fake_input):
+    from voicepilot.windows.system_controls import _adjust_volume_with_keys
+
+    assert _adjust_volume_with_keys(-30, None).message_vi == "Đã giảm âm lượng."
+    assert fake_input.send_hotkey.call_count == 15
+    fake_input.send_hotkey.assert_called_with("volumedown")
+
+    fake_input.send_hotkey.reset_mock()
+    _adjust_volume_with_keys(100, None)
+    assert fake_input.send_hotkey.call_count == 50
+
+
+def test_volume_key_fallback_stops_when_cancelled(fake_input):
+    from voicepilot.windows.system_controls import _adjust_volume_with_keys
+
+    cancel = Event()
+    cancel.set()
+    assert _adjust_volume_with_keys(20, cancel).error_code == "cancelled"
+    fake_input.send_hotkey.assert_not_called()
+
+
+def test_execute_passes_spoken_amount_to_brightness_and_volume(monkeypatch):
+    from voicepilot.windows import system_controls
+
+    brightness = Mock(return_value=Mock())
+    volume = Mock(return_value=Mock())
+    monkeypatch.setattr(system_controls, "adjust_brightness", brightness)
+    monkeypatch.setattr(system_controls, "adjust_volume", volume)
+    controls = system_controls.SystemControls()
+
+    controls.execute(Intent.WIN_BRIGHTNESS_DOWN, amount=15)
+    brightness.assert_called_with(-15, cancel=None)
+    controls.execute(Intent.WIN_VOLUME_UP, amount=30)
+    volume.assert_called_with(30, cancel=None)
+
+
+def test_execute_without_amount_uses_default_step(monkeypatch):
+    from voicepilot.windows import system_controls
+
+    brightness = Mock(return_value=Mock())
+    volume = Mock(return_value=Mock())
+    monkeypatch.setattr(system_controls, "adjust_brightness", brightness)
+    monkeypatch.setattr(system_controls, "adjust_volume", volume)
+    controls = system_controls.SystemControls()
+
+    controls.execute(Intent.WIN_BRIGHTNESS_UP)
+    brightness.assert_called_with(20, cancel=None)
+    controls.execute(Intent.WIN_VOLUME_DOWN)
+    volume.assert_called_with(-20, cancel=None)
+
+
+@pytest.mark.parametrize(
+    "name,params,expected",
+    [
+        ("WIN_VOLUME_UP", {"amount": "35"}, 35),
+        ("WIN_VOLUME_DOWN", {}, 7),
+        ("WIN_BRIGHTNESS_DOWN", {}, 12),
+        ("WIN_BRIGHTNESS_UP", {"amount": "5"}, 5),
+        ("MEDIA_PLAY", {}, None),
+    ],
+)
+def test_executor_passes_spoken_amount_or_configured_step(name, params, expected):
+    from voicepilot.contracts import ActionResult, Command
+    from voicepilot.windows.executor import WindowsExecutor
+
+    backend = Mock()
+    backend.execute.return_value = ActionResult(ResultStatus.OK, "ok")
+    provider = Mock()
+    provider.is_still_target.return_value = True
+    executor = WindowsExecutor(AppConfig(volume_step_percent=50, brightness_step_percent=50),
+                               provider, system_controls=backend)
+    executor.update_config(AppConfig(volume_step_percent=7, brightness_step_percent=12))
+    executor.execute(Command(Intent(name), "fixture", params=params), CTX)
+    assert backend.execute.call_args.kwargs.get("amount") == expected

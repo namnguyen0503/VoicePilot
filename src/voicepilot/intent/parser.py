@@ -30,6 +30,7 @@ from importlib import resources
 from pathlib import Path
 
 from voicepilot.contracts import Command, Intent, Mode, WindowContext
+from voicepilot.intent.amount import is_default_amount, parse_percent
 from voicepilot.intent.normalize import Normalized, fold, normalize
 
 log = logging.getLogger(__name__)
@@ -38,7 +39,7 @@ COMMANDS_RESOURCE = "commands.toml"
 DEFAULT_EXAMPLE = "Slide tiếp theo"
 DICTATION_INTENT = Intent.DICTATE_TEXT
 
-_ALLOWED_PLACEHOLDERS = frozenset({"query", "filename", "site", "app_name", "target", "question"})
+_ALLOWED_PLACEHOLDERS = frozenset({"query", "filename", "site", "app_name", "target", "question", "amount"})
 _FREE_TEXT_PLACEHOLDERS = frozenset({"query", "filename", "question"})
 _ALLOWED_CONTEXTS = frozenset({"powerpoint", "word", "excel", "browser", "other", "none"})
 _ROUTED_PLACEHOLDER = "target"
@@ -265,6 +266,14 @@ class RuleParser:
 
         spoken = {name: _original(text, norm) for name, norm in values.items()}
         params = {name: value for name, value in spoken.items() if value}
+        if "amount" in params:
+            # The amount is optional: a bare phrase or "lên"/"xuống" uses the configured default.
+            spoken_amount = params.pop("amount")
+            if not is_default_amount(spoken_amount):
+                amount = parse_percent(spoken_amount)
+                if amount is None:
+                    return self._unknown(text, example=rule.example)
+                params["amount"] = str(amount)
         missing = tuple(name for name in rule.params if name not in params)
         if missing:
             return Command(rule.intent, text, params=params, missing=missing, example=rule.example)
