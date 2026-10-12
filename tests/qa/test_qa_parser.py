@@ -143,7 +143,6 @@ DOC_PHRASES = [
     ("tắt loa", "none", Intent.WIN_MUTE, {}),
     ("mute", "none", Intent.WIN_MUTE, {}),
     ("im lặng", "none", Intent.WIN_MUTE, {}),
-    ("câm", "none", Intent.WIN_MUTE, {}),
     ("bật tiếng", "none", Intent.WIN_UNMUTE, {}),
     ("bật âm thanh", "none", Intent.WIN_UNMUTE, {}),
     ("bật loa", "none", Intent.WIN_UNMUTE, {}),

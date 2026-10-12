@@ -3,7 +3,7 @@
 Trạng thái: đã triển khai 15 chức năng; kiểm chứng tác động desktop đạt ngày 2026-10-11.
 Benchmark và demo giọng nói thật còn chờ; xem HANDOFF/TODO.
 
-Vị trí repo cố định: `C:\Users\Nam\Documents\GitHub\VoicePilot`.
+Vị trí repo: thư mục bất kỳ; đường dẫn có dấu cách hoặc dấu tiếng Việt đều được hỗ trợ.
 
 ## 1. Mục tiêu và trải nghiệm
 

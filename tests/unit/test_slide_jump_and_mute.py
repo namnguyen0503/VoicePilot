@@ -24,7 +24,7 @@ from voicepilot.windows.executor import WindowsExecutor
 FIRST_PHRASES = ["slide đầu tiên", "về slide đầu", "về slide đầu tiên", "quay về slide đầu",
                  "trang đầu tiên", "slide đầu"]
 LAST_PHRASES = ["slide cuối cùng", "đến slide cuối", "slide cuối", "trang cuối cùng", "tới slide cuối cùng"]
-MUTE_PHRASES = ["tắt tiếng", "tắt âm thanh", "tắt loa", "mute", "im lặng", "câm"]
+MUTE_PHRASES = ["tắt tiếng", "tắt âm thanh", "tắt loa", "mute", "im lặng"]
 UNMUTE_PHRASES = ["bật tiếng", "bật âm thanh", "bật loa", "mở tiếng", "unmute", "bỏ tắt tiếng"]
 POWERPOINT = WindowContext(1, 2, "POWERPNT.EXE", "Deck.pptx", AppKind.POWERPOINT, None)
 OTHER = WindowContext(1, 2, "notepad.exe", "Notes", AppKind.OTHER, None)

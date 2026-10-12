@@ -37,7 +37,7 @@ The full command list (in Vietnamese) is in [`docs/COMMANDS.vi.md`](docs/COMMAND
 A small overlay shows what was heard and what happened. It never takes focus from the app you are
 working in. Hotkeys, the speech engine and other options are in **Settings** (tray icon).
 
-**Requirements:** Windows 10 or 11 (x64), a microphone. Microsoft Office desktop is needed for the
+**Requirements:** Windows 10 x64 (tested; Windows 11 not yet verified), a microphone. Microsoft Office desktop is needed for the
 Office commands.
 
 ## How it works

@@ -435,7 +435,7 @@ example = "tăng âm lượng"
 
 [[intent]]
 name = "WIN_MUTE"
-patterns = ["tắt tiếng", "tắt âm thanh", "tắt loa", "mute", "im lặng", "câm"]
+patterns = ["tắt tiếng", "tắt âm thanh", "tắt loa", "mute", "im lặng"]
 example = "tắt tiếng"
 
 [[intent]]

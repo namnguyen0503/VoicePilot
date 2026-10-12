@@ -120,7 +120,7 @@ câu hỏi chỉ được chèn thành văn bản.
 | Tăng độ sáng | `tăng độ sáng`, `tăng độ sáng màn hình`, `tăng độ sáng thêm 15%` | Tăng theo số phần trăm bạn nói, tính từ mức hiện tại, giới hạn 0–100%. Không nói số thì tăng 20%. |
 | Giảm âm lượng | `giảm âm lượng`, `giảm volume`, `giảm âm lượng 10 phần trăm` | Giảm âm lượng Windows theo số phần trăm bạn nói, tính từ mức hiện tại. Không nói số thì giảm 20%. Nếu không điều khiển được âm lượng trực tiếp, app bấm phím âm lượng (mỗi lần khoảng 2%). |
 | Tăng âm lượng | `tăng âm lượng`, `tăng volume`, `tăng âm lượng 30%`, `volume up 20` | Tăng âm lượng Windows theo số phần trăm bạn nói, tính từ mức hiện tại, và bỏ tắt tiếng. Không nói số thì tăng 20%. |
-| Tắt tiếng | `tắt tiếng`, `tắt âm thanh`, `tắt loa`, `mute`, `im lặng`, `câm` | Đặt trạng thái tắt tiếng Windows, không đảo trạng thái. Nếu đã tắt tiếng thì báo đã tắt. Không điều khiển được âm thanh thì báo lỗi và không bấm phím nào. |
+| Tắt tiếng | `tắt tiếng`, `tắt âm thanh`, `tắt loa`, `mute`, `im lặng` | Đặt trạng thái tắt tiếng Windows, không đảo trạng thái. Nếu đã tắt tiếng thì báo đã tắt. Không điều khiển được âm thanh thì báo lỗi và không bấm phím nào. |
 | Bật tiếng | `bật tiếng`, `bật âm thanh`, `bật loa`, `mở tiếng`, `unmute`, `bỏ tắt tiếng` | Bật lại tiếng Windows, không đảo trạng thái. Nếu đã có tiếng thì báo đã bật. |
 
 Số đọc được: `30`, `30%`, `30 phần trăm`, `mười lăm`, `hai mươi mốt`, `một trăm`, từ 1 đến 100. Nói số ngoài khoảng này hoặc không phải số, như "tăng âm lượng to lên", sẽ không được thực hiện. "Tăng âm lượng lên" hoặc "giảm âm lượng xuống" dùng mức mặc định. Câu như "giảm âm lượng xuống 10%" không được thực hiện vì có thể hiểu là "còn 10%".

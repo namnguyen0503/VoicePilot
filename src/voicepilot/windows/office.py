@@ -120,12 +120,19 @@ def blank_from_accessibility(
     The guard runs after the tile is found and before it is pressed, inside the same session.
     """
     with _Accessible.root(ctx.hwnd) as root:
-        tiles = _find_blank_tiles(root, BLANK_NAMES[ctx.app_kind], clock=clock)
-        if len(tiles) != 1:
+        try:
+            tiles = _find_blank_tiles(root, BLANK_NAMES[ctx.app_kind], clock=clock)
+        except Exception:
+            # A node without IAccessible or one that went stale: no tile is certain, use Ctrl+N.
             return False
-        guard()
-        tiles[0].invoke()
-        return True
+        try:
+            if len(tiles) != 1:
+                return False
+            guard()  # cancel or target change propagates; it is never swallowed above
+            tiles[0].invoke()
+            return True
+        finally:
+            tiles.clear()  # drop COM wrappers now, inside the worker's apartment
 
 
 def _find_blank_tiles(
@@ -159,8 +166,13 @@ def _find_blank_tiles(
                 return False
         return True
 
-    complete = visit(root, 0)
-    return tiles if complete else []
+    try:
+        complete = visit(root, 0)
+        found = list(tiles) if complete else []
+    finally:
+        tiles.clear()
+        visit = None  # break the closure's self-reference so nodes are freed without the cyclic GC
+    return found
 
 
 class _Value(ctypes.Union):

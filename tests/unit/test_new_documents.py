@@ -618,3 +618,56 @@ def test_office_context_classifies_native_full_executable_paths(exe, kind):
     from voicepilot.windows.context import classify_process
 
     assert classify_process("C:\\Program Files\\Microsoft Office\\root\\Office16\\" + exe) == (kind, None)
+
+
+def test_broken_accessibility_node_falls_back_instead_of_failing(monkeypatch):
+    # Review finding: one child without IAccessible (or a stale node) raised through the worker
+    # as office_error, so the Ctrl+N fallback never ran.
+    import contextlib
+
+    from voicepilot.contracts import AppKind, WindowContext
+    from voicepilot.windows import office
+
+    @contextlib.contextmanager
+    def root(_hwnd):
+        yield object()
+
+    def broken(*_args, **_kwargs):
+        raise OSError("Office child does not expose IAccessible")
+
+    monkeypatch.setattr(office._Accessible, "root", staticmethod(root))
+    monkeypatch.setattr(office, "_find_blank_tiles", broken)
+    guard_calls = []
+    ctx = WindowContext(1, 2, "WINWORD.EXE", "Word", AppKind.WORD, None)
+    assert office.blank_from_accessibility(ctx, lambda: guard_calls.append(1)) is False
+    assert guard_calls == []
+
+
+def test_tile_walk_frees_nodes_without_the_cyclic_gc():
+    # Review finding: the recursive closure kept every visited node (and its COM wrapper) alive
+    # until a later cyclic GC, possibly after the worker left its COM apartment.
+    import gc
+    import weakref
+
+    from voicepilot.windows.office import _find_blank_tiles
+
+    class Node:
+        def __init__(self, name, children=()):
+            self.name, self.state, self.role, self._children = name, 0, 0x2B, list(children)
+
+        def children(self):
+            return iter(self._children)
+
+    leaf = Node("Blank document")
+    refs = [weakref.ref(leaf)]
+    root = Node("root", [leaf])
+    del leaf
+    gc.disable()
+    try:
+        found = _find_blank_tiles(root, {"blank document"})
+        assert len(found) == 1
+        found.clear()
+        root._children.clear()
+        assert refs[0]() is None
+    finally:
+        gc.enable()
