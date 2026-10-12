@@ -1,156 +1,81 @@
 # VoicePilot
 
-A Vietnamese voice assistant for Windows. Press a hotkey, say a command in Vietnamese, and it controls PowerPoint, Edge or Chrome, opens applications, takes screenshots, or dictates text at the cursor.
+A Vietnamese voice assistant for Windows. Press a hotkey, say a command in Vietnamese, and
+VoicePilot controls PowerPoint, Word, Excel, Edge/Chrome and Windows itself, or types what you
+dictate at the cursor. It runs on an ordinary laptop with no GPU and also works fully offline.
 
-VoicePilot runs on an ordinary laptop with no GPU. Speech recognition runs in two paths: Google's Vietnamese recognizer and an offline model (Gipformer 1.5, INT8, on CPU). Commands are matched with rules, not a language model, so each recognized utterance either maps to one known function or asks the user to try again.
-
-> **Status:** pre-release (v0.1.0). Open items before release are listed in [`docs/TODO.md`](docs/TODO.md). Unit tests use fake backends and need no microphone, network or Office. All 15 desktop actions have been verified on Windows with controlled transcripts through the real controller and overlay, including PowerPoint, both browsers, Unicode dictation, hotkeys and microphone capture. The spoken demo remains pending; see [`docs/DEMO.vi.md`](docs/DEMO.vi.md). No real-voice benchmark numbers are published yet; the measurement procedure is in [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md).
+**[⬇ Download the latest release](https://github.com/namnguyen0503/VoicePilot/releases/latest)**:
+unzip and run `VoicePilot.exe`. No installation or Python needed.
 
 ## Features
 
-VoicePilot v1 supports 15 functions. Speak the phrases in Vietnamese; the full phrase list is in [`docs/COMMANDS.vi.md`](docs/COMMANDS.vi.md).
+| Area | What you can say (examples) |
+|---|---|
+| PowerPoint | "lưu lại", "lưu thành báo cáo tháng chín", "slide tiếp theo", "slide trước", "slide đầu tiên", "slide cuối cùng", "bắt đầu trình chiếu", "dừng trình chiếu", "tạo bài trình chiếu mới" |
+| Word / Excel | "tạo tài liệu word mới", "tạo bảng tính excel mới" |
+| Browser (Edge, Chrome) | "mở youtube", "tìm thời tiết hôm nay", "giá vàng hôm nay bao nhiêu", "tab mới", "tab tiếp theo", "đóng tab", "cửa sổ mới", "cửa sổ ẩn danh" |
+| Windows | "mở notepad", "chụp màn hình", "đóng cửa sổ", "tăng âm lượng 30%", "giảm độ sáng", "tắt tiếng", "bật tiếng", "bật tiết kiệm pin" |
+| Media | "phát nhạc", "tạm dừng nhạc", "bài tiếp theo", "bài trước" |
+| Dictation | Switch to dictation mode and speak; the text is typed into the active app (Vietnamese and emoji) |
 
-| Group | Function | Example phrase |
-|---|---|---|
-| PowerPoint | Save | "lưu lại" |
-| PowerPoint | Save as | "lưu thành báo cáo tháng chín" |
-| PowerPoint | Next slide | "slide tiếp theo" |
-| PowerPoint | Previous slide | "slide trước" |
-| PowerPoint | Start slide show | "bắt đầu trình chiếu" |
-| PowerPoint | Stop slide show | "dừng trình chiếu" |
-| Browser (Edge/Chrome) | Open website | "mở youtube" |
-| Browser (Edge/Chrome) | Search Google | "tìm thời tiết hôm nay" |
-| Browser (Edge/Chrome) | Next tab | "tab tiếp theo" |
-| Browser (Edge/Chrome) | Previous tab | "tab trước" |
-| Browser (Edge/Chrome) | New tab | "tab mới" |
-| Browser (Edge/Chrome) | Close tab | "đóng tab" |
-| Windows | Open application | "mở word" |
-| Windows | Screenshot | "chụp màn hình" |
-| Dictation | Insert speech as text | Press `Ctrl+Alt+D`, then speak |
+- **Voice or text input:** speak, or type the same commands in the Text tab.
+- **Custom commands:** create your own phrases with parameters (for example `hỏi google về {topic}`)
+  that map to any action or keyboard shortcut. Import and export them as JSON.
+- **Editable built-in commands:** change how each built-in command is phrased, and set the default
+  volume/brightness step (20%).
+- **Searchable settings** (Ctrl+F) and an in-app user manual.
 
-Custom commands can be created in **Settings → Lệnh tùy chỉnh** without editing code. Each command supports multiple spoken patterns, captured parameters such as `{topic}`, an application/context filter, and one of the 15 actions above or a keyboard shortcut. The editor includes enable/disable, duplicate, delete, JSON import/export and a dry-run preview. For example, `hỏi google về {topic}` can search for `{topic}`. Importable examples are in [`docs/custom-commands.example.json`](docs/custom-commands.example.json). Dictation always remains plain text.
+The full command list (in Vietnamese) is in [`docs/COMMANDS.vi.md`](docs/COMMANDS.vi.md).
 
-A floating overlay (about 520 px, dark theme, draggable) shows the mode, the target window, the input level, the status, and the recognized sentence. It never takes focus from the target application. A tray icon provides the overlay toggle, settings, the command list and quit.
+## How to use
 
-## Architecture
+| Action | Default hotkey |
+|---|---|
+| Start listening | `Ctrl + Alt + Space` |
+| Switch command / dictation mode | `Ctrl + Alt + D` |
+
+A small overlay shows what was heard and what happened. It never takes focus from the app you are
+working in. Hotkeys, the speech engine and other options are in **Settings** (tray icon).
+
+**Requirements:** Windows 10 or 11 (x64), a microphone. Microsoft Office desktop is needed for the
+Office commands.
+
+## How it works
 
 ```mermaid
 flowchart LR
-    H["Hotkey<br/>Ctrl+Alt+Space"] --> A["Audio capture<br/>sounddevice + Silero VAD"]
-    A --> S{"STT hybrid"}
-    S -->|"first, 2 s budget"| G["Google vi-VN"]
-    S -->|"fallback or parallel"| O["Gipformer 1.5 INT8<br/>sherpa-onnx, CPU"]
-    G --> P["Rule parser<br/>commands.toml"]
+    H[Hotkey] --> A[Microphone + VAD]
+    A --> G[Google STT]
+    A --> O[Offline Gipformer STT]
+    G --> P[Rule-based parser]
     O --> P
-    C["Window context<br/>captured before overlay"] --> P
-    P --> E["Executor<br/>COM, SendInput, ShellExecute"]
-    E --> F["Feedback<br/>overlay + TTS (sherpa-onnx)"]
+    P --> E[Windows actions: COM, SendInput, Core Audio, WMI]
+    E --> F[Overlay + Vietnamese TTS]
 ```
 
-Key design points:
-
-- **One utterance, one command.** Every turn has an ID and runs at most once. Results that arrive after the turn was decided or cancelled are dropped.
-- **Hybrid STT.** Google runs first. If it fails or gives no valid command within 2 seconds, Gipformer runs on the same audio. The first valid result wins; otherwise the best non-empty transcript is shown with an example to say again.
-- **Context first.** The foreground window is captured before the overlay appears and checked again before any action. If the target changed, the command is not executed and the user is asked to retry.
-- **Injected dependencies.** The controller takes every component as a constructor argument, so the whole pipeline is tested with fakes.
-- **Lazy Windows and native imports.** Windows-only and heavy native modules are imported inside functions, so the package imports on any platform and tests can inject fakes.
-
-## Tech stack
-
-- **Language and UI:** Python 3.12, PySide6 (Qt 6) Widgets, custom stylesheet.
-- **Audio:** sounddevice (PortAudio), offline Silero v6 VAD through sherpa-onnx, WebRTC fallback,
-  numpy resampling to 16 kHz mono. Brief noise votes do not restart the full silence timer.
-- **Speech recognition:** SpeechRecognition (Google web endpoint) and sherpa-onnx for Gipformer 1.5 68M INT8.
-- **Text to speech:** Piper voice `vi_VN-vais1000-medium` run by sherpa-onnx (VITS), with espeak-ng phonemization. sherpa-onnx ships the only onnxruntime in the process, so there is no separate `onnxruntime` or `piper-tts` package.
-- **Windows integration:** pywin32 (COM for PowerPoint, `SendInput` for keystrokes), ctypes for window inspection and `ShellExecute`, `mss` for screenshots.
-- **Packaging:** PyInstaller onedir build, PowerShell build script, GitHub Actions CI on `windows-latest`.
-- **Quality:** pytest with pytest-qt and ruff. The unit tests in `tests/unit` run offline, without a microphone or Windows APIs.
-
-## Quick start (development)
-
-Requirements: Windows 10 or 11 x64, Python 3.12, a microphone.
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.lock
-.\.venv\Scripts\python.exe -m pip install -e ".[dev]"
-
-# Download the speech models into models\ (about 73 MB for Gipformer and a 67 MB archive for the Piper voice).
-.\.venv\Scripts\python.exe tools\download_models.py
-
-# Run the app from source.
-.\.venv\Scripts\python.exe -m voicepilot
-
-# Run the unit tests (no microphone or network needed).
-$env:QT_QPA_PLATFORM = "offscreen"
-.\.venv\Scripts\python.exe -m pytest -q
-```
-
-Settings are stored in `%LOCALAPPDATA%\VoicePilot\config.toml`. Defaults are in `src/voicepilot/resources/defaults.toml`. Add website and application aliases in the `[websites]` and `[apps]` tables.
-
-## Build the portable version
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File tools\build.ps1
-```
-
-The script creates `.venv` with Python 3.12, installs the locked dependencies, runs ruff and pytest, downloads the models, builds `dist\VoicePilot\VoicePilot.exe`, retains wheel license texts, copies models and documents, writes `SOURCE.txt`, and creates `dist\VoicePilot-<version>-win64.zip`. Its `--selftest-runtime` smoke check loads ASR/TTS together and decodes synthetic speech without a microphone or playback. Reports are retained under `build\selftest-<id>`.
-
-PowerShell 5.1 builds and frozen selftests were verified in a path containing spaces and Vietnamese characters on Windows 10. All 15 interactive desktop actions passed the native harness. Testing on a clean machine without Python and the real-voice benchmark remain pending. Set `-RepoUrl` to the actual source repository before publishing; this checkout currently has no remote. See [`docs/TODO.md`](docs/TODO.md) for the remaining release checks and model redistribution question.
-
-Run the repeatable feature harness with `python tools/verify_features.py --checks --runtime`. Add `--windows` on an unlocked, idle desktop to exercise disposable Notepad, Word, PowerPoint and browser windows, including three repeated rounds of ten functions. See [`docs/VERIFICATION.vi.md`](docs/VERIFICATION.vi.md) for evidence and limitations.
-
-`python tools/verify_downloads.py` checks the real downloader CLI through loopback TLS and an authenticated proxy without changing Windows trust settings. `python tools/verify_portable.py --zip dist/VoicePilot-0.1.0-win64.zip` relocates an existing ZIP and verifies native inference with only Windows directories on PATH, including loaded DLL locations. This is isolation on the current host; clean-machine testing remains pending.
+- **Hybrid speech recognition:** Google first, with the offline Gipformer 1.5 model (INT8, CPU) as
+  fallback. Offline mode keeps audio on the machine.
+- **Predictable:** commands are matched by rules, not by a language model. One utterance runs at
+  most one command, and the target window is checked again before acting.
+- **Stack:** Python 3.12, PySide6, sherpa-onnx (ASR, Piper TTS, Silero VAD), pywin32, PyInstaller.
 
 ## Privacy
 
-- **Normal logs** contain latency, status and error codes only. `--debug` opts into transcripts, parsed parameters and recordings in separate diagnostic files under `logs\debug.log` and `logs\clips\`.
-- **Recent transcripts** (the last 20) are kept in memory only and are cleared when the app exits.
-- **Google mode** sends the recorded audio to Google's speech recognition service. Use **Offline** mode (Gipformer) to keep audio on the machine.
-- **Offline mode** needs no network connection. Text to speech also runs locally.
-- Screenshots are saved only when you ask for them, to `Pictures\VoicePilot`.
+Logs contain only timings, statuses and error codes, never what you said. Recent transcripts stay
+in memory. Google mode sends audio to Google's speech service; offline mode needs no network.
 
-## Benchmarks
+## Build from source
 
-`tools/benchmark_stt.py` runs labelled recordings through Google, offline and hybrid paths and reports accuracy, word error rate, p50/p95 latency and peak memory. [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) and [`docs/benchmark-labels.csv`](docs/benchmark-labels.csv) provide 30 prompts. Real microphone results are pending; synthetic smoke checks are recorded separately.
-
-## Limitations
-
-- Windows only. Word and Excel operations, creating or editing slides, and Linux support are not in v1.
-- Each utterance is one command. Chained commands ("next slide and save") are not supported.
-- The Google path uses SpeechRecognition's public web endpoint, not a Google Cloud API key. It may change or stop working without notice.
-- Commands use fixed phrasings from `commands.toml`. Unusual wording falls back to the example prompt.
-- Gipformer is a CPU model; on the target laptop its latency depends on the number of threads and the clip length.
-- PowerPoint actions require desktop Office. Vietnamese and emoji dictation passed in Notepad, Word, Edge and Chrome. Real-voice accuracy, admin/UIPI targets, system DPI changes and the full spoken demo still need separate validation.
-
-## Roadmap
-
-- Linux support with a separate audio and window backend.
-- Word and Excel operations, and creating or editing slides through COM.
-- Live gold price lookup.
-- Browser control through Playwright or a browser extension.
-- More than one command in a single utterance.
-- A wake word.
-- Benchmarks of other offline STT models on the target hardware.
-
-## Project layout
-
-```text
-src/voicepilot/
-  app.py, controller.py, __main__.py   entry point and turn controller
-  audio/        microphone capture, VAD, resampling
-  stt/          Google, Gipformer and hybrid transcription
-  tts/          Piper voice on sherpa-onnx
-  intent/       text normalization and the rule parser (commands.toml)
-  windows/      window context, hotkeys, keyboard input, PowerPoint, browser, desktop actions
-  ui/           overlay, tray, settings
-  resources/    defaults.toml, commands.toml, models.toml, style.qss, icon.svg
-tools/          download_models.py, benchmark_stt.py, build.ps1, make_icon.py
-packaging/      PyInstaller spec
-tests/unit/     offline unit tests
-docs/           plan, command list, demo script, benchmarks, TODO
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r requirements.lock -e ".[dev]"
+.\.venv\Scripts\python.exe tools\download_models.py      # speech models into models\
+.\.venv\Scripts\python.exe -m voicepilot                # run the app
+$env:QT_QPA_PLATFORM = "offscreen"; .\.venv\Scripts\python.exe -m pytest -q
+powershell -ExecutionPolicy Bypass -File tools\build.ps1 # portable ZIP in dist\
 ```
 
 ## License
 
-VoicePilot is free software under the GNU General Public License, version 3 or (at your option) any later version. See [`LICENSE`](LICENSE). The GPL applies because espeak-ng (GPL-3.0), which sherpa-onnx compiles in for text to speech, is GPL-3.0. Third-party components, their licenses and the speech model sources are listed in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+GPL-3.0-or-later (required by espeak-ng, used for text to speech). See [`LICENSE`](LICENSE) and
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for third-party components and model sources.
