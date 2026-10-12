@@ -1,6 +1,6 @@
 # Handoff — VoicePilot v1 (2026-10-12)
 
-Bàn giao VoicePilot. Thứ tự đọc: `AGENTS.md`, tài liệu này, `docs/PLAN.md`, `docs/TODO.md`,
+Bàn giao VoicePilot. Thứ tự đọc: tài liệu này, `docs/PLAN.md`, `docs/TODO.md`,
 `docs/COMMANDS.vi.md`. Spec gốc: `docs/PLAN.md`. Cập nhật sau kiểm chứng desktop thật ngày 2026-10-11.
 
 ## 1. Trạng thái hiện tại
