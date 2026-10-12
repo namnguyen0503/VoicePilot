@@ -162,6 +162,14 @@ class CustomCommandsWidget(QWidget):
         self._list.setCurrentRow(row)
         self._list.blockSignals(False)
 
+    def select_command(self, command_id: str) -> bool:
+        """Select a command in the list by id. Returns False when no command has that id."""
+        row = next((i for i, item in enumerate(self._commands) if item["id"] == command_id), -1)
+        if row < 0:
+            return False
+        self._list.setCurrentRow(row)
+        return True
+
     def _load(self, item):
         self._loading = True
         self._editing_id = item["id"] if item else None

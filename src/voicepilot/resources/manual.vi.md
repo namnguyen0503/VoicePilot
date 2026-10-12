@@ -81,7 +81,7 @@ Có thể nói chung **"tạo file mới"**, **"tạo tệp mới"**, **"file m�
 VoicePilot chọn Word/Excel/PowerPoint theo cửa sổ đang dùng. Tài liệu mới chưa có tên và
 chưa được ghi xuống đĩa; nội dung tài liệu đang mở được giữ nguyên. Lệnh cần ứng dụng Office
 desktop đang mở; không tự chọn ứng dụng khi đang ở cửa sổ khác. Lệnh này không tạo slide mới
-trong bài hiện tại. Có thể đổi cách gọi ở Prompt mặc định hoặc dùng hành động trong Lệnh custom.
+trong bài hiện tại. Có thể đổi cách gọi ở Lệnh có sẵn hoặc dùng hành động trong Lệnh custom.
 
 ## 2. Trình duyệt (Edge và Chrome)
 
@@ -114,10 +114,12 @@ câu hỏi chỉ được chèn thành văn bản.
 | Đóng cửa sổ | `đóng cửa sổ`, `đóng cửa sổ này`, `tắt cửa sổ`, `close window` | Gửi Alt+F4 đến cửa sổ đang dùng. Chặn Desktop và taskbar để tránh hộp tắt máy. Nếu có nội dung chưa lưu, ứng dụng vẫn hỏi lưu; bạn tự chọn. |
 | Bật tiết kiệm pin | `bật chế độ tiết kiệm pin`, `bật tiết kiệm pin`, `bật power saver` | Ghi nhớ power plan hiện tại rồi chuyển Windows sang **Power saver**. Bật lại khi đã bật giữ nguyên plan cũ. Nếu máy không hỗ trợ, app báo không khả dụng. |
 | Tắt tiết kiệm pin | `tắt chế độ tiết kiệm pin`, `tắt tiết kiệm pin`, `tắt power saver`, `khôi phục chế độ nguồn` | Khôi phục đúng power plan trước khi VoicePilot bật Power saver, kể cả sau khi mở lại app. Nếu bạn đã tự đổi sang plan khác, app giữ lựa chọn đó. |
-| Giảm độ sáng | `giảm độ sáng`, `giảm độ sáng màn hình` | Giảm 10 điểm phần trăm, giới hạn 0–100%; dành cho màn hình có hỗ trợ WMI, thường là màn hình laptop. |
-| Tăng độ sáng | `tăng độ sáng`, `tăng độ sáng màn hình` | Tăng 10 điểm phần trăm; giá trị thực tế có thể được driver làm tròn. |
-| Giảm âm lượng | `giảm âm lượng`, `giảm volume` | Giảm âm lượng Windows một nấc. |
-| Tăng âm lượng | `tăng âm lượng`, `tăng volume` | Tăng âm lượng Windows một nấc. |
+| Giảm độ sáng | `giảm độ sáng`, `giảm độ sáng màn hình`, `giảm độ sáng 30%`, `giảm độ sáng hai mươi phần trăm` | Giảm theo số phần trăm bạn nói, tính từ mức hiện tại, giới hạn 0–100%. Không nói số thì giảm 20% (chỉnh trong **Cài đặt → Lệnh có sẵn**). Dành cho màn hình có hỗ trợ WMI, thường là màn hình laptop; driver có thể làm tròn. |
+| Tăng độ sáng | `tăng độ sáng`, `tăng độ sáng màn hình`, `tăng độ sáng thêm 15%` | Tăng theo số phần trăm bạn nói, tính từ mức hiện tại, giới hạn 0–100%. Không nói số thì tăng 20%. |
+| Giảm âm lượng | `giảm âm lượng`, `giảm volume`, `giảm âm lượng 10 phần trăm` | Giảm âm lượng Windows theo số phần trăm bạn nói, tính từ mức hiện tại. Không nói số thì giảm 20%. Nếu không điều khiển được âm lượng trực tiếp, app bấm phím âm lượng (mỗi lần khoảng 2%). |
+| Tăng âm lượng | `tăng âm lượng`, `tăng volume`, `tăng âm lượng 30%`, `volume up 20` | Tăng âm lượng Windows theo số phần trăm bạn nói, tính từ mức hiện tại, và bỏ tắt tiếng. Không nói số thì tăng 20%. |
+
+Số đọc được: `30`, `30%`, `30 phần trăm`, `mười lăm`, `hai mươi mốt`, `một trăm`, từ 1 đến 100. Nói số ngoài khoảng này hoặc không phải số, như "tăng âm lượng to lên", sẽ không được thực hiện. "Tăng âm lượng lên" hoặc "giảm âm lượng xuống" dùng mức mặc định. Câu như "giảm âm lượng xuống 10%" không được thực hiện vì có thể hiểu là "còn 10%".
 | Phát nhạc | `play`, `phát nhạc`, `tiếp tục phát nhạc`, `bật nhạc` | Gửi Play đến phiên media đang được Windows chọn. |
 | Tạm dừng | `pause`, `tạm dừng nhạc`, `dừng nhạc`, `tạm dừng phát nhạc` | Gửi Pause riêng; không đảo trạng thái phát/tạm dừng. |
 | Bài tiếp | `bài tiếp theo`, `bài tiếp`, `next`, `next bài` | Chuyển bài trong phiên media hiện tại. |
@@ -245,18 +247,27 @@ Nhấn **Lưu** để dùng các thay đổi, **Hủy** để bỏ thay đổi. 
 Bộ ví dụ nhập được: `docs/custom-commands.example.json`. Harness:
 `python tools/verify_custom_commands.py`; thêm `--windows` để kiểm fixture native.
 
-## Chỉnh sửa prompt mặc định
+## Chỉnh sửa lệnh có sẵn
 
-Mở **Cài đặt → Prompt mặc định**, chọn lệnh ở bên trái và sửa các cách gọi, mỗi dòng
+Mở **Cài đặt → Lệnh có sẵn**, chọn lệnh ở bên trái và sửa các cách gọi, mỗi dòng
 một cách. Danh sách bạn nhập thay thế cách gọi có sẵn của riêng lệnh đó. Hành động
 và điều kiện ứng dụng vẫn giữ nguyên. Lệnh cần nội dung phải có ít nhất một mẫu nhận
 tham số được hướng dẫn, ví dụ `hỏi web {query}` cho tìm kiếm hoặc `cất bài {filename}`
 cho lưu thành. Không đổi tên tham số trong ngoặc. Chế độ chính tả vẫn chỉ chèn chữ.
 
-**Khôi phục prompt của lệnh này** hoàn tác riêng lệnh đang chọn. Nhấn **Lưu** để áp
+Với tăng/giảm âm lượng và độ sáng, ô **Mức mặc định khi không nói số** (mặc định 20%,
+dùng chung cho tăng và giảm) đặt mức chỉnh khi bạn chỉ nói "tăng âm lượng" hoặc "tăng âm lượng lên".
+
+**Khôi phục mặc định của lệnh này** hoàn tác cách gọi và mức mặc định của lệnh đang chọn. Nhấn **Lưu** để áp
 dụng; **Hủy** bỏ bản nháp. Prompt đã lưu có hiệu lực từ lượt tiếp theo, gồm hotwords
 nhận dạng offline. Hướng dẫn trong app có mục **Prompt hiện tại** để xem cách gọi
 đang có hiệu lực. Custom vẫn được ưu tiên trước các lệnh có sẵn.
+
+## Tìm cài đặt
+
+Ở đầu cửa sổ Cài đặt có ô **Tìm cài đặt…** (Ctrl + F). Gõ không dấu cũng được,
+ví dụ `am luong` hoặc `phim tat`. Nhấn Enter hoặc bấm vào kết quả để mở đúng tab và mục;
+Esc xóa ô tìm.
 
 ## Khôi phục
 
@@ -264,7 +275,7 @@ Mở **Cài đặt → Khôi phục**:
 
 | Tùy chọn | Phạm vi | Lệnh custom |
 |---|---|---|
-| Khôi phục bộ prompt mặc định | Hoàn tác chỉnh sửa cách gọi của mọi lệnh có sẵn. Cài đặt khác giữ nguyên. | Giữ nguyên. |
+| Khôi phục cách gọi lệnh có sẵn | Hoàn tác chỉnh sửa cách gọi của mọi lệnh có sẵn. Cài đặt khác giữ nguyên. | Giữ nguyên. |
 | Khôi phục toàn bộ setting | Cài đặt, phím tắt, vị trí thanh nổi, bí danh app/web và prompt có sẵn về mặc định. | Giữ nguyên. |
 | Factory reset | Xóa toàn bộ dữ liệu trong thư mục dữ liệu riêng của VoicePilot: cấu hình, prompt/custom, lịch sử, log, bản thu debug, cache và báo cáo kiểm chứng. Khởi động lại với cài đặt gốc. | Xóa toàn bộ. |
 

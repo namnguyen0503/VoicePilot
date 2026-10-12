@@ -29,6 +29,20 @@ def test_editor_save_preview_duplicate_remove_and_roundtrip(qtbot, tmp_path):
     assert other.commands() == widget.commands()
 
 
+def test_select_command_by_id_selects_row_and_rejects_unknown_id(qtbot):
+    widget = CustomCommandsWidget([CUSTOM_ITEM, dict(CUSTOM_ITEM, id="second", name="Second")])
+    qtbot.addWidget(widget)
+    assert widget.select_command("second")
+    assert widget._list.currentRow() == 1
+    assert widget._name.text() == "Second"
+    assert not widget.select_command("missing")
+    assert widget._list.currentRow() == 1
+
+
+CUSTOM_ITEM = {"id": "first", "name": "First", "enabled": True, "patterns": ["ký tên"],
+               "intent": "DICTATE_TEXT", "params": {"text": "Nam"}, "context": "any", "process": ""}
+
+
 def test_settings_collect_preserves_custom_commands(qtbot):
     dialog = SettingsDialog(AppConfig())
     qtbot.addWidget(dialog)

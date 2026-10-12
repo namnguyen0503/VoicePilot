@@ -136,7 +136,9 @@ QToolTip {
 
 QWidget#customCommands,
 QWidget#builtinCommands,
+QWidget#builtinStepOptions,
 QWidget#settingsRestore,
+QWidget#settingsSearchPage,
 QWidget#customCommandForm,
 QWidget#settingsGeneral {
     background-color: #0f172a;
@@ -146,8 +148,27 @@ QWidget#settingsGeneral {
 QWidget#customCommands QLabel,
 QWidget#builtinCommands QLabel,
 QWidget#settingsRestore QLabel,
+QWidget#settingsSearchPage QLabel,
 QWidget#settingsGeneral QLabel {
     color: #f9fafb;
+}
+
+QLineEdit#settingsSearch {
+    padding: 6px 10px;
+}
+
+QListWidget#settingsResults::item {
+    padding: 6px 8px;
+}
+
+QListWidget#settingsResults::item:selected {
+    background-color: #1e3a8a;
+    color: #f9fafb;
+}
+
+QLabel#settingsSearchEmpty {
+    color: #cbd5e1;
+    padding: 12px 4px;
 }
 
 QWidget#customCommands QLabel#settingsError,

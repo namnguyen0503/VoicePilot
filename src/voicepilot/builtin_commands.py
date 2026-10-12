@@ -22,7 +22,7 @@ def validate_overrides(value: object) -> dict[str, list[str]]:
     from voicepilot.intent.parser import _compile_rule, _load_entries
 
     if not isinstance(value, dict):
-        raise ValueError("Prompt mặc định phải là danh sách theo hành động.")
+        raise ValueError("Cách gọi lệnh có sẵn phải là danh sách theo hành động.")
     table = default_table()
     originals = {row["name"]: row for row in table["intent"] if row.get("patterns")}
     result = {}

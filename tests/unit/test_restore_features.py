@@ -353,6 +353,21 @@ def test_prompt_editor_saves_pending_row_and_cancel_is_detached(qtbot):
     assert source.builtin_patterns["WIN_SCREENSHOT"] == ["ghi ảnh màn hình"]
 
 
+def test_restore_draft_reloads_steps_and_prompt_restore_keeps_them(qtbot):
+    from voicepilot.ui.settings import SettingsDialog
+
+    source = replace(edited(), volume_step_percent=55, brightness_step_percent=30)
+    dialog = SettingsDialog(source)
+    qtbot.addWidget(dialog)
+    dialog.restore_draft("prompts")
+    assert dialog._builtin.steps() == {"volume": 55, "brightness": 30}
+    dialog.restore_draft("settings")
+    assert dialog._builtin.steps() == {"volume": 20, "brightness": 20}
+    result = dialog.collect()
+    assert result.volume_step_percent == 20 and result.brightness_step_percent == 20
+    assert source.volume_step_percent == 55
+
+
 @pytest.mark.parametrize("kind", ["prompts", "settings"])
 def test_settings_restore_is_draft_until_save_and_keeps_custom(qtbot, kind):
     from voicepilot.ui.settings import SettingsDialog

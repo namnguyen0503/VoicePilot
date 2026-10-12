@@ -1,4 +1,4 @@
-"""Settings dialog: hotkeys, STT mode, TTS toggle, silence timeout and Gipformer threads."""
+"""Settings dialog: hotkeys, STT mode, TTS toggle, silence timeout, Gipformer threads and a search box."""
 
 from __future__ import annotations
 
@@ -6,7 +6,8 @@ import logging
 import sys
 from dataclasses import replace
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QKeySequence, QShortcut
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -15,9 +16,12 @@ from PySide6.QtWidgets import (
     QFormLayout,
     QLabel,
     QLineEdit,
+    QListWidget,
+    QListWidgetItem,
     QMessageBox,
     QPushButton,
     QSpinBox,
+    QStackedWidget,
     QTabWidget,
     QVBoxLayout,
     QWidget,
@@ -25,16 +29,40 @@ from PySide6.QtWidgets import (
 
 from voicepilot.config import AppConfig, save_config
 from voicepilot.contracts import SttBackendMode
-from voicepilot.ui.builtin_commands import BuiltinCommandsWidget
+from voicepilot.custom_commands import ACTIONS
+from voicepilot.ui.builtin_commands import STEP_GROUPS, BuiltinCommandsWidget
 from voicepilot.ui.custom_commands import CustomCommandsWidget
+from voicepilot.ui.settings_search import SearchItem, rank
 
 log = logging.getLogger(__name__)
+
+TAB_GENERAL = "Chung"
+TAB_BUILTIN = "Lệnh có sẵn"
+TAB_CUSTOM = "Lệnh tùy chỉnh"
+TAB_RESTORE = "Khôi phục"
 
 STT_CHOICES: tuple[tuple[str, SttBackendMode], ...] = (
     ("Hybrid (Google, dự phòng Gipformer)", SttBackendMode.HYBRID),
     ("Google", SttBackendMode.GOOGLE),
     ("Offline (Gipformer)", SttBackendMode.OFFLINE),
 )
+
+RESTORE_ACTIONS: tuple[tuple[str, str, str], ...] = (
+    ("prompts", "Khôi phục cách gọi lệnh có sẵn",
+     "Hoàn tác cách gọi của các lệnh có sẵn. Giữ nguyên custom và cài đặt khác."),
+    ("settings", "Khôi phục toàn bộ setting",
+     "Đưa mọi cài đặt và cách gọi lệnh có sẵn về mặc định. Giữ nguyên mọi lệnh custom."),
+    ("factory", "Factory reset",
+     "Xóa cấu hình, mọi lệnh custom, log, bản thu debug, lịch sử và cache của app. "
+     "App khởi động lại với cài đặt gốc. Giữ bản cài đặt, model và ảnh chụp của bạn."),
+)
+
+STEP_TITLES = {"volume": "Mức chỉnh âm lượng mặc định", "brightness": "Mức chỉnh độ sáng mặc định"}
+STEP_SEARCH_KEYWORDS = {
+    "volume": ("mức mặc định phần trăm %", "âm lượng volume"),
+    "brightness": ("mức mặc định phần trăm %", "độ sáng màn hình"),
+}
+STEP_ROW = {"volume": "WIN_VOLUME_UP", "brightness": "WIN_BRIGHTNESS_UP"}
 
 
 def validate_hotkey(spec: str) -> None:
@@ -80,6 +108,49 @@ def show_settings_dialog(dialog: QDialog) -> None:
             user32.ShowWindow(hwnd, 5)  # SW_SHOW preserves the window's current size/state.
     dialog.raise_()
     dialog.activateWindow()
+
+
+class _SearchEdit(QLineEdit):
+    """Search box: Esc clears a non-empty query, Enter opens the best result, Down enters the results."""
+
+    enter_pressed = Signal()
+    down_pressed = Signal()
+
+    def keyPressEvent(self, event):  # noqa: N802 - Qt override
+        key = event.key()
+        if key == Qt.Key.Key_Escape and self.text():
+            self.clear()
+            event.accept()
+        elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.enter_pressed.emit()
+            event.accept()
+        elif key == Qt.Key.Key_Down:
+            self.down_pressed.emit()
+            event.accept()
+        else:
+            super().keyPressEvent(event)
+
+
+class _ResultList(QListWidget):
+    """Result rows: Enter opens the row, Up on the first row returns to the search box, Esc clears."""
+
+    enter_pressed = Signal()
+    back_to_search = Signal()
+    escaped = Signal()
+
+    def keyPressEvent(self, event):  # noqa: N802 - Qt override
+        key = event.key()
+        if key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self.enter_pressed.emit()
+            event.accept()
+        elif key == Qt.Key.Key_Up and self.currentRow() <= 0:
+            self.back_to_search.emit()
+            event.accept()
+        elif key == Qt.Key.Key_Escape:
+            self.escaped.emit()
+            event.accept()
+        else:
+            super().keyPressEvent(event)
 
 
 class SettingsDialog(QDialog):
@@ -155,27 +226,46 @@ class SettingsDialog(QDialog):
         buttons.rejected.connect(self.reject)
 
         layout = QVBoxLayout(self)
+        self._search = _SearchEdit()
+        self._search.setObjectName("settingsSearch")
+        self._search.setPlaceholderText("Tìm cài đặt…")
+        self._search.setClearButtonEnabled(True)
+        self._search.textChanged.connect(self._on_search_changed)
+        self._search.enter_pressed.connect(self._open_selected_result)
+        self._search.down_pressed.connect(self._focus_results)
+        find_shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
+        find_shortcut.activated.connect(self._focus_search)
+        layout.addWidget(self._search)
+
         general = QWidget()
         general.setObjectName("settingsGeneral")
+        self._general_page = general
         general.setLayout(form)
+        self._general_targets = {
+            "listen": self._listen_edit,
+            "mode": self._mode_edit,
+            "input_policy": self._input_policy_combo,
+            "stt": self._stt_combo,
+            "tts": self._tts_check,
+            "vad": self._vad_check,
+            "silence": self._silence_spin,
+            "threads": self._threads_spin,
+        }
         self._custom = CustomCommandsWidget(config.custom_commands, config=config)
-        self._builtin = BuiltinCommandsWidget(config.builtin_patterns)
-        tabs = QTabWidget()
-        tabs.addTab(general, "Chung")
-        tabs.addTab(self._builtin, "Prompt mặc định")
-        tabs.addTab(self._custom, "Lệnh tùy chỉnh")
+        self._builtin = BuiltinCommandsWidget(config.builtin_patterns, steps={
+            "volume": config.volume_step_percent,
+            "brightness": config.brightness_step_percent,
+        })
+        self._tabs = QTabWidget()
+        self._tabs.addTab(general, TAB_GENERAL)
+        self._tabs.addTab(self._builtin, TAB_BUILTIN)
+        self._tabs.addTab(self._custom, TAB_CUSTOM)
         restore = QWidget()
         restore.setObjectName("settingsRestore")
+        self._restore_page = restore
         restore_layout = QVBoxLayout(restore)
-        for kind, title, description in (
-            ("prompts", "Khôi phục bộ prompt mặc định",
-             "Hoàn tác cách gọi của các lệnh có sẵn. Giữ nguyên custom và cài đặt khác."),
-            ("settings", "Khôi phục toàn bộ setting",
-             "Đưa mọi cài đặt và prompt có sẵn về mặc định. Giữ nguyên mọi lệnh custom."),
-            ("factory", "Factory reset",
-             "Xóa cấu hình, mọi lệnh custom, log, bản thu debug, lịch sử và cache của app. "
-             "App khởi động lại với cài đặt gốc. Giữ bản cài đặt, model và ảnh chụp của bạn."),
-        ):
+        self._restore_buttons: dict[str, QPushButton] = {}
+        for kind, title, description in RESTORE_ACTIONS:
             button = QPushButton(title)
             button.setObjectName("restore_" + kind)
             caption = QLabel(description)
@@ -186,9 +276,32 @@ class SettingsDialog(QDialog):
                 button.clicked.connect(lambda _checked=False, k=kind: self.restore_draft(k))
             restore_layout.addWidget(button)
             restore_layout.addWidget(caption)
+            self._restore_buttons[kind] = button
         restore_layout.addStretch()
-        tabs.addTab(restore, "Khôi phục")
-        layout.addWidget(tabs)
+        self._tabs.addTab(restore, TAB_RESTORE)
+
+        self._results = _ResultList()
+        self._results.setObjectName("settingsResults")
+        self._results.itemClicked.connect(self._open_item)
+        self._results.itemActivated.connect(self._open_item)
+        self._results.enter_pressed.connect(self._open_selected_result)
+        self._results.back_to_search.connect(self._search.setFocus)
+        self._results.escaped.connect(self._search.clear)
+        self._no_results = QLabel("Không tìm thấy cài đặt phù hợp.")
+        self._no_results.setObjectName("settingsSearchEmpty")
+        self._no_results.setVisible(False)
+        results_page = QWidget()
+        results_page.setObjectName("settingsSearchPage")
+        results_layout = QVBoxLayout(results_page)
+        results_layout.addWidget(self._results, 1)
+        results_layout.addWidget(self._no_results)
+
+        self._stack = QStackedWidget()
+        self._stack.addWidget(self._tabs)
+        self._stack.addWidget(results_page)
+        self._stack.setCurrentWidget(self._tabs)
+        self._build_static_search_items()
+        layout.addWidget(self._stack)
         self.resize(860, 680)
         layout.addWidget(self._error)
         layout.addWidget(buttons)
@@ -204,6 +317,8 @@ class SettingsDialog(QDialog):
         stt_mode = self._stt_combo.currentData()
         if not isinstance(stt_mode, SttBackendMode):
             raise ValueError("Chọn chế độ nhận dạng.")
+        overrides = self._builtin.overrides()
+        steps = self._builtin.steps()
         return replace(
             self._config,
             hotkey_listen=listen,
@@ -215,7 +330,9 @@ class SettingsDialog(QDialog):
             silence_end_ms=self._silence_spin.value(),
             gipformer_threads=self._threads_spin.value(),
             custom_commands=self._custom.commands(),
-            builtin_patterns=self._builtin.overrides(),
+            builtin_patterns=overrides,
+            volume_step_percent=steps["volume"],
+            brightness_step_percent=steps["brightness"],
         )
 
     def restore_draft(self, kind: str):
@@ -223,7 +340,7 @@ class SettingsDialog(QDialog):
         from voicepilot.restore import restored_config
 
         if kind == "prompts":
-            self._builtin.reset_all()
+            self._builtin.reset_phrasings()
         elif kind == "settings":
             try:
                 custom = self._custom.commands()
@@ -242,6 +359,7 @@ class SettingsDialog(QDialog):
             self._threads_spin.setValue(config.gipformer_threads)
             self._custom._config = config
             self._builtin.reset_all()
+            self._builtin.set_steps(config.volume_step_percent, config.brightness_step_percent)
         else:
             raise ValueError("Unknown draft reset")
         self._error.setText("Đã khôi phục bản nháp. Nhấn Lưu để áp dụng, Hủy để giữ cấu hình cũ.")
@@ -273,3 +391,109 @@ class SettingsDialog(QDialog):
         self._config = new_config
         self.settings_changed.emit(new_config)
         super().accept()
+
+    # Search
+
+    def _build_static_search_items(self) -> None:
+        """Items whose text does not change while the dialog is open."""
+        general = (
+            ("listen", "Phím bắt đầu nghe", "phím tắt hotkey shortcut nghe bắt đầu"),
+            ("mode", "Phím đổi chế độ", "phím tắt hotkey shortcut đổi chế độ"),
+            ("input_policy", "Tab khi mở lại", "tab voice text tab mở lại nhớ"),
+            ("stt", "Nhận dạng giọng nói", "nhận dạng giọng nói google gipformer offline stt hybrid"),
+            ("tts", "Đọc phản hồi bằng giọng nói", "đọc phản hồi giọng nói tts"),
+            ("vad", "Tự dừng khi ngừng nói", "tự dừng im lặng vad"),
+            ("silence", "Khoảng im lặng để dừng", "khoảng im lặng dừng vad ms"),
+            ("threads", "Số luồng Gipformer", "luồng cpu gipformer"),
+        )
+        self._general_items = [
+            SearchItem(f"general:{key}", TAB_GENERAL, title, (keywords,))
+            for key, title, keywords in general
+        ]
+        self._step_items = [
+            SearchItem(f"step:{group}", TAB_BUILTIN, STEP_TITLES[group], STEP_SEARCH_KEYWORDS[group],
+                       "Dùng khi nói tăng hoặc giảm không kèm số.")
+            for group in ("volume", "brightness")
+        ]
+        self._restore_items = [
+            SearchItem(f"restore:{kind}", TAB_RESTORE, title, ("khôi phục reset mặc định",), description)
+            for kind, title, description in RESTORE_ACTIONS
+        ]
+
+    def _search_index(self) -> list[SearchItem]:
+        """Rebuild the dynamic parts (phrasings and custom commands) from the current drafts."""
+        phrasings = self._builtin.effective_patterns()
+        items = list(self._general_items)
+        for name in self._builtin.intents():
+            items.append(SearchItem(
+                f"builtin:{name}", TAB_BUILTIN, ACTIONS.get(name, (name, {}))[0],
+                STEP_SEARCH_KEYWORDS.get(STEP_GROUPS.get(name, ""), ()),
+                " · ".join(phrasings.get(name, [])),
+            ))
+        items.extend(self._step_items)
+        for command in self._custom._commands:
+            action = ACTIONS.get(command["intent"], ("", {}))[0]
+            items.append(SearchItem(
+                f"custom:{command['id']}", TAB_CUSTOM, command["name"], (action,),
+                " · ".join(command["patterns"]),
+            ))
+        items.extend(self._restore_items)
+        return items
+
+    def _on_search_changed(self, text: str) -> None:
+        self._results.clear()
+        query = text.strip()
+        if not query:
+            self._stack.setCurrentWidget(self._tabs)
+            return
+        found = rank(self._search_index(), query)
+        for item in found:
+            row = QListWidgetItem(f"{item.title} — {item.tab}")
+            row.setData(Qt.ItemDataRole.UserRole, item.key)
+            self._results.addItem(row)
+        self._no_results.setVisible(not found)
+        self._results.setVisible(bool(found))
+        self._stack.setCurrentIndex(1)
+        if found:
+            self._results.setCurrentRow(0)
+
+    def _focus_search(self) -> None:
+        self._search.setFocus()
+        self._search.selectAll()
+
+    def _focus_results(self) -> None:
+        if self._results.count():
+            if self._results.currentRow() < 0:
+                self._results.setCurrentRow(0)
+            self._results.setFocus()
+
+    def _open_item(self, item: QListWidgetItem) -> None:
+        self._open_result(item.data(Qt.ItemDataRole.UserRole))
+
+    def _open_selected_result(self) -> None:
+        item = self._results.currentItem() or self._results.item(0)
+        if item is not None:
+            self._open_result(item.data(Qt.ItemDataRole.UserRole))
+
+    def _open_result(self, key: str) -> None:
+        """Clear the search, switch to the target tab and focus the row it names."""
+        kind, _, ident = key.partition(":")
+        self._search.clear()
+        if kind == "general":
+            self._tabs.setCurrentWidget(self._general_page)
+            self._general_targets[ident].setFocus()
+        elif kind == "builtin":
+            self._tabs.setCurrentWidget(self._builtin)
+            self._builtin.select_intent(ident)
+            self._builtin.focus_patterns()
+        elif kind == "step":
+            self._tabs.setCurrentWidget(self._builtin)
+            self._builtin.select_intent(STEP_ROW[ident])
+            self._builtin.focus_step()
+        elif kind == "custom":
+            self._tabs.setCurrentWidget(self._custom)
+            if self._custom.select_command(ident):
+                self._custom._list.setFocus()
+        elif kind == "restore":
+            self._tabs.setCurrentWidget(self._restore_page)
+            self._restore_buttons[ident].setFocus()
