@@ -328,7 +328,6 @@ def test_bare_phrase_has_no_amount_and_is_executable(parser: RuleParser, phrase:
     "phrase",
     [
         "tăng âm lượng to lên",
-        "tăng âm lượng lên 30",
         "giảm độ sáng 0%",
         "tăng độ sáng 101%",
         "giảm âm lượng 1000",
@@ -359,7 +358,19 @@ def test_direction_words_without_number_use_default_step(
     assert "amount" not in command.params
 
 
-@pytest.mark.parametrize("phrase", ["giảm âm lượng xuống 10%", "tăng âm lượng lên 30"])
-def test_absolute_looking_amount_is_not_guessed(parser: RuleParser, phrase: str) -> None:
-    # "xuống 10%" may mean "to 10%"; never apply it as a relative change.
-    assert parser.parse(phrase, None, Mode.COMMAND).intent is Intent.UNKNOWN
+@pytest.mark.parametrize(
+    "phrase,intent,amount",
+    [
+        ("giảm âm lượng xuống 10%", Intent.WIN_VOLUME_DOWN, "10"),
+        ("tăng âm lượng lên 30", Intent.WIN_VOLUME_UP, "30"),
+        ("giảm độ sáng xuống 25%", Intent.WIN_BRIGHTNESS_DOWN, "25"),
+    ],
+)
+def test_direction_word_with_amount_is_relative_change(
+    parser: RuleParser, phrase: str, intent: Intent, amount: str
+) -> None:
+    # "xuống 10%" means "down by 10%", not "set to 10%".
+    command = parser.parse(phrase, None, Mode.COMMAND)
+    assert command.intent is intent
+    assert command.is_executable
+    assert command.params["amount"] == amount

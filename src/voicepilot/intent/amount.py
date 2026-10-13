@@ -13,7 +13,7 @@ from voicepilot.intent.normalize import fold, normalize
 MIN_PERCENT = 1
 MAX_PERCENT = 100
 
-_LEADING_WORDS = frozenset({"them", "bot", "khoang"})  # thêm, bớt, khoảng
+_LEADING_WORDS = frozenset({"them", "bot", "khoang", "len", "xuong"})  # thêm, bớt, khoảng, lên, xuống
 _TRAILING_PHRASE = ("phan", "tram")  # phần trăm
 _TRAILING_WORD = "nua"  # nữa
 _UNITS = {
@@ -48,7 +48,8 @@ def parse_percent(text: str) -> int | None:
     """Return the whole percentage 1..100 spoken in text, or None when it is not one.
 
     Accepts digits with an optional "%" or "phần trăm", Vietnamese number words, and the
-    optional fillers "thêm", "bớt", "khoảng" at the start and "nữa" or "phần trăm" at the end.
+    optional fillers "thêm", "bớt", "khoảng", "lên", "xuống" at the start and "nữa" or "phần trăm"
+    at the end.
     """
     if not isinstance(text, str):
         return None

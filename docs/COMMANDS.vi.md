@@ -123,7 +123,7 @@ câu hỏi chỉ được chèn thành văn bản.
 | Tắt tiếng | `tắt tiếng`, `tắt âm thanh`, `tắt loa`, `mute`, `im lặng` | Đặt trạng thái tắt tiếng Windows, không đảo trạng thái. Nếu đã tắt tiếng thì báo đã tắt. Không điều khiển được âm thanh thì báo lỗi và không bấm phím nào. |
 | Bật tiếng | `bật tiếng`, `bật âm thanh`, `bật loa`, `mở tiếng`, `unmute`, `bỏ tắt tiếng` | Bật lại tiếng Windows, không đảo trạng thái. Nếu đã có tiếng thì báo đã bật. |
 
-Số đọc được: `30`, `30%`, `30 phần trăm`, `mười lăm`, `hai mươi mốt`, `một trăm`, từ 1 đến 100. Nói số ngoài khoảng này hoặc không phải số, như "tăng âm lượng to lên", sẽ không được thực hiện. "Tăng âm lượng lên" hoặc "giảm âm lượng xuống" dùng mức mặc định. Câu như "giảm âm lượng xuống 10%" không được thực hiện vì có thể hiểu là "còn 10%".
+Số đọc được: `30`, `30%`, `30 phần trăm`, `mười lăm`, `hai mươi mốt`, `một trăm`, từ 1 đến 100. Nói số ngoài khoảng này hoặc không phải số, như "tăng âm lượng to lên", sẽ không được thực hiện. "Tăng âm lượng lên" hoặc "giảm âm lượng xuống" dùng mức mặc định. "Giảm âm lượng xuống 10%" nghĩa là giảm thêm 10%, không phải đặt về 10%.
 | Phát nhạc | `play`, `phát nhạc`, `tiếp tục phát nhạc`, `bật nhạc` | Gửi Play đến phiên media đang được Windows chọn. |
 | Tạm dừng | `pause`, `tạm dừng nhạc`, `dừng nhạc`, `tạm dừng phát nhạc` | Gửi Pause riêng; không đảo trạng thái phát/tạm dừng. |
 | Bài tiếp | `bài tiếp theo`, `bài tiếp`, `next`, `next bài` | Chuyển bài trong phiên media hiện tại. |
