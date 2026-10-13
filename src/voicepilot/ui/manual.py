@@ -62,8 +62,8 @@ class UserManualWindow(QDialog):
             .joinpath("resources", "manual.vi.md")
             .read_text(encoding="utf-8")
         )
-        text = text.replace("Ctrl + Alt + Space", pretty_hotkey(config.hotkey_listen)).replace(
-            "Ctrl + Alt + D", pretty_hotkey(config.hotkey_mode)
+        text = text.replace("Ctrl + Alt + V", pretty_hotkey(config.hotkey_listen)).replace(
+            "Ctrl + Alt + M", pretty_hotkey(config.hotkey_mode)
         )
         text = text.replace("**0,8 giây**", f"**{config.silence_end_ms / 1000:g} giây**")
         parts = re.split(r"(?m)^## (.+)$", text)

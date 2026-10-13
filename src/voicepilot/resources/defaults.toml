@@ -3,8 +3,8 @@
 # Bảng [websites] và [apps] được gộp theo từng khóa: khóa của người dùng ghi đè khóa mặc định.
 # Khóa alias viết thường, giữ nguyên dấu tiếng Việt.
 
-hotkey_listen = "ctrl+alt+space"
-hotkey_mode = "ctrl+alt+d"
+hotkey_listen = "ctrl+alt+v"
+hotkey_mode = "ctrl+alt+m"
 input_policy = "voice"       # voice | remember | text
 last_input_channel = "voice" # voice | text
 vad_enabled = true
@@ -20,6 +20,7 @@ tts_voice = "vi_VN-vais1000-medium"
 history_size = 20
 volume_step_percent = 20     # % khi nói "tăng/giảm âm lượng" không kèm số
 brightness_step_percent = 20 # % khi nói "tăng/giảm độ sáng" không kèm số
+start_with_windows = true     # khởi động cùng Windows (chỉ bản đóng gói)
 
 # Website: tên nói -> URL. Có thể dùng thêm cách đọc tiếng Việt.
 [websites]

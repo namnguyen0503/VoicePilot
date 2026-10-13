@@ -355,3 +355,19 @@ def test_ctrl_f_focuses_search_box(qtbot: QtBot) -> None:
     qtbot.waitExposed(dialog)
     qtbot.keyClick(dialog._tabs, Qt.Key.Key_F, Qt.KeyboardModifier.ControlModifier)
     qtbot.waitUntil(lambda: QApplication.focusWidget() is dialog._search, timeout=2000)
+
+
+def test_start_with_windows_checkbox_maps_to_config(qtbot: QtBot, config_home: Path) -> None:
+    dialog = SettingsDialog(AppConfig())
+    qtbot.addWidget(dialog)
+    assert dialog._autostart_check.isChecked() is True
+    assert dialog._autostart_check.text() == "Khởi động cùng Windows"
+
+    dialog._autostart_check.setChecked(False)
+    assert dialog.collect().start_with_windows is False
+
+    with qtbot.waitSignal(dialog.settings_changed, timeout=2000) as blocker:
+        dialog.accept()
+
+    assert blocker.args[0].start_with_windows is False
+    assert load_config().start_with_windows is False

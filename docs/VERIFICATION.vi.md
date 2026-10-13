@@ -93,7 +93,7 @@ proxy/CA tổ chức thực tế nếu có, cùng endpoint model công khai và 
 Kiểm tra ZIP sau khi chuyển sang nơi khác:
 
 ```powershell
-.\.venv\Scripts\python.exe tools\verify_portable.py --zip dist\VoicePilot-0.1.1-win64.zip
+.\.venv\Scripts\python.exe tools\verify_portable.py --zip dist\VoicePilot-0.1.2-win64.zip
 ```
 
 Harness kiểm CRC rồi giải nén ZIP vào thư mục mới có dấu/khoảng trắng. Exe chạy từ thư mục

@@ -46,7 +46,7 @@ def test_factory_config_has_no_custom_or_overrides():
 
     result = restored_config(edited(), "factory")
     assert result.custom_commands == [] and result.builtin_patterns == {}
-    assert result.hotkey_listen == "ctrl+alt+space"
+    assert result.hotkey_listen == "ctrl+alt+v"
 
 
 def test_builtin_patterns_roundtrip_and_drive_app_parser_and_hotwords(tmp_path):

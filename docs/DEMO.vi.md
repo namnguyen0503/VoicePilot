@@ -9,7 +9,7 @@ các ô vòng nói thật bên dưới được giữ trống. Native hotkey/mic
 
 ## 1. Chuẩn bị
 
-- Laptop Windows 10 với micro hoạt động. Thử `Ctrl + Alt + Space` một lần trước khi quay.
+- Laptop Windows 10 với micro hoạt động. Thử `Ctrl + Alt + V` một lần trước khi quay.
 - PowerPoint desktop, mở tệp `Demo-VoicePilot.pptx` có ít nhất 5 slide. Tệp chưa lưu lần nào để thử "lưu thành".
 - Edge hoặc Chrome, một tab trống và hai tab khác để thử chuyển tab.
 - Thư mục `Pictures\VoicePilot` có thể truy cập.
@@ -48,7 +48,7 @@ Thứ tự này giữ cho cửa sổ luôn đúng ngữ cảnh. Đưa PowerPoint
 |---|---|---|---|
 | 13 | Desktop | "mở máy tính" | Mở Calculator. |
 | 14 | Desktop | "chụp màn hình" | Lưu PNG vào `Pictures\VoicePilot`; thanh nổi không xuất hiện trong ảnh. |
-| 15 | Notepad mở sẵn | Nhấn `Ctrl + Alt + D`, rồi nói "Xin chào, đây là bài kiểm thử chính tả." | Câu nói được chèn vào Notepad tại con trỏ. Nhấn `Ctrl + Alt + D` để quay lại chế độ lệnh. |
+| 15 | Notepad mở sẵn | Nhấn `Ctrl + Alt + M`, rồi nói "Xin chào, đây là bài kiểm thử chính tả." | Câu nói được chèn vào Notepad tại con trỏ. Nhấn `Ctrl + Alt + M` để quay lại chế độ lệnh. |
 
 Bước 13 và 14 có thể chạy trước bước 1 nếu cần đổi cửa sổ. Ghi lại thứ tự thực tế nếu khác kịch bản.
 

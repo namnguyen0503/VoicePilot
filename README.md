@@ -23,6 +23,7 @@ unzip and run `VoicePilot.exe`. No installation or Python needed.
   that map to any action or keyboard shortcut. Import and export them as JSON.
 - **Editable built-in commands:** change how each built-in command is phrased, and set the default
   volume/brightness step (20%).
+- **Starts with Windows** by default (can be turned off in Settings).
 - **Searchable settings** (Ctrl+F) and an in-app user manual.
 
 The full command list (in Vietnamese) is in [`docs/COMMANDS.vi.md`](docs/COMMANDS.vi.md).
@@ -31,8 +32,8 @@ The full command list (in Vietnamese) is in [`docs/COMMANDS.vi.md`](docs/COMMAND
 
 | Action | Default hotkey |
 |---|---|
-| Start listening | `Ctrl + Alt + Space` |
-| Switch command / dictation mode | `Ctrl + Alt + D` |
+| Start listening | `Ctrl + Alt + V` |
+| Switch command / dictation mode | `Ctrl + Alt + M` |
 
 A small overlay shows what was heard and what happened. It never takes focus from the app you are
 working in. Hotkeys, the speech engine and other options are in **Settings** (tray icon).

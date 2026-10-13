@@ -166,9 +166,9 @@ class SettingsDialog(QDialog):
         self._config = config
 
         self._listen_edit = QLineEdit(config.hotkey_listen)
-        self._listen_edit.setPlaceholderText("ví dụ: ctrl+alt+space")
+        self._listen_edit.setPlaceholderText("ví dụ: ctrl+alt+v")
         self._mode_edit = QLineEdit(config.hotkey_mode)
-        self._mode_edit.setPlaceholderText("ví dụ: ctrl+alt+d")
+        self._mode_edit.setPlaceholderText("ví dụ: ctrl+alt+m")
 
         self._stt_combo = QComboBox()
         for label, value in STT_CHOICES:
@@ -188,6 +188,9 @@ class SettingsDialog(QDialog):
 
         self._tts_check = QCheckBox("Đọc phản hồi bằng giọng nói")
         self._tts_check.setChecked(config.tts_enabled)
+
+        self._autostart_check = QCheckBox("Khởi động cùng Windows")
+        self._autostart_check.setChecked(config.start_with_windows)
 
         self._vad_check = QCheckBox("Tự dừng khi ngừng nói")
         self._vad_check.setChecked(config.vad_enabled)
@@ -211,6 +214,7 @@ class SettingsDialog(QDialog):
         form.addRow("Tab khi mở lại", self._input_policy_combo)
         form.addRow("Nhận dạng giọng nói", self._stt_combo)
         form.addRow("", self._tts_check)
+        form.addRow("", self._autostart_check)
         form.addRow("", self._vad_check)
         form.addRow("Khoảng im lặng để dừng", self._silence_spin)
         form.addRow("Số luồng Gipformer", self._threads_spin)
@@ -247,6 +251,7 @@ class SettingsDialog(QDialog):
             "input_policy": self._input_policy_combo,
             "stt": self._stt_combo,
             "tts": self._tts_check,
+            "autostart": self._autostart_check,
             "vad": self._vad_check,
             "silence": self._silence_spin,
             "threads": self._threads_spin,
@@ -326,6 +331,7 @@ class SettingsDialog(QDialog):
             stt_mode=stt_mode,
             input_policy=self._input_policy_combo.currentData(),
             tts_enabled=self._tts_check.isChecked(),
+            start_with_windows=self._autostart_check.isChecked(),
             vad_enabled=self._vad_check.isChecked(),
             silence_end_ms=self._silence_spin.value(),
             gipformer_threads=self._threads_spin.value(),
@@ -354,6 +360,7 @@ class SettingsDialog(QDialog):
             self._stt_combo.setCurrentIndex(self._stt_combo.findData(config.stt_mode))
             self._input_policy_combo.setCurrentIndex(self._input_policy_combo.findData(config.input_policy))
             self._tts_check.setChecked(config.tts_enabled)
+            self._autostart_check.setChecked(config.start_with_windows)
             self._vad_check.setChecked(config.vad_enabled)
             self._silence_spin.setValue(config.silence_end_ms)
             self._threads_spin.setValue(config.gipformer_threads)
@@ -402,6 +409,8 @@ class SettingsDialog(QDialog):
             ("input_policy", "Tab khi mở lại", "tab voice text tab mở lại nhớ"),
             ("stt", "Nhận dạng giọng nói", "nhận dạng giọng nói google gipformer offline stt hybrid"),
             ("tts", "Đọc phản hồi bằng giọng nói", "đọc phản hồi giọng nói tts"),
+            ("autostart", "Khởi động cùng Windows",
+             "khởi động startup tự chạy mở cùng windows autostart"),
             ("vad", "Tự dừng khi ngừng nói", "tự dừng im lặng vad"),
             ("silence", "Khoảng im lặng để dừng", "khoảng im lặng dừng vad ms"),
             ("threads", "Số luồng Gipformer", "luồng cpu gipformer"),

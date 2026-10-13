@@ -517,3 +517,33 @@ def test_shutdown_disposes_input_windows_before_qapplication_teardown(make_app):
     app.shutdown()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     assert all(not isValid(window) for window in windows)
+
+
+def test_settings_change_syncs_the_windows_autostart_entry(
+    make_app: Callable[[AppConfig], bootstrap.VoicePilot], engines: _Engines, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from voicepilot.windows import autostart
+
+    calls: list[bool] = []
+    monkeypatch.setattr(autostart, "sync", lambda enabled, **_kwargs: calls.append(enabled) or True)
+    app = make_app(AppConfig())
+
+    app._apply_settings(replace(AppConfig(), start_with_windows=False))
+
+    assert calls == [False]
+
+
+def test_autostart_failure_never_stops_settings_from_applying(
+    make_app: Callable[[AppConfig], bootstrap.VoicePilot], engines: _Engines, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from voicepilot.windows import autostart
+
+    def broken(_enabled, **_kwargs):
+        raise RuntimeError("registry exploded")
+
+    monkeypatch.setattr(autostart, "sync", broken)
+    app = make_app(AppConfig())
+
+    app._apply_settings(replace(AppConfig(), tts_enabled=False))
+
+    assert app._config.tts_enabled is False

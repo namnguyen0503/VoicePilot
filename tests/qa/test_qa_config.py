@@ -19,8 +19,8 @@ def write(path: Path, text: str, encoding: str = "utf-8") -> Path:
 
 def test_shipped_defaults_match_plan(config_home):
     cfg = load_config()
-    assert cfg.hotkey_listen == "ctrl+alt+space"  # PLAN §1
-    assert cfg.hotkey_mode == "ctrl+alt+d"
+    assert cfg.hotkey_listen == "ctrl+alt+v"  # PLAN §1
+    assert cfg.hotkey_mode == "ctrl+alt+m"
     assert cfg.silence_end_ms == 800
     assert cfg.max_command_s == 15 and cfg.max_dictation_s == 30  # PLAN §2 limits
     assert cfg.google_timeout_s == 2.0

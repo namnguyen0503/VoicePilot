@@ -46,8 +46,8 @@ class AppConfig:
     to a URL (websites) or a launch target such as "POWERPNT.EXE" (apps).
     """
 
-    hotkey_listen: str = "ctrl+alt+space"
-    hotkey_mode: str = "ctrl+alt+d"
+    hotkey_listen: str = "ctrl+alt+v"
+    hotkey_mode: str = "ctrl+alt+m"
     input_policy: str = "voice"
     last_input_channel: str = "voice"
     vad_enabled: bool = True
@@ -63,6 +63,7 @@ class AppConfig:
     history_size: int = 20
     volume_step_percent: int = 20
     brightness_step_percent: int = 20
+    start_with_windows: bool = True
     overlay_pos: tuple[int, int] | None = None
     website_aliases: dict[str, str] = field(default_factory=dict)
     app_aliases: dict[str, str] = field(default_factory=dict)

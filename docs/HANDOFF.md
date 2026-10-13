@@ -231,8 +231,8 @@ Hotkey (windows/hotkeys.py) ──signal──▶ Controller (controller.py, mai
 3. Chỉ "tiếp theo"/"quay lại" đổi nghĩa theo cửa sổ. Khóa `context` trong `commands.toml` chỉ phá hòa.
 4. Parser bỏ lời đệm ("làm ơn", "giúp tôi", "nhé", "ạ"); "đi"/"với" chỉ bỏ ở lệnh ngắn hoặc tên site/app.
 5. Tên tệp khi lưu: NFC, chặn ký tự điều khiển và tên thiết bị, ≤240 ký tự, trùng thì thêm " (2)".
-6. Hotkey mặc định `Ctrl+Alt+Space` / `Ctrl+Alt+D`, nhưng trên máy Nam bị app khác giữ (lỗi 1409);
-   Nam dùng `ctrl+alt+v` / `ctrl+alt+m` trong config. Chưa đổi mặc định.
+6. Hotkey mặc định `Ctrl+Alt+V` / `Ctrl+Alt+M` (đổi từ `Ctrl+Alt+Space` / `Ctrl+Alt+D`, vốn bị app khác giữ
+   trên máy Nam, lỗi 1409). Không dùng `Ctrl+Shift+V` vì trùng "dán không định dạng".
 7. Chính tả offline/hybrid chọn decoder greedy riêng, nạp lười và cache, không dùng hotwords lệnh.
    Lần chính tả offline đầu có thêm thời gian nạp model và sử dụng RAM cho decoder thứ hai.
 8. Website vẫn được ưu tiên cho "mở Zalo". Dùng "mở ứng dụng Zalo" hoặc "mở trang Zalo" để chọn rõ đích.

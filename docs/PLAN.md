@@ -24,9 +24,9 @@ Giao diện dùng thanh nổi khoảng 520 px, nền tối, điểm nhấn xanh,
 
 Mặc định:
 
-- `Ctrl + Alt + Space`: bắt đầu nghe; nhấn lại để kết thúc sớm.
+- `Ctrl + Alt + V`: bắt đầu nghe; nhấn lại để kết thúc sớm.
 - Tự kết thúc sau khoảng 800 ms im lặng.
-- `Ctrl + Alt + D`: đổi giữa **Ra lệnh** và **Đọc chính tả**.
+- `Ctrl + Alt + M`: đổi giữa **Ra lệnh** và **Đọc chính tả**.
 - Có nút hủy lượt đang xử lý; phím tắt được đổi trong cài đặt.
 - Mỗi lệnh nhận một câu phản hồi ngắn. Đọc chính tả chỉ báo trạng thái.
 - Thanh nổi không lấy focus khỏi ứng dụng đích.

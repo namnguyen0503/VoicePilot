@@ -613,6 +613,7 @@ class VoicePilot(QObject):
         self._tray.set_hotkeys(config.hotkey_listen, config.hotkey_mode)
         if self._manual is not None:
             self._manual.set_config(config)
+        _sync_autostart(config.start_with_windows)
 
     def _on_overlay_moved(self, x: int, y: int) -> None:
         self._config = replace(self._config, overlay_pos=(x, y))
@@ -620,6 +621,16 @@ class VoicePilot(QObject):
             save_config(self._config)
         except OSError as exc:
             log.warning("could not save overlay position: %s", type(exc).__name__)
+
+
+def _sync_autostart(enabled: bool) -> None:
+    """Keep the Windows Run entry in step with the setting. A failure is logged, never raised."""
+    from voicepilot.windows.autostart import sync
+
+    try:
+        sync(enabled)
+    except Exception as exc:  # the Run entry must never stop the app from starting
+        log.warning("autostart update failed: %s", type(exc).__name__)
 
 
 # ----- command line ---------------------------------------------------------------
@@ -952,6 +963,7 @@ def main(argv: list[str] | None = None) -> int:
     setup_logging(debug=args.debug)
 
     config = load_config()
+    _sync_autostart(config.start_with_windows)
     qt_app.setStyleSheet(_load_style())
     windows = sys.platform == "win32"
     if not windows:

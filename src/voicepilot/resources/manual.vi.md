@@ -4,7 +4,7 @@ VoicePilot nghe lệnh bằng tiếng Việt và thực hiện trên PowerPoint,
 
 ## Cách dùng nhanh
 
-- Nhấn **Ctrl + Alt + Space** để bắt đầu nghe, nói lệnh, rồi chờ phản hồi. Nhấn lại **Ctrl + Alt + Space** để kết thúc sớm. Nếu bạn im lặng khoảng **0,8 giây** sau khi nói, VoicePilot tự kết thúc lượt.
+- Nhấn **Ctrl + Alt + V** để bắt đầu nghe, nói lệnh, rồi chờ phản hồi. Nhấn lại **Ctrl + Alt + V** để kết thúc sớm. Nếu bạn im lặng khoảng **0,8 giây** sau khi nói, VoicePilot tự kết thúc lượt.
 - Trong **Cài đặt**, bật **Tự dừng khi ngừng nói**. Mặc định dừng sau 800 ms im lặng;
   có thể tăng khoảng này khi đọc chính tả và hay nghỉ giữa câu. Tắt tùy chọn để kết thúc
   bằng phím nghe lần nữa hoặc hết thời lượng. Không nói trong 5 giây thì tự hủy lượt nghe.
@@ -12,13 +12,16 @@ VoicePilot nghe lệnh bằng tiếng Việt và thực hiện trên PowerPoint,
   và tiếng gõ phím. Khoảng chờ tính từ lúc bộ phát hiện xác nhận hết tiếng nói nên thực tế
   có thể dài hơn 800 ms. Tiếng TV/người khác nói vẫn có thể được nhận là tiếng nói;
   khi tiếng ồn lấn át giọng, hãy đưa micro gần miệng hoặc nhấn phím nghe để kết thúc sớm.
-- Nhấn **Ctrl + Alt + D** để chuyển giữa **Ra lệnh** và **Đọc chính tả**.
+- Nhấn **Ctrl + Alt + M** để chuyển giữa **Ra lệnh** và **Đọc chính tả**.
 - Mỗi lần chỉ nói **một câu, một lệnh**. Các từ lịch sự ở đầu hoặc cuối câu sẽ bị bỏ qua:
   - Ở đầu câu: "làm ơn", "giúp tôi", "giúp mình", "giùm", "giùm tôi", "giùm mình", "cho tôi", "cho mình", "hãy", "ơi".
   - Ở cuối câu: "làm ơn", "giúp tôi", "giúp mình", "giùm", "giùm tôi", "giùm mình", "nhé", "ạ", "ơi".
   - Với lệnh ngắn hoặc tên website, tên ứng dụng: "đi" và "với" ở cuối câu cũng bị bỏ qua, ví dụ "mở youtube đi" hay "slide tiếp với".
   - Với nội dung tìm kiếm, tên tệp: chỉ bỏ các từ lịch sự, còn "đi" và "với" được giữ lại. Ví dụ "tìm đường đi" tìm đúng "đường đi".
 - Muốn đổi phím tắt, vào mục **Cài đặt** của VoicePilot.
+- VoicePilot tự chạy khi đăng nhập Windows (mặc định bật). Tắt bằng ô **Khởi động cùng Windows**
+  ở tab Chung. Nếu chuyển thư mục VoicePilot đi nơi khác, mở app một lần để cập nhật đường dẫn;
+  trước khi xóa thư mục, hãy tắt ô này.
 
 ## Voice và Text
 
@@ -141,7 +144,7 @@ chưa lưu plan trước đó, app không đoán plan cũ: hãy chọn lại tro
 
 | Chức năng | Cách dùng | Ghi chú |
 |---|---|---|
-| Chèn văn bản | Nhấn **Ctrl + Alt + D** để vào chế độ Đọc chính tả, rồi nói nội dung cần chèn. | Văn bản được chèn tại vị trí con trỏ. Trong chế độ này mọi câu nói đều là văn bản, không chạy như lệnh: nói "mở Word" sẽ chèn đúng chữ "mở Word". Nhấn **Ctrl + Alt + D** lần nữa để quay lại Ra lệnh. |
+| Chèn văn bản | Nhấn **Ctrl + Alt + M** để vào chế độ Đọc chính tả, rồi nói nội dung cần chèn. | Văn bản được chèn tại vị trí con trỏ. Trong chế độ này mọi câu nói đều là văn bản, không chạy như lệnh: nói "mở Word" sẽ chèn đúng chữ "mở Word". Nhấn **Ctrl + Alt + M** lần nữa để quay lại Ra lệnh. |
 
 ## Từ mơ hồ: cửa sổ đang dùng quyết định
 
@@ -287,5 +290,5 @@ Hai lựa chọn đầu chỉ sửa bản nháp: nhấn **Lưu** để áp dụn
 có hộp xác nhận riêng và thực hiện ngay khi xác nhận; không thể hoàn tác. Nếu app đã
 bật Power saver và còn lưu plan cũ, factory reset khôi phục plan đó trước khi xóa dữ
 liệu. Bản cài đặt, model, tệp tài liệu và ảnh trong `Pictures\VoicePilot` được giữ.
-Phím tắt gốc sau khôi phục setting/factory reset là **Ctrl + Alt + Space** và
-**Ctrl + Alt + D**; bạn có thể sửa lại ở tab Chung.
+Phím tắt gốc sau khôi phục setting/factory reset là **Ctrl + Alt + V** và
+**Ctrl + Alt + M**; bạn có thể sửa lại ở tab Chung.

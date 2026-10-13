@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -45,8 +46,8 @@ def test_audio_clip_duration_uses_int16_mono_samples() -> None:
 
 def test_load_config_returns_bundled_defaults(config_home: Path) -> None:
     cfg = load_config()
-    assert cfg.hotkey_listen == "ctrl+alt+space"
-    assert cfg.hotkey_mode == "ctrl+alt+d"
+    assert cfg.hotkey_listen == "ctrl+alt+v"
+    assert cfg.hotkey_mode == "ctrl+alt+m"
     assert cfg.silence_end_ms == 800
     assert cfg.max_command_s == 15
     assert cfg.max_dictation_s == 30
@@ -224,3 +225,22 @@ def test_alias_table_that_is_not_a_table_keeps_default_entries(config_home: Path
 def test_fractional_overlay_position_is_ignored(config_home: Path) -> None:
     path = _write_user_file(config_home, b"overlay_pos = [1.5, 2]\n")
     assert load_config(path).overlay_pos is None
+
+
+def test_start_with_windows_defaults_to_true(config_home: Path) -> None:
+    assert AppConfig().start_with_windows is True
+    assert load_config().start_with_windows is True
+
+
+def test_start_with_windows_round_trips_through_config_file(config_home: Path) -> None:
+    save_config(replace(AppConfig(), start_with_windows=False))
+
+    assert load_config().start_with_windows is False
+    assert "start_with_windows = false" in (config_home / "config.toml").read_text(encoding="utf-8")
+
+
+def test_wrongly_typed_start_with_windows_falls_back_to_true(config_home: Path) -> None:
+    config_home.mkdir(parents=True, exist_ok=True)
+    (config_home / "config.toml").write_text('start_with_windows = "no"\n', encoding="utf-8")
+
+    assert load_config().start_with_windows is True
