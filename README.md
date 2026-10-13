@@ -1,10 +1,14 @@
 # VoicePilot
 
-**Ngôn ngữ / Language:** [🇻🇳 Tiếng Việt](#tieng-viet) · [🇬🇧 English](#english)
+<p align="center">
+  <a href="#tieng-viet"><img src="docs/assets/flag-vn.png" width="24" height="18" alt="VN"> <b>Tiếng Việt</b></a>
+  &nbsp;&nbsp;|&nbsp;&nbsp;
+  <a href="#english"><img src="docs/assets/flag-gb.png" width="24" height="18" alt="GB"> <b>English</b></a>
+</p>
 
 <a id="tieng-viet"></a>
 
-## Tiếng Việt
+## <img src="docs/assets/flag-vn.png" width="24" height="18" alt="VN"> Tiếng Việt
 
 Trợ lý giọng nói tiếng Việt cho Windows. Nhấn phím tắt, nói lệnh bằng tiếng Việt, VoicePilot sẽ
 điều khiển PowerPoint, Word, Excel, Edge/Chrome và Windows, hoặc gõ giúp bạn những gì bạn đọc vào
@@ -69,7 +73,9 @@ dùng espeak-ng để đọc văn bản). Xem [`LICENSE`](LICENSE) và
 
 ---
 
-## English
+<a id="english"></a>
+
+## <img src="docs/assets/flag-gb.png" width="24" height="18" alt="GB"> English
 
 A Vietnamese voice assistant for Windows. Press a hotkey, say a command in Vietnamese, and
 VoicePilot controls PowerPoint, Word, Excel, Edge/Chrome and Windows itself, or types what you
